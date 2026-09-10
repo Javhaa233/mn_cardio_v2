@@ -6,6 +6,11 @@ backend moves.
 
 Live test server: **`https://mncardio.itsystem.mn`** — build against this.
 
+> **New here?** [QUICKSTART.md](QUICKSTART.md) gets you from nothing to real data in about
+> ten minutes. [`postman/`](postman/) lets you click through every endpoint on this page, and
+> [`client/`](client/) has a runnable smoke test plus the Dart module already written.
+> This file is the reference you come back to, not the one you start with.
+
 Base URL in local development: `http://<host>:5001` — port is `process.env.PORT || 5001`
 (`server.js:382`). Health: `GET /health`.
 
@@ -171,8 +176,18 @@ Self-service reset exists for both audiences and is the flow the tender requires
   `POST /api/PatientUser/ResetPassword {UserName, Token, Password}`
 - Staff: `POST /api/User/ForgetPassword` (note the spelling) → `POST /api/User/ResetPassword`
 
-Both are public routes. The patient reset applies **no password-complexity rule**; the staff
-one does.
+Both are public routes.
+
+**Password complexity — read the deployment note.** The rule is at least 8 characters with an
+uppercase letter, a lowercase letter, a digit and a special character. It used to be enforced
+on the staff routes only, so `"abc"` was an acceptable patient password. `helper/PasswordPolicy.js`
+now holds the single definition and both audiences enforce it, in `ResetPassword` and
+`ChangePassword` alike.
+
+That fix is in the source you have. **The test server is still running an older build** and
+accepts a weak patient password today — verified 2026-09-10. Validate against the rule
+client-side regardless of what the server currently lets through, and expect the server to
+start rejecting once it is redeployed.
 
 ### Security conditions you must not design around
 
@@ -291,11 +306,21 @@ POST /api/patient/rehab/vitals       { ExerciseId, Phase, Pulse, BloodPressure, 
 GET  /api/patient/rehab/assessment
 ```
 
-**All six return 500 today.** The handlers and all four Sequelize models
-(`model/Rehabilitation/`) are written, but the tables do not exist —
-`scripts/add_rehabilitation_tables.sql` has not been run. This is a single DDL execution
-away from working; nothing else is missing. Build against the shapes below and expect them
-to light up.
+**All six answer 200 on the test server** — verified 2026-09-10.
+`scripts/add_rehabilitation_tables.sql` has been run against `MnCardio_test`, so the four
+tables exist and the handlers work. `POST rehab/vitals` returns a real `{Id}`.
+
+Two caveats before you treat the module as finished:
+
+- **`GET rehab/exercises` returns `{"data":[],"total":0}`.** The catalogue has no rows. The
+  exercise list, its categories and the 39 videos are customer decisions still open in
+  [BLOCKERS.md](BLOCKERS.md) §1. An empty list is the correct response today, not a fault —
+  build the screen and it will fill.
+- **Production has not had the script run.** This is an environment difference, so the DDL
+  stays on the outstanding list in [READINESS.md](READINESS.md) §3. Do not read "works on
+  test" as "shipped".
+
+Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 
 - exercises → `Id, Code, Name, Description, CategoryCode, DurationSec, OrderNo, MediaRef`
 - progress → `Id, ExerciseId, CompletedAt, DurationSec, Notes`
@@ -514,7 +539,7 @@ Do not spend a sprint discovering these.
 
 | Endpoint / surface | State |
 |---|---|
-| `/api/patient/rehab/*` (6 routes) | **500** — tables not created; code and models are complete |
+| `/api/patient/rehab/*` (6 routes) | **200 on test** — tables created 2026-09-10. But the exercise catalogue is **empty**, and production has not had the DDL run |
 | `/api/patient/risk` | returns inputs only, **no score** — methodology unapproved |
 | `/api/patient/evisits` | complaint box; no booking, status, doctor or video |
 | `/api/Notification/GetListData` | **patients are denied every row** — `Notification` is not in `PatientScope`; no mark-read route exists. Still open. |

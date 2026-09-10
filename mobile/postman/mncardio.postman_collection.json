@@ -1,0 +1,1124 @@
+{
+  "info": {
+    "_postman_id": "a7c4e2f8-1b93-4d56-8e07-9f2a6c3b5d14",
+    "name": "MnCardio — mobile API",
+    "description": "The endpoints the Android/iOS app needs, and nothing else.\n\nSee mobile/QUICKSTART.md to get started and mobile/API.md for the full contract.\n\nHow to use it:\n1. Import mncardio.postman_environment.json and select it.\n2. Fill patientUser / patientPassword / doctorUser / doctorPassword. Ask ITsystem for them — they are never committed.\n3. Run `01 Auth → Patient login` and `01 Auth → Doctor login`. Each stores its token in the environment, and every other request picks it up automatically.\n\nTwo things to keep in mind while clicking around:\n\n• The `/api/patient`, `/api/doctor` and `/api/auth` folders use the lowercase envelope `{success, message, data}` and real HTTP status codes.\n• `/api/Chat`, `/api/Advice` and the login endpoints are the legacy layer: PascalCase `{Success, Message, Data, Option}`, POST for everything, and **HTTP 200 even on failure**. A green 200 in Postman does not mean the call worked — read the `Success` field.\n\nThe patient username is a Cyrillic registration number (ПП…), not Latin PP. Paste it, do not type it.\n\nThis collection is published to a public-facing repository. It must never contain a real credential.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{doctorToken}}", "type": "string" }]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// The web frontend sends this header on every request and some handlers read it.",
+          "if (!pm.request.headers.has('app')) {",
+          "    pm.request.headers.add({ key: 'app', value: '1' });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// The legacy layer answers HTTP 200 for every failure, so a status assertion",
+          "// alone would report a broken call as green. Check the envelope instead.",
+          "let body = null;",
+          "try { body = pm.response.json(); } catch (e) { /* binary or empty */ }",
+          "if (body && typeof body === 'object') {",
+          "    if (Object.prototype.hasOwnProperty.call(body, 'Success')) {",
+          "        pm.test('legacy envelope: Success is true', function () {",
+          "            pm.expect(body.Success, body.Message || 'no message').to.eql(true);",
+          "        });",
+          "    } else if (Object.prototype.hasOwnProperty.call(body, 'success')) {",
+          "        pm.test('mobile envelope: success is true', function () {",
+          "            pm.expect(body.success, (body.code || '') + ' ' + (body.message || '')).to.eql(true);",
+          "        });",
+          "    }",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [],
+  "item": [
+    {
+      "name": "00 Health",
+      "item": [
+        {
+          "name": "Health check",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "No token required. Returns {\"status\":\"ok\",\"timestamp\":\"...\"}. If this fails, nothing else will work."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "01 Auth",
+      "description": "Login, session and password reset. Note the spelling split: the staff route is ForgetPassword, the patient route is ForgotPassword.",
+      "item": [
+        {
+          "name": "Patient login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('login succeeded', function () {",
+                  "    pm.expect(j.Success, j.Message || 'no message').to.eql(true);",
+                  "});",
+                  "if (j && j.Success === true && j.Data && j.Data.token) {",
+                  "    pm.environment.set('patientToken', j.Data.token);",
+                  "    if (j.Data.LogedUser && j.Data.LogedUser.Patient) {",
+                  "        pm.environment.set('patientId', j.Data.LogedUser.Patient.id_data);",
+                  "    }",
+                  "    console.log('patientToken stored');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserName\": \"{{patientUser}}\",\n  \"Password\": \"{{patientPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/PatientUser/Login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "PatientUser", "Login"]
+            },
+            "description": "Legacy envelope — the token is at **Data.token**, capital D. Stores it as {{patientToken}}.\n\nThe username is the patient's registration number and starts with Cyrillic letters (ПП…). A wrong password returns HTTP 200 with Success:false."
+          },
+          "response": []
+        },
+        {
+          "name": "Doctor login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "pm.test('login succeeded', function () {",
+                  "    pm.expect(j.Success, j.Message || 'no message').to.eql(true);",
+                  "});",
+                  "if (j && j.Success === true && j.Data && j.Data.token) {",
+                  "    pm.environment.set('doctorToken', j.Data.token);",
+                  "    console.log('doctorToken stored');",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserName\": \"{{doctorUser}}\",\n  \"Password\": \"{{doctorPassword}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/User/Login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "User", "Login"]
+            },
+            "description": "Excludes RoleId 4, and the account must have a linked DoctorsProfile row — without one, login fails even with the right password. Stores {{doctorToken}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Get a refresh token (Bearer access token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.success === true && j.data && j.data.refreshToken) {",
+                  "    pm.environment.set('refreshToken', j.data.refreshToken);",
+                  "    pm.environment.set('doctorToken', j.data.token);",
+                  "    console.log('refreshToken stored, expiresIn=' + j.data.expiresIn);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "Neither login endpoint returns a refresh token. You trade a still-valid access token for one, once, by calling this with no body and the access token as Bearer.\n\nReturns {token, refreshToken, expiresIn: 36000, LogedUser}. The refresh token lasts 30 days."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh with a refresh token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.success === true && j.data) {",
+                  "    pm.environment.set('doctorToken', j.data.token);",
+                  "    pm.environment.set('refreshToken', j.data.refreshToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "refresh"]
+            },
+            "description": "The steady-state refresh. Call it before the 10-hour access token expires rather than reacting to a 401.\n\nAn access token cannot be used as a refresh token or vice versa — refresh tokens carry typ:\"refresh\" and both are checked."
+          },
+          "response": []
+        },
+        {
+          "name": "Session check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/session",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "session"]
+            },
+            "description": "Says whether an access token is still good and who it belongs to, without provoking an error from a data endpoint. Use it on app launch.\n\nReturns {Id, UserName, RoleId, OrganizationId, IsPatient}. Note RoleId is a **number** here and a **string** on /api/doctor/me."
+          },
+          "response": []
+        },
+        {
+          "name": "Patient — forgot password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"UserName\": \"{{patientUser}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/PatientUser/ForgotPassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "PatientUser", "ForgotPassword"]
+            },
+            "description": "Sends an emailed reset link. Public route. Spelled Forgot on the patient side and Forget on the staff side.\n\nSMTP is not configured on the test server, so this will not actually deliver mail there."
+          },
+          "response": []
+        },
+        {
+          "name": "Patient — reset password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserName\": \"{{patientUser}}\",\n  \"Token\": \"<from the emailed link>\",\n  \"Password\": \"<new password>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/PatientUser/ResetPassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "PatientUser", "ResetPassword"]
+            },
+            "description": "Completes the reset. Token comes from the emailed link."
+          },
+          "response": []
+        },
+        {
+          "name": "Patient — change password",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [{ "key": "token", "value": "{{patientToken}}", "type": "string" }]
+            },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"Password\": \"<current>\",\n  \"NewPassword\": \"<new>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/PatientUser/ChangePassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "PatientUser", "ChangePassword"]
+            },
+            "description": "Requires a valid patient token. Changes the password of the account you are logged in as — on the test server this will change a shared test account, so coordinate before sending."
+          },
+          "response": []
+        },
+        {
+          "name": "Staff — forget password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"UserName\": \"{{doctorUser}}\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/User/ForgetPassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "User", "ForgetPassword"]
+            },
+            "description": "Note the spelling — ForgetPassword, not Forgot. Public route."
+          },
+          "response": []
+        },
+        {
+          "name": "Staff — reset password",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"UserName\": \"{{doctorUser}}\",\n  \"Token\": \"<from the emailed link>\",\n  \"Password\": \"<new password>\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/User/ResetPassword",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "User", "ResetPassword"]
+            },
+            "description": "Password rule: at least 8 characters with an uppercase letter, a lowercase letter, a digit and a special character.\n\nIt is now defined once in helper/PasswordPolicy.js and enforced on both the staff and patient routes. The test server is still running an older build that accepts a weak patient password, so validate client-side regardless — see API.md § Passwords."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout (client-side only)",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/User/LogOut",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "User", "LogOut"]
+            },
+            "description": "Returns success but invalidates nothing server-side — the token stays valid until it expires. Logging out is deleting your stored tokens."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "02 Patient — Үйлчлүүлэгчийн модуль",
+      "description": "Tender §2, modules 2.1–2.7. Lowercase envelope, real status codes, `?limit` (default 20, max 100) and `?offset`, `?from`/`?to` on the resource's own date column.\n\nNo endpoint here accepts a patient identifier — it always comes from the token. There is nowhere to put someone else's id, which is the point of the surface.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{patientToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "2.1 Миний бүртгэл — my record",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "me"]
+            },
+            "description": "404 NOT_FOUND if the account has no linked Patient row; 403 PATIENT_NOT_RESOLVED if the link is missing entirely."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Миний тэмдэглэл — journal list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/journal?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "journal"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" },
+                { "key": "from", "value": "2024-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Newest first. Returns blood_pressure and blood_pressure2 (diastolic)."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Миний тэмдэглэл — add a reading",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-10\",\n  \"time\": \"08:30\",\n  \"blood_pressure\": \"120\",\n  \"pulse\": \"72\",\n  \"weight\": \"75\",\n  \"inr\": null,\n  \"comment\": \"Postman-аас нэмсэн тэмдэглэл\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/journal",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "journal"]
+            },
+            "description": "`date` is required — omit it and you get 400 DATE_REQUIRED.\n\nAsymmetry worth knowing: reads return blood_pressure2 but **create does not accept it**, so a patient cannot record diastolic pressure through this endpoint even though the chart plots it.\n\nThis writes to the shared test database."
+          },
+          "response": []
+        },
+        {
+          "name": "2.2 Миний тэмдэглэл — chart summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/journal/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "journal", "summary"],
+              "query": [
+                { "key": "from", "value": "2024-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Returns {labels, series:{blood_pressure, blood_pressure2, pulse, weight}} ascending, capped at 365 points. Built server-side so you just plot it."
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Эмчээс асуух асуулт — thread",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/questions?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "questions"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "`is_doctor` distinguishes the reply from the question. `doctor_name` is null on the patient's own entries."
+          },
+          "response": []
+        },
+        {
+          "name": "2.3 Эмчээс асуух асуулт — ask",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"comment\": \"Эмчээс асуух асуулт — Postman тест\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "questions"]
+            },
+            "description": "`comment` required, else 400 COMMENT_REQUIRED. Writes to the shared test database."
+          },
+          "response": []
+        },
+        {
+          "name": "2.4 Эмчийн зөвлөгөө — advice",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/advice?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "advice"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Read-only by design — advice is doctor-authored.\n\nTwo data facts that change your UI: `body` is empty on 57% of tickets because the clinical content sits in the first reply (use `comments[0]`), and no notification is delivered when advice arrives. Do not build a badge you cannot feed."
+          },
+          "response": []
+        },
+        {
+          "name": "2.5 Эрсдэл үнэлгээ — risk inputs",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/risk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "risk"]
+            },
+            "description": "Returns {bodySize, history} — raw inputs only. **No score and no risk class is computed**: the methodology and its risk classes are an unapproved ЗСҮТ deliverable.\n\nDo not invent a formula. A wrong cardiovascular risk number shown to a patient is a clinical safety problem, not a rounding error.\n\nNote two spellings in the payload: body weight is `bodySize.Weigth` (a typo baked into the database) and BMI comes back as `BJI`."
+          },
+          "response": []
+        },
+        {
+          "name": "2.6 Цахим үзлэг — list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/evisits?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "evisits"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Fields are **PascalCase inside the lowercase envelope** — Id, Comment, CreateDate — because RemoteVisit is a newer-generation table. The envelope tells you nothing about the field names inside it.\n\nThis is a complaint box, not a booking system: no scheduling, no status, no doctor assignment, no video."
+          },
+          "response": []
+        },
+        {
+          "name": "2.6 Цахим үзлэг — submit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"Comment\": \"Цахим үзлэгийн хүсэлт — Postman тест\"\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/evisits",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "evisits"]
+            },
+            "description": "Capital C on `Comment` here, lowercase on /questions. Required, else 400 COMMENT_REQUIRED."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — exercises",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/exercises",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "exercises"]
+            },
+            "description": "Returns 200 with an **empty array** on the test server today: the tables exist but no exercises have been seeded, because the exercise list, categories and the 39 videos are still customer decisions.\n\nAn empty list here is correct, not a broken endpoint. Unlike its siblings this route takes no limit/offset."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — progress list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/progress?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "progress"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — record progress",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ExerciseId\": 1,\n  \"DurationSec\": 300,\n  \"Notes\": \"Postman тест\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/progress",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "progress"]
+            },
+            "description": "`ExerciseId` required, else 400 EXERCISE_REQUIRED. Since the exercise catalogue is empty today, any id you send is unmatched — expect this to be usable once exercises are seeded."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — vitals",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/vitals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "vitals"],
+              "query": [
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Returns {rows, labels, series:{pulse, spo2}}, capped at 365 points."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — record vitals",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ExerciseId\": null,\n  \"Phase\": \"before\",\n  \"Pulse\": 72,\n  \"BloodPressure\": \"120/80\",\n  \"Spo2\": 98,\n  \"Borg\": 11,\n  \"Notes\": \"Postman тест\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/vitals",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "vitals"]
+            },
+            "description": "No validation at all on this one — every field is optional. Returns {Id}. Writes to the shared test database."
+          },
+          "response": []
+        },
+        {
+          "name": "2.7 Сэргээн засах — assessment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/patient/rehab/assessment",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "patient", "rehab", "assessment"]
+            },
+            "description": "Latest assessment row, or null when there is none. `data: null` with success:true is the normal empty answer."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "03 Doctor — Эмчийн модуль",
+      "description": "Tender §2, tracker rows 28–32. Same conventions as the patient surface. No endpoint accepts a doctor, user or organisation identifier — all three come from the token.\n\nGate errors: 401 NOT_AUTHENTICATED, 403 NOT_A_DOCTOR (RoleId 4), 403 ROLE_NOT_ALLOWED (role outside 1/2/3/6), 403 ORGANIZATION_NOT_RESOLVED.",
+      "item": [
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "me"]
+            },
+            "description": "Returns {UserId, DoctorId, RoleId, IsAdmin, FullName, profile, organization}.\n\n**RoleId comes back as a string here** (\"3\") but as a number on /api/auth/session (3). Normalise it once at your client boundary."
+          },
+          "response": []
+        },
+        {
+          "name": "28 Миний үзлэгүүд — visits",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.success && Array.isArray(j.data) && j.data.length) {",
+                  "    pm.environment.set('visitId', j.data[0].id_data);",
+                  "    if (j.data[0].PatientId) pm.environment.set('patientId', j.data[0].PatientId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/visits?scope=mine&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "visits"],
+              "query": [
+                { "key": "scope", "value": "mine" },
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "`scope=mine` (default) is what this user recorded; `scope=organization` is the whole organisation including children. Admins see everything. `search` matches registration number, last name or first name.\n\nStores the first result's id as {{visitId}} for the next request."
+          },
+          "response": []
+        },
+        {
+          "name": "28 Миний үзлэгүүд — one visit",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/visits/{{visitId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "visits", "{{visitId}}"]
+            },
+            "description": "Organisation-scoped: an id outside your scope returns **404, not the record**. That matters — Visit holds ~450,000 rows and an unscoped detail endpoint would be an enumeration hole."
+          },
+          "response": []
+        },
+        {
+          "name": "29 Миний хяналт — monitoring list",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/monitoring?limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "monitoring"],
+              "query": [
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "Each row carries {id_data, since, patient, latestReading} — the most recent journal reading is included, so the screen needs no second call per patient."
+          },
+          "response": []
+        },
+        {
+          "name": "29 Миний хяналт — add a patient",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"PatientId\": {{patientId}}\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/monitoring",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "monitoring"]
+            },
+            "description": "The doctor is taken from the token; the body is ignored beyond PatientId.\n\nUse this rather than the legacy /api/PatientMonitoring/SavePatient, which reads UserId and DoctorId from the request body and can therefore be pointed at another doctor's list."
+          },
+          "response": []
+        },
+        {
+          "name": "29 Миний хяналт — patient journal",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/monitoring/{{patientId}}/journal",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "monitoring", "{{patientId}}", "journal"],
+              "query": [
+                { "key": "from", "value": "2024-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Refuses a patient you do not monitor with 403 NOT_MONITORED."
+          },
+          "response": []
+        },
+        {
+          "name": "29 Миний хяналт — remove a patient",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/monitoring/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "monitoring", "{{patientId}}"]
+            },
+            "description": "Soft-removes from your own monitoring list. 404 if the patient is not on it. Writes to the shared test database."
+          },
+          "response": []
+        },
+        {
+          "name": "30 Миний зөвлөгөө — my advice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.success && Array.isArray(j.data) && j.data.length) {",
+                  "    pm.environment.set('adviceId', j.data[0].id_data);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/advice?filter=mine&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "advice"],
+              "query": [
+                { "key": "filter", "value": "mine" },
+                { "key": "limit", "value": "20" },
+                { "key": "offset", "value": "0" }
+              ]
+            },
+            "description": "filter = mine | drafts | all. The doctor's **own** tickets, each with a commentCount.\n\nThis is deliberately not the organisation-wide wall — that stays at /api/Advice/GetFeed with its own visibility rules."
+          },
+          "response": []
+        },
+        {
+          "name": "30 Миний зөвлөгөө — one ticket",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/advice/{{adviceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "advice", "{{adviceId}}"]
+            },
+            "description": "Returns {ticket, comments}, author-scoped — someone else's ticket returns 404."
+          },
+          "response": []
+        },
+        {
+          "name": "31 Миний тайлан — summary",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/reports/summary",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "reports", "summary"],
+              "query": [
+                { "key": "from", "value": "2026-01-01", "disabled": true },
+                { "key": "to", "value": "2026-12-31", "disabled": true }
+              ]
+            },
+            "description": "Counts for the phone summary: myVisits, organizationVisits, monitoredPatients, adviceAuthored, topDiagnoses.\n\n`source` carries the organisation and timestamp provenance marking both tenders require on exports."
+          },
+          "response": []
+        },
+        {
+          "name": "32 Patient search",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/patients?search=Тохиолдол&limit=20",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "patients"],
+              "query": [
+                { "key": "search", "value": "Тохиолдол" },
+                { "key": "limit", "value": "20" }
+              ]
+            },
+            "description": "**Minimum 3 characters**, else 400 SEARCH_TOO_SHORT. Do not fire this on every keystroke — debounce it."
+          },
+          "response": []
+        },
+        {
+          "name": "32 Patient detail",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/doctor/patients/{{patientId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "doctor", "patients", "{{patientId}}"]
+            },
+            "description": "Returns {patient, visits[20], journal{labels, series}, isMonitoredByMe} — everything one screen needs in a single call."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "04 Chat — Телемедицин",
+      "description": "Legacy layer: POST for everything, PascalCase envelope, HTTP 200 on failure. Identity comes from the token — no route accepts a caller id.\n\nText, image, audio and documents are all supported, which covers the tender's chat requirement in full. Realtime fan-out is Socket.IO on /chatmessage; writes always go over HTTP.",
+      "item": [
+        {
+          "name": "Room list",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.Success && Array.isArray(j.Data) && j.Data.length) {",
+                  "    pm.environment.set('chatRoomId', j.Data[0].ChatRoomId);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"PageSize\": 20,\n  \"PageNumber\": 0\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/GetChatRoomList",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "GetChatRoomList"]
+            },
+            "description": "Rooms with UnreadCount, LastMessage and Members. Stores the first room id as {{chatRoomId}}."
+          },
+          "response": []
+        },
+        {
+          "name": "Messages (keyset paging)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ChatRoomId\": {{chatRoomId}},\n  \"PageSize\": 50,\n  \"BeforeId\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/GetMessages",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "GetMessages"]
+            },
+            "description": "PageSize is capped at 50. Page with **BeforeId**, not page numbers — messages arrive while you scroll and offset paging would duplicate or skip them."
+          },
+          "response": []
+        },
+        {
+          "name": "Send a text message",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ChatRoomId\": {{chatRoomId}},\n  \"MessageText\": \"Сайн байна уу — Postman тест\",\n  \"HasAttachment\": false,\n  \"ClientMsgId\": \"postman-0001\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/SendMessage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "SendMessage"]
+            },
+            "description": "Text is capped at 2000 characters. `ClientMsgId` echoes back so you can reconcile an optimistic bubble.\n\nWith HasAttachment:true the message is created as pending and is **not** delivered until CommitMessage — see the attachment sequence below."
+          },
+          "response": []
+        },
+        {
+          "name": "Attachment step 3 — commit",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"MessageId\": 0,\n  \"ClientMsgId\": \"postman-0002\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/CommitMessage",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "CommitMessage"]
+            },
+            "description": "Sending an attachment is three calls, in order:\n\n1. POST /api/Chat/SendMessage with HasAttachment:true → a pending message, delivered to nobody yet.\n2. POST /api/BaseObject/uploadFile (multipart, LinkedObjectName 'ChatMessages', LinkedObjectId = the new MessageId).\n3. POST /api/Chat/CommitMessage → promotes it to sent and fans it out over the socket.\n\nSkip step 3 and the message never reaches anyone; if zero files landed the carrier message is deleted rather than left as an empty bubble.\n\nChat uploads get a 50 MB cap; everything else is 10 MB. Allowed extensions app-wide: jpg jpeg png gif webp bmp heic · pdf doc docx xls xlsx txt csv dcm · mp3 m4a aac ogg wav webm. **No video extension is on that list.**"
+          },
+          "response": []
+        },
+        {
+          "name": "Mark read",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"ChatRoomId\": {{chatRoomId}},\n  \"LastMessageId\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/MarkRead",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "MarkRead"]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Unread count",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/GetUnreadCount",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "GetUnreadCount"]
+            },
+            "description": "Returns {Total, Rooms}. Poll this on app resume — a backgrounded phone receives nothing over the socket, because there is no FCM/APNs in the backend yet."
+          },
+          "response": []
+        },
+        {
+          "name": "Start a 1:1 chat",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"UserType\": \"S\",\n  \"UserId\": 0\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/StartChat",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "StartChat"]
+            },
+            "description": "Idempotent — calling it twice returns the same room. UserType 'S' is staff, 'P' is patient."
+          },
+          "response": []
+        },
+        {
+          "name": "Create a group room",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"RoomName\": \"Postman тест бүлэг\",\n  \"Members\": []\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/CreateGroupRoom",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "CreateGroupRoom"]
+            },
+            "description": "Doctors only — patients can never be group members."
+          },
+          "response": []
+        },
+        {
+          "name": "Search users",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"SearchText\": \"Нэргүй\",\n  \"PageSize\": 20,\n  \"PageNumber\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/SearchUsers",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "SearchUsers"]
+            },
+            "description": "Rate-limited to 30 requests per minute — it is the national physician directory and the limit exists to stop it being bulk-scraped. Debounce your search box.\n\nA patient's searches are scoped to their own care team."
+          },
+          "response": []
+        },
+        {
+          "name": "Directory filters",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/GetDirectoryFilters",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "GetDirectoryFilters"]
+            },
+            "description": "Provinces and districts with counts, for the search filter UI."
+          },
+          "response": []
+        },
+        {
+          "name": "Download an attachment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"FileId\": 0\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Chat/DownloadAttachment",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Chat", "DownloadAttachment"]
+            },
+            "description": "Membership-checked. Use this for chat files — never the generic /api/BaseObject/downloadFile, which has no ownership check at all."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "05 Advice — зөвлөгөө",
+      "description": "The organisation-wide wall. Legacy layer.",
+      "item": [
+        {
+          "name": "Feed",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"PageNumber\": 0,\n  \"PageSize\": 20,\n  \"Filter\": \"all\",\n  \"Search\": \"\",\n  \"TicketType\": null,\n  \"ProvCity\": null,\n  \"SoumDist\": null\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/Advice/GetFeed",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Advice", "GetFeed"]
+            },
+            "description": "Filter = all | open | closed | mine | drafts. Option carries {Total, PageNumber, PageSize, HasMore}.\n\nTwo data facts before you build filters: **no ticket has status 'n' (open)** — an open-only filter renders an empty screen — and `level` is NULL on 40% of rows, which makes those invisible to every non-admin.\n\n`Search` needs at least 2 characters and matches the ticket body only."
+          },
+          "response": []
+        },
+        {
+          "name": "One ticket",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"AdviceId\": {{adviceId}}\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Advice/GetTicket",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Advice", "GetTicket"]
+            },
+            "description": "Requires AdviceId — without it you get \"Information is missing\" at HTTP 200."
+          },
+          "response": []
+        },
+        {
+          "name": "Comments",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": { "mode": "raw", "raw": "{\n  \"AdviceId\": {{adviceId}}\n}" },
+            "url": {
+              "raw": "{{baseUrl}}/api/Advice/GetComments",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "Advice", "GetComments"]
+            },
+            "description": "The full thread. On 57% of tickets the clinical content is here rather than in the ticket body."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "06 Unverified",
+      "description": "Included because it is in mobile scope, but do not trust it yet.",
+      "item": [
+        {
+          "name": "Calculate risk score — UNVERIFIED",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gender\": \"M\",\n  \"age\": 55,\n  \"pressure\": 140,\n  \"cholestrol\": 5.2,\n  \"isCholestrol\": \"Yes\",\n  \"isDiabetes\": \"No\",\n  \"isSmoker\": \"No\",\n  \"BMI\": 25.1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/RiskScores/CalculateRisk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "RiskScores", "CalculateRisk"]
+            },
+            "description": "**Unverified — this returned an error on the last full sweep and no known-good request body exists.**\n\nThe field names above are the ones the handler actually reads (all lowercase, and `cholestrol` is misspelled in the source). They are not the names the acceptance harness was sending, which is the likeliest reason it failed there.\n\nSeparately: the cardiovascular risk methodology and its risk classes are an unapproved customer deliverable. Even if this endpoint answers, do not surface a score in the app until ЗСҮТ has signed the methodology off."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

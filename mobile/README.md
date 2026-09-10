@@ -4,14 +4,22 @@
 Android + iOS app described in the mobile tender (`mobile mncardio.docx`,
 2026.07.03 – 2026.10.15).
 
-Read the four other files in this order:
+Start here, in this order:
 
 | File | What it answers |
 |---|---|
+| [QUICKSTART.md](QUICKSTART.md) | **Start here.** Credentials, first login, first real data — about ten minutes. |
 | [API.md](API.md) | How do I call the backend? Every endpoint, both envelopes, auth, uploads, sockets. |
 | [READINESS.md](READINESS.md) | What already works, and what backend work must land before I can build my screen? |
 | [BLOCKERS.md](BLOCKERS.md) | What is waiting on ЗСҮТ or an external account, and therefore cannot be coded around. |
 | [FLUTTER.md](FLUTTER.md) | Packages, project layout, token storage, biometrics, and the upload glue. |
+
+And two folders you can run rather than read:
+
+| Folder | What it gives you |
+|---|---|
+| [`postman/`](postman/) | 55 requests covering the whole mobile surface. Import, fill in credentials, press Send. Both logins store their token automatically. |
+| [`client/`](client/) | `smoke.js` — ten calls that prove your setup, with no dependencies. `dart/` — the `dio` client, token storage and typed wrappers, ready to lift into `app/lib/core/`. |
 
 ---
 
@@ -79,7 +87,7 @@ What is real on it:
 |---|---|
 | Database | restored from production — 226 tables, 680 organisations, 450,601 visits, 357,156 patients |
 | Tender forms | all 11 seeded, 1,687 fields |
-| Module 2.7 rehabilitation | **tables created — `/api/patient/rehab/*` returns 200, not 500** |
+| Module 2.7 rehabilitation | **tables created — `/api/patient/rehab/*` returns 200, not 500.** The exercise catalogue is still empty, pending the customer decisions in [BLOCKERS.md](BLOCKERS.md) §1 |
 | Doctor + patient + auth APIs | verified end to end over HTTPS with real logins |
 | Chat + notification sockets | WebSocket upgrade confirmed (101) on both paths |
 
