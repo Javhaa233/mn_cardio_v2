@@ -30,13 +30,31 @@ const AllowedOrigins = () =>
     process.env.CLIENT_APP_URL,
   ].filter(Boolean);
 
+/**
+ * Compare origins without tripping over a trailing slash.
+ *
+ * A browser sends `Origin: https://host` with no path and no trailing slash,
+ * but CLIENT_APP_URL is written WITH one because the password-reset flow builds
+ * links by concatenation (`CLIENT_APP_URL + 'auth/ResetPassword?...'`), which
+ * breaks without it. A plain equality check therefore rejects the very origin
+ * the deployment configured, and the failure surfaces as HTTP 500
+ * "Not allowed by CORS" on login — which looks like bad credentials rather than
+ * a configuration mismatch. Cost an afternoon on mncardio.itsystem.mn.
+ */
+const Normalize = (value) => String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+
 const originCallback = function (origin, callback) {
   // No origin: same-origin, a mobile app, or a tool like Postman.
   if (!origin) return callback(null, true);
 
-  if (IsDevelopment() || AllowedOrigins().includes(origin)) {
+  if (IsDevelopment()) return callback(null, true);
+
+  const Wanted = Normalize(origin);
+  if (AllowedOrigins().some((allowed) => Normalize(allowed) === Wanted)) {
     return callback(null, true);
   }
+
+  console.log('CORS rejected origin: ' + origin);
   return callback(new Error('Not allowed by CORS'));
 };
 

@@ -30,6 +30,19 @@ module.exports = {
       cwd: __dirname,
       node_args: '--max-http-header-size=524288',
 
+      /*
+       * Absolute path, not whatever `node` happens to be on PATH.
+       *
+       * package.json requires Node >=24, but npm only warns about `engines` at
+       * install time — nothing stops PM2 launching this under an older runtime,
+       * and it would appear to work until something needed a v24 feature.
+       *
+       * On the test host the system Node is v22 and two other live applications
+       * depend on it, so v24 is installed alongside at /opt/node-24 rather than
+       * replacing it. Set PM2_INTERPRETER if that path differs.
+       */
+      interpreter: process.env.PM2_INTERPRETER || '/opt/node-24/bin/node',
+
       exec_mode: 'fork',
       instances: 1,
 
@@ -48,7 +61,13 @@ module.exports = {
       error_file: 'logs/api-error.log',
       out_file: 'logs/api-out.log',
 
+      // `env` is the default. env_production is declared as well so that an
+      // explicit `--env production` resolves instead of warning "Environment
+      // [production] is not defined in process file" and silently falling back.
       env: {
+        NODE_ENV: 'production',
+      },
+      env_production: {
         NODE_ENV: 'production',
       },
       env_development: {
