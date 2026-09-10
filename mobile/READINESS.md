@@ -4,9 +4,14 @@ What exists, what has to be built, and what cannot be built by us. Audited again
 backend source on **2026-09-10**. Tracker rows refer to sheet **Мобайл апп** of
 `МнКардио_тендерийн_ажлын_жагсаалт.xlsx`.
 
-**Short answer:** the patient module is largely served and can be started today. The doctor
-module has no mobile API at all. Nine further items the tender requires do not exist in any
-form.
+**Short answer:** the patient module and — since 2026-09-10 — the doctor module are both
+served, and both can be started today. Nine further items the tender requires still do not
+exist in any form.
+
+> **Changed 2026-09-10.** The two largest gaps in this document were closed: the doctor
+> module now has `/api/doctor/*` (12 endpoints, [API.md](API.md) §4), and token refresh now
+> exists at `/api/auth/*`. Both are marked **DONE** below rather than deleted, so the history
+> of what was missing stays legible.
 
 ---
 
@@ -17,12 +22,15 @@ form.
 | Patient login + self-service password reset | tender §1.2, §2 | `controllers/auth/PatientUserController.js` |
 | Staff login | §2 | `controllers/auth/UserController.js` |
 | Patient module 2.1–2.6 | tracker 34–37, 39–40 | `api/patient/*` — 12 live endpoints |
+| **Doctor module** — үзлэг, хяналт, зөвлөгөө, тайлан | tracker 28–32 | `api/doctor/*` — 12 endpoints, new 2026-09-10 |
+| **Session refresh** | — | `api/auth/*` — new 2026-09-10 |
 | Chat: text, image, audio, documents | tracker 47 | `ChatController.js` + `/chatmessage` socket |
 | Advice feed with paging and scope | tracker 30 | `AdviceController.GetFeed` |
 | File upload with authorization and extension allowlist | tracker 44 | `BaseController.js:366-570` |
 | ХУР integration (web-side plumbing) | tracker 17 | `XypServiceController`, `helper/xypSign.js` |
 
-That is enough to build 2.1, 2.2, 2.3, 2.4, 2.6 and chat without waiting for anybody.
+That is enough to build patient modules 2.1–2.4 and 2.6, the entire doctor module, chat and
+the full session lifecycle without waiting for anybody.
 
 ---
 
@@ -30,27 +38,43 @@ That is enough to build 2.1, 2.2, 2.3, 2.4, 2.6 and chat without waiting for any
 
 Ordered by what blocks the most mobile work.
 
-### 2.1 The doctor module has no mobile API — **the largest gap**
+### 2.1 The doctor module — **DONE 2026-09-10**
 
-Tracker rows 28–32 (Миний үзлэгүүд · Миний хяналт · Миний зөвлөгөө · Миний тайлан), all
-`Эхлээгүй`. The underlying controllers exist but are unusable from a phone as they stand:
+Tracker rows 28–32 (Миний үзлэгүүд · Миний хяналт · Миний зөвлөгөө · Миний тайлан). The
+underlying controllers existed but were unusable from a phone: everything `POST` including
+reads, PascalCase envelope, HTTP 200 on error, generic `BaseGetList` paging, and the two print
+routes returning a PDF stream with no JSON alternative.
 
-- everything is `POST`, including reads, with the PascalCase envelope and HTTP 200 on error
-- paging is generic `BaseGetList` `Option`, not a mobile shape
-- `VisitController.PrintReport` / `PrintAmbulatori` and `OutPatientInfoController.PrintReport`
-  return a **PDF stream with no JSON alternative**, so there is nothing to render in-app
+Built as `/api/doctor/*` — 12 endpoints mirroring `api/patient/*`, with a `requireDoctor` gate
+deriving user, doctor and organisation from the token. Documented in [API.md](API.md) §4.
 
-**Recommendation:** an `/api/doctor/*` surface mirroring `api/patient/*` — real verbs,
-lowercase envelope, `requireDoctor` gate deriving the doctor from the token, scoped by
-`OrganizationId`. Reuse the existing controllers' logic; do not rewrite the clinical code.
+New files: `helper/RequireDoctor.js`, `api/doctor/{index,controller}.js`.
 
-Source: `controllers/patient-care/{VisitController,PatientMonitoringController,FollowUpController}.js`.
+Two things fixed along the way, both worth knowing:
 
-### 2.2 No token refresh
+- **`/api/Patient` was shadowing `/api/patient/*`.** Express matches mount paths
+  case-insensitively and the legacy table was registered first, so its `Auth.verifyToken`
+  answered unauthenticated patient-API requests with the legacy HTTP-200 `AuthError` envelope
+  instead of a 401. The mobile mounts now come first and gate **per route**, so paths they do
+  not serve still fall through to the legacy controller.
+- **`helper/VerifyTokenJson.js`** wraps `Auth.verifyToken` so an auth failure on the mobile
+  surfaces is a real 401 in the lowercase envelope. `Auth.verifyToken` itself is untouched —
+  it is on all 47 legacy routes and the web client depends on its shape.
 
-10-hour JWT (`helper/Auth.js:29`); `LogOut` is a stub that invalidates nothing. Users are
-thrown out once a day mid-shift. Needs a refresh endpoint, or a refresh token with server-side
-revocation so `LogOut` becomes real.
+The clinical write paths were deliberately **not** moved: saving an examination and publishing
+advice stay in the legacy controllers. This surface reads, plus the monitoring list add/remove,
+which is a doctor's own working set rather than clinical data.
+
+### 2.2 Token refresh — **DONE 2026-09-10**
+
+`POST /api/auth/refresh` and `GET /api/auth/session` (`api/auth/*`, plus `issueRefreshToken` /
+`verifyRefreshToken` / `reissue` on `helper/Auth.js`). Refresh tokens last 30 days; the
+endpoint also accepts a still-valid access token as Bearer, so the login controllers did not
+have to change shape. Both paths re-read the user, so a deactivated account stops refreshing.
+
+**Still open:** individual revocation. There is no token store, so cancelling one session means
+rotating `JWT_PASS` and logging everyone out. A real implementation needs a table, and
+therefore DDL — see §3. `LogOut` remains a stub until then.
 
 ### 2.3 Patients cannot read notifications at all
 
@@ -86,7 +110,7 @@ reaches a public store.
 Each is recorded in `CLAUDE.md §10` for the mandated audit; listing them here because
 shipping a mobile app changes their severity.
 
-- `/api/base/*` and `/api/report/*` mounted **outside** `Auth.verifyToken` (`server.js:368`)
+- `/api/base/*` and `/api/report/*` mounted **outside** `Auth.verifyToken` (`server.js:389`)
 - `/api/Test/*` is **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB
   upload into the same directory as patient attachments
 - dev-mode bypasses: `jwt.decode()` instead of `jwt.verify()` (`Auth.js:212`), and staff
@@ -146,15 +170,16 @@ be marked done and fail UAT.
 
 ## 5. Recommended order
 
-**Now, unblocked** — patient modules 2.1–2.4 and 2.6, chat, login and password reset. This is
-real work for a Flutter developer and needs nothing from anyone.
+**Now, unblocked** — patient modules 2.1–2.4 and 2.6, **the whole doctor module**, chat, login,
+password reset and session refresh. This is a substantial amount of real Flutter work that
+needs nothing from anyone.
 
-**Run one SQL script** — `add_rehabilitation_tables.sql`. Module 2.7 comes alive; best
-effort-to-value ratio available.
+**Run one SQL script** — `add_rehabilitation_tables.sql`. Module 2.7 comes alive; still the
+best effort-to-value ratio available anywhere in this document.
 
 **Then, in this order:**
-1. `/api/doctor/*` — unblocks five tracker rows and half the app
-2. token refresh — everything else is unusable in daily practice without it
+1. ~~`/api/doctor/*`~~ — **done 2026-09-10**
+2. ~~token refresh~~ — **done 2026-09-10**
 3. patient notifications + push — four rows depend on it, and push has an external lead time
 4. media delivery — required before any of the 39 videos can ship
 5. the §2.7 security items — before, not after, a public store listing

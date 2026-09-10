@@ -31,7 +31,7 @@ const MAP_TIMEOUT_MS = 2000;
  * All of its CSS lives in LoginScene.css, scoped under .login-v2 and with every
  * keyframe namespaced `lg-`, because keyframe names are global.
  */
-export default function LoginScene({ Quiet = false }) {
+function LoginScene({ Quiet = false }) {
   const stageRef = useRef(null);
   const [Ready, setReady] = useState(false);
 
@@ -1067,3 +1067,10 @@ export default function LoginScene({ Quiet = false }) {
     </div>
   );
 }
+
+// Memoised deliberately. LoginPage keeps UserName/Password in state and renders
+// <LoginScene Quiet={Typing} />, so WITHOUT this every keystroke re-rendered this
+// whole subtree: ~250 SVG elements carrying 127 freshly-allocated inline style
+// objects, all diffed key-by-key on the input-latency path for no DOM change at
+// all. `Quiet` only flips on focus/blur, so the default shallow compare is right.
+export default React.memo(LoginScene);

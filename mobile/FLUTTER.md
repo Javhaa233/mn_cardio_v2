@@ -83,11 +83,19 @@ in `Option`. Two small helpers beat remembering which is which at every call sit
 
 ## Auth and session
 
-Store the token in `flutter_secure_storage`. There is **no refresh endpoint** — after 10
-hours the token is dead, and `LogOut` does not invalidate anything server-side.
+Store both tokens in `flutter_secure_storage`. The access token lasts 10 hours; the refresh
+token lasts 30 days (`/api/auth/refresh`, [API.md](API.md) §2).
 
-Handle expiry as a first-class state: catch `isAuthError`, clear storage, route to login.
-Do not retry — there is nothing to retry against.
+Bootstrap once after login — call `POST /api/auth/refresh` with the access token as Bearer to
+obtain your first refresh token — then refresh with `{refreshToken}` from then on.
+
+Refresh ahead of expiry rather than reacting to a 401, and add a `dio` `onError` interceptor
+that, on `TOKEN_INVALID`, refreshes once and replays the request. Guard it with a single
+in-flight future so ten parallel calls trigger one refresh, not ten, and never retry the
+refresh call itself — that is how you get an infinite loop.
+
+If the refresh fails, clear storage and route to login. `LogOut` invalidates nothing
+server-side, so logging out is your job: delete both tokens.
 
 ### Biometric login is device-local
 
@@ -96,9 +104,8 @@ There is no biometric endpoint on the backend and none is needed. The pattern:
 1. User logs in with username and password once. Store the token in secure storage, gated by
    `local_auth`.
 2. On next launch, `authenticate()` unlocks the stored token.
-3. When the 10-hour token expires, biometrics cannot help — you need the password again.
-   Either ask for it, or store the credentials themselves under biometric protection, which
-   is a decision to take deliberately and record.
+3. When the access token expires, refresh with the stored refresh token — no password needed.
+   Only when the 30-day refresh token expires does the user type a password again.
 
 Never send a fingerprint or any biometric material to the server. It never leaves the device.
 
@@ -107,7 +114,7 @@ Never send a fingerprint or any biometric material to the server. It never leave
 ## Uploads
 
 `/api/BaseObject/uploadFile` is shaped like a browser file input, so it needs deliberate
-construction (full contract in [API.md](API.md) §6):
+construction (full contract in [API.md](API.md) §7):
 
 ```dart
 final form = FormData.fromMap({
@@ -187,9 +194,10 @@ lib/
   shared/       widgets, theme, Mongolian formatting
 ```
 
-**Start with `patient/`.** Modules 2.1–2.4 and 2.6 plus chat are fully served by the backend
-today and need nothing from anyone. `doctor/` has **no API at all** — do not start there and
-discover it. See [READINESS.md](READINESS.md).
+**`patient/` and `doctor/` are both served by the backend today** — modules 2.1–2.4 and 2.6,
+the full doctor module (`/api/doctor/*`, added 2026-09-10), chat, and session refresh. Start
+wherever you like; none of it is blocked. See [READINESS.md](READINESS.md) for the four things
+that still are.
 
 ---
 

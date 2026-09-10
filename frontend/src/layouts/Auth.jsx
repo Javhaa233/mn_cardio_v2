@@ -9,7 +9,11 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import AuthNavbar from "components/Navbars/AuthNavbar.jsx";
 import BaseLoading from "customComponents/BaseLoading.jsx";
 // routes
-import routes from "routes/index.js";
+// authRoutes.js already holds EVERY route this layout can render - the filter
+// below keeps only `prop.layout === "/auth"`, and all of those live here.
+// Importing routes/index.js instead pulled in all six route tables plus the 54
+// sidebar icon modules they reference, none of which the login page can show.
+import routes from "routes/authRoutes";
 
 // styles
 import { whiteColor } from "assets/jss/material-dashboard-pro-react.js";

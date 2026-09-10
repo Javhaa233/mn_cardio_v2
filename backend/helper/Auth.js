@@ -259,6 +259,89 @@ class Authorization {
       return res.send(errorObject);
     }
   };
+
+  /* --------------------------------------------------------------- refresh */
+
+  /**
+   * Refresh tokens.
+   *
+   * The access token lives 10 hours and LogOut invalidates nothing, so before
+   * this a doctor was thrown out mid-shift and a phone had to hold the password
+   * to get back in. That is the problem this solves.
+   *
+   * A refresh token is a JWT signed with the same secret and marked `typ:
+   * 'refresh'`, so it cannot be presented as an access token: verifyToken reads
+   * `decoded.user` and a refresh token has none. The reverse is checked
+   * explicitly below.
+   *
+   * There is no server-side store, so a refresh token cannot be revoked
+   * individually - rotating JWT_PASS invalidates all of them, which is exactly
+   * the position access tokens are already in. Adding real revocation needs a
+   * table, and therefore DDL (CLAUDE.md §2); it is written up in
+   * mobile/READINESS.md rather than half-built here.
+   */
+  static REFRESH_TTL = '30d';
+  static ACCESS_TTL_SECONDS = 36000;
+
+  issueRefreshToken(user, callback) {
+    jwt.sign(
+      {
+        typ: 'refresh',
+        Id: user.Id,
+        RoleId: user.RoleId,
+      },
+      process.env.JWT_PASS,
+      { expiresIn: Authorization.REFRESH_TTL },
+      (err, token) => callback && callback(err ? null : token)
+    );
+  }
+
+  /** Resolves to { Id, RoleId } or null. Never throws. */
+  verifyRefreshToken(token) {
+    return new Promise((resolve) => {
+      if (!token) return resolve(null);
+      jwt.verify(token, process.env.JWT_PASS, (err, decoded) => {
+        if (err || !decoded) {
+          console.log('refresh token rejected:', err ? err.message : 'empty');
+          return resolve(null);
+        }
+        // An access token must not be usable as a refresh token: it carries a
+        // `user` claim and no `typ`, and accepting it would turn a 10-hour
+        // token into a 30-day one.
+        if (decoded.typ !== 'refresh' || !decoded.Id) return resolve(null);
+        resolve({ Id: decoded.Id, RoleId: decoded.RoleId });
+      });
+    });
+  }
+
+  /**
+   * Issue a fresh access token for an already-authenticated identity.
+   *
+   * Re-reads the user from the database rather than trusting the old token, so
+   * a deactivated account or a changed role takes effect at the next refresh
+   * instead of persisting for the life of the token.
+   */
+  async reissue({ Id, RoleId }) {
+    userCache.delete(cacheKey(RoleId, Id));
+    const fullUser = await this.fetchFullUserData(Id, RoleId);
+    if (!fullUser) return null;
+
+    const token = await new Promise((resolve) =>
+      this.login(fullUser, (t) => resolve(t))
+    );
+    if (!token) return null;
+
+    const refreshToken = await new Promise((resolve) =>
+      this.issueRefreshToken(fullUser, (t) => resolve(t))
+    );
+
+    return {
+      token,
+      refreshToken,
+      expiresIn: Authorization.ACCESS_TTL_SECONDS,
+      LogedUser: fullUser,
+    };
+  }
 }
 
 module.exports = new Authorization();

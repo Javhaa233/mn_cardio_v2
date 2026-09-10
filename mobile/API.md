@@ -14,13 +14,13 @@ Base URL in development: `http://<host>:5001` — port is `process.env.PORT || 5
 The backend has two API layers with **different conventions**, and both are live. Which one
 you are in is determined entirely by the URL prefix.
 
-| | `/api/patient/*` | everything else under `/api/*` |
+| | `/api/patient/*`, `/api/doctor/*`, `/api/auth/*` | everything else under `/api/*` |
 |---|---|---|
-| Verbs | real `GET` / `POST` | **`POST` for everything**, including reads |
+| Verbs | real `GET` / `POST` / `DELETE` | **`POST` for everything**, including reads |
 | Envelope | `{success, message, data, code}` — lowercase | `{Success, Message, Data, Option}` — PascalCase |
-| Errors | **real HTTP status codes** — 400 / 403 / 404 / 500 | **HTTP 200, always** |
+| Errors | **real HTTP status codes** — 400 / 401 / 403 / 404 / 500 | **HTTP 200, always** |
 | Paging | `?limit` & `?offset`, response carries `total` | inside the `Option` object |
-| Patient identity | from the token, never from the request | passed in the body |
+| Caller identity | from the token, never from the request | passed in the body |
 
 Source: `api/patient/controller.js:17-31` for the lowercase envelope and its real status
 codes; `CLAUDE.md §5` and `helper/BaseControllerHelper.js` for the PascalCase one.
@@ -37,9 +37,23 @@ HTTP/1.1 200 OK
 {"Success":false,"Message":"There is a user who is not logged into the system","AuthError":true}
 ```
 
-Every legacy call must branch on the `Success` field, not the status code. `/api/patient/*`
-is the exception and behaves normally. [FLUTTER.md](FLUTTER.md) has an interceptor that
-normalises both into one exception type — write it before you write your second screen.
+Every legacy call must branch on the `Success` field, not the status code.
+
+**The three mobile surfaces are the exception and behave normally**, auth failures included —
+they answer `401 {"success":false,"code":"TOKEN_INVALID",…}`. That is worth stating because it
+was not always true: `Auth.verifyToken` emits the legacy 200 envelope, and until 2026-09-10
+it ran ahead of `/api/patient/*` and answered for it. Two things now prevent that — a
+`verifyTokenJson` wrapper that translates the auth failure, and mount ordering (below).
+
+[FLUTTER.md](FLUTTER.md) has an interceptor that normalises both envelopes into one exception
+type — write it before you write your second screen.
+
+> **Why `/api/patient` and `/api/doctor` are mounted before the legacy table.** Express matches
+> mount paths **case-insensitively** unless told otherwise, and it is not told otherwise. The
+> legacy table registers `/api/Patient`, which therefore also matches `/api/patient/me`. The
+> mobile routers are mounted first and apply their auth **per route**, so a path they do not
+> serve — `/api/patient/SearchPatient` — matches nothing, runs no middleware, and falls
+> through to the legacy controller untouched. Do not "tidy" that ordering.
 
 ---
 
@@ -47,10 +61,45 @@ normalises both into one exception type — write it before you write your secon
 
 JWT bearer, **10-hour expiry**, `Authorization: Bearer <token>` (`helper/Auth.js:29`).
 
-**There is no refresh endpoint.** After 10 hours the token is dead and the user logs in
-again. `LogOut` on both controllers is a stub that returns success without invalidating
-anything server-side — the token stays valid until it expires. Plan your session handling
-around that, and see [READINESS.md](READINESS.md) for the request to add refresh.
+`LogOut` on both login controllers is a stub: it returns success without invalidating
+anything server-side, so a token stays valid until it expires. Treat logout as a client-side
+act — clear your storage — and do not expect the server to revoke.
+
+### Refreshing — `/api/auth/*`
+
+```
+POST /api/auth/refresh      { "refreshToken": "..." }     — or a Bearer access token
+GET  /api/auth/session      Bearer <access token>
+```
+
+`refresh` returns a new pair:
+
+```json
+{ "success": true, "message": "", "data": {
+    "token": "…", "refreshToken": "…", "expiresIn": 36000, "LogedUser": { … } } }
+```
+
+Refresh tokens live **30 days**. The endpoint accepts **either** a refresh token in the body
+**or** a still-valid access token as a Bearer header — the Bearer path exists so a client can
+obtain its first refresh token without the login endpoints changing shape. So the flow is:
+
+1. `POST /api/PatientUser/Login` or `/api/User/Login` as today → access token.
+2. `POST /api/auth/refresh` with that token as Bearer → store the `refreshToken` securely.
+3. From then on, `POST /api/auth/refresh` with `{refreshToken}` before the access token expires.
+
+`GET /api/auth/session` says whether an access token is still good and who it belongs to, so
+you can decide on launch whether to refresh without provoking an error from a resource route.
+
+Both re-read the user from the database, so a deactivated account stops refreshing. Failures
+are a uniform `401 TOKEN_INVALID` — expired, malformed and forged are not distinguished.
+
+> **No individual revocation.** There is no server-side token store, so a refresh token cannot
+> be cancelled on its own; rotating `JWT_PASS` invalidates all of them at once, which is
+> already the case for access tokens. Real revocation needs a table and therefore DDL — see
+> [READINESS.md](READINESS.md).
+>
+> An access token cannot be presented as a refresh token or vice versa: refresh tokens carry
+> `typ:"refresh"` and no `user` claim, and both are checked.
 
 ### Patient login
 
@@ -257,7 +306,105 @@ stream. That endpoint has to be built.
 
 ---
 
-## 4. Chat — the one legacy surface that is genuinely mobile-ready
+## 4. `/api/doctor/*` — the doctor module
+
+Added 2026-09-10. Same conventions as `/api/patient/*`: real verbs, real status codes, the
+lowercase envelope, `?limit`/`?offset`/`?from`/`?to`, and **no endpoint accepts a doctor, user
+or organisation identifier** — all three come from the token via `helper/RequireDoctor.js`.
+
+Covers tender §2 "Эмчийн модуль" and tracker rows 28–32.
+
+### The gate
+
+| code | HTTP | Means |
+|---|---|---|
+| `NOT_AUTHENTICATED` | 401 | no usable token |
+| `NOT_A_DOCTOR` | 403 | `RoleId` is `4` — patients have their own surface |
+| `ROLE_NOT_ALLOWED` | 403 | role outside `1, 2, 3, 6` (e.g. `5`, profile-only) |
+| `ORGANIZATION_NOT_RESOLVED` | 403 | non-admin with no organisation — refused rather than run an unscoped query |
+
+### `GET /me`
+
+`data` → `{ UserId, DoctorId, RoleId, IsAdmin, FullName, profile, organization }`.
+
+### 28 Миний үзлэгүүд
+
+```
+GET /visits       ?scope=mine|organization &from &to &search &limit &offset
+GET /visits/:id
+```
+
+`scope=mine` (default) is what this user recorded; `scope=organization` is the whole
+organisation including child organisations. Admins see everything.
+
+`data` → array of `id_data, visit_date, chief_complaint, main_diagnosis, main_diagnosis_mn,
+icd10, exam_type_icd, cause_icd10, procedure_icd9, has_complication, PatientId, PatRegNo,
+OrganizationId`, each with a nested `Patient`. `search` matches registration number, last name
+or first name.
+
+`/visits/:id` is scoped the same way — an id outside your organisation returns **404, not the
+record**. That matters: `Visit` holds ~450,000 rows, and an unscoped detail endpoint would be
+an enumeration hole. `/api/Advice/GetTicket` still has exactly that gap — see §8.
+
+### 29 Миний хяналт
+
+```
+GET    /monitoring                          ?limit &offset
+POST   /monitoring                          { "PatientId": 123 }
+DELETE /monitoring/:patientId
+GET    /monitoring/:patientId/journal       ?from &to
+```
+
+The list returns `{ id_data, since, patient, latestReading }` per row — the most recent
+journal reading is included, so the screen needs no second call per patient.
+
+`journal` returns `{ rows, labels, series{blood_pressure, blood_pressure2, pulse, weight} }`
+and refuses a patient you do not monitor with `403 NOT_MONITORED`.
+
+> Add and remove take the doctor **from the token**. The legacy equivalents
+> (`/api/PatientMonitoring/SavePatient`, `RemovePatient`) read `UserId` and `DoctorId` from the
+> request **body**, so they can be pointed at another doctor's list. Use these, not those.
+> Both write the same two audit rows the legacy path does.
+
+### 30 Миний зөвлөгөө
+
+```
+GET /advice        ?filter=mine|drafts|all &limit &offset
+GET /advice/:id
+```
+
+The doctor's **own** tickets — `Advice.id` is the author. Each row carries `commentCount`.
+`/advice/:id` returns `{ ticket, comments }`, author-scoped.
+
+This is deliberately not the organisation-wide wall; that stays at `/api/Advice/GetFeed` with
+its own visibility rules (§6). Reimplementing those here would fork a security boundary across
+two files.
+
+### 31 Миний тайлан
+
+```
+GET /reports/summary   ?from &to
+```
+
+`data` → `{ window, myVisits, organizationVisits, monitoredPatients, adviceAuthored,
+topDiagnoses[{diagnosis, total}], source{OrganizationId, generatedAt} }`.
+
+Counts for the phone summary, carrying the provenance marking both tenders require on exports.
+The formal reporting deliverable (tracker rows 59–63: approved forms, XLS/TXT export) is
+separate work and still uses the existing Excel and PDF paths.
+
+### 32 Read access to the patient side
+
+```
+GET /patients        ?search= &limit &offset      — min 3 characters, else 400 SEARCH_TOO_SHORT
+GET /patients/:id
+```
+
+`/patients/:id` → `{ patient, visits[20], journal{labels, series}, isMonitoredByMe }`.
+
+---
+
+## 5. Chat — the one legacy surface that is genuinely mobile-ready
 
 `POST /api/Chat/*`, PascalCase envelope. Identity comes from the token via
 `ChatIdentity.Me()`; no route accepts a caller id. Text, image, **audio** and documents are
@@ -314,7 +461,7 @@ the socket as a foreground nicety and poll on resume.
 
 ---
 
-## 5. Advice feed (doctor-facing)
+## 6. Advice feed — the organisation-wide wall
 
 ```
 POST /api/Advice/GetFeed
@@ -332,7 +479,7 @@ Two data facts worth knowing before you build filters: **no ticket has status `'
 
 ---
 
-## 6. File upload — the multipart contract
+## 7. File upload — the multipart contract
 
 `POST /api/BaseObject/uploadFile`, `multipart/form-data`, parsed by `formidable`
 (`BaseController.js:366-570`). The shape mirrors a browser file input, so it needs
@@ -359,7 +506,7 @@ purpose-built authorized route, and if the file type you need has none, ask for 
 
 ---
 
-## 7. Endpoints that are inert or unsafe today
+## 8. Endpoints that are inert or unsafe today
 
 Do not spend a sprint discovering these.
 
@@ -368,13 +515,14 @@ Do not spend a sprint discovering these.
 | `/api/patient/rehab/*` (6 routes) | **500** — tables not created; code and models are complete |
 | `/api/patient/risk` | returns inputs only, **no score** — methodology unapproved |
 | `/api/patient/evisits` | complaint box; no booking, status, doctor or video |
-| `/api/Notification/GetListData` | **patients are denied every row** — `Notification` is not in `PatientScope`; no mark-read route exists |
+| `/api/Notification/GetListData` | **patients are denied every row** — `Notification` is not in `PatientScope`; no mark-read route exists. Still open. |
 | `/api/RemoteVisit/GetList` | read-only over 4 columns; booking columns unrun **and** unwired |
 | `/api/BaseObject/downloadFile` | no ownership check — do not use |
 | `/api/Advice/GetTicket` | bypasses `BuildAdviceScope`; a known visibility gap |
-| `/api/base/*`, `/api/report/*` | mounted with **no authentication** (`server.js:368`) |
+| `/api/base/*`, `/api/report/*` | mounted with **no authentication** (`server.js:389`) |
 | `/api/Test/*` | **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB file upload into the patient attachment directory |
-| doctor module | **no mobile API exists** — see [READINESS.md](READINESS.md) |
+| ~~doctor module~~ | **Built 2026-09-10** — `/api/doctor/*`, §4 |
 
-The last four are security findings, already recorded in `CLAUDE.md §10` for the contract's
-mandated audit. They are listed here so you do not mistake them for features.
+The four rows from `downloadFile` to `/api/Test/*` are security findings, already recorded in
+`CLAUDE.md §10` for the contract's mandated audit. They are listed here so you do not mistake
+them for features.

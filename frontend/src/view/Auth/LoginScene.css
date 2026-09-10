@@ -11,7 +11,7 @@
   --ring: rgba(24, 140, 200, 0.075);
   --ink: #0c2233;
   --ink-dim: #5e7688;
-  --panel: rgba(255, 255, 255, 0.8);
+  --panel: rgba(255, 255, 255, 0.96);
   --panel-line: rgba(13, 58, 92, 0.13);
   --field: rgba(13, 58, 92, 0.04);
 }
@@ -26,7 +26,7 @@
   --ring: rgba(24, 168, 232, 0.09);
   --ink: #dceaf3;
   --ink-dim: #7d96aa;
-  --panel: rgba(8, 22, 35, 0.72);
+  --panel: rgba(8, 22, 35, 0.94);
   --panel-line: rgba(150, 205, 240, 0.15);
   --field: rgba(255, 255, 255, 0.05);
 }
@@ -60,6 +60,26 @@
 .login-v2 .stage.quiet *,
 .login-v2 .stage.halt * {
   animation-play-state: paused !important;
+}
+
+/* ...but NOT the one-shot intro draws. .coast (the Mongolia border), .hstroke
+   (the heart outline) and the two .trace.base-* halves of the ECG all start at
+   stroke-dashoffset:100 - meaning NOTHING IS DRAWN YET - and animate to 0 with
+   `forwards`. They establish the artwork; they are not ambient motion.
+
+   The username input carries autoFocus (LoginPage.jsx:123) and its onFocus sets
+   Typing -> Quiet -> .quiet, so the rule above used to pause every one of them
+   on the very first frame, before the 0.1s border draw or the 3.7s heart draw
+   had run. Each focus/blur toggled it again, so the draws advanced in bursts and
+   froze at arbitrary points - which is exactly the reported "heart has missing
+   lines" and "border has empty space". The same applied while :not(.ready).
+
+   Specificity here is (0,5,0) against the (0,3,0) pause rules, so it wins in all
+   three states regardless of source order. */
+.login-v2 .stage.quiet :is(.coast, .hstroke, .trace.base-c, .trace.base-p),
+.login-v2 .stage.halt :is(.coast, .hstroke, .trace.base-c, .trace.base-p),
+.login-v2 .stage:not(.ready) :is(.coast, .hstroke, .trace.base-c, .trace.base-p) {
+  animation-play-state: running !important;
 }
 .login-v2 .scene {
   position: absolute;
@@ -420,8 +440,12 @@
   border-radius: 4px;
   background: var(--panel);
   border: 1px solid var(--panel-line);
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  /* No backdrop-filter here. A backdrop blur is cheap only when its backdrop
+     is static so the compositor can cache one texture; this panel sits directly
+     on top of ~80 SVG elements animating stroke-dashoffset forever, so a 16px
+     blur + saturate had to be recomputed over the panel's whole area EVERY
+     frame, for as long as the page was open. --panel was raised from 0.8/0.72
+     to 0.96/0.94 alpha instead, which keeps the frosted look without the cost. */
   box-shadow: 0 20px 50px rgba(9, 40, 64, 0.1);
 }
 .login-v2[data-theme="dark"] .panel {

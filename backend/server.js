@@ -350,19 +350,40 @@ if (isDevelopment) {
 }
 
 console.log('\n=== Registering Routes ===');
+
+/*
+ * The mobile surfaces are mounted BEFORE the legacy route table, deliberately.
+ *
+ * Express matches mount paths case-INSENSITIVELY unless 'case sensitive
+ * routing' is set, and it is not. The legacy table registers `/api/Patient`
+ * (PatientController), so that prefix also matches `/api/patient/me`. With the
+ * legacy table first, its mount-level Auth.verifyToken answered every
+ * unauthenticated /api/patient request with the legacy HTTP-200
+ * { Success:false, AuthError:true } envelope instead of the 401 this surface
+ * documents — a mobile client checking status codes would read that as success.
+ *
+ * Mounting first is only safe because these routers apply their auth PER ROUTE
+ * rather than at the mount (see api/patient/index.js). A path they do not serve
+ * — `/api/patient/SearchPatient`, say — matches no route, runs no middleware,
+ * and falls through to PatientController exactly as before.
+ *
+ * They are also kept out of the generic app.use('/api', require('./api')) mount
+ * further down, which carries no authentication at all.
+ */
+app.use('/api/patient', require('./api/patient'));
+console.log('✓ Registered route: /api/patient (protected, patient only)');
+
+app.use('/api/doctor', require('./api/doctor'));
+console.log('✓ Registered route: /api/doctor (protected, staff only)');
+
+// Session lifecycle — token refresh. Deliberately NOT behind verifyToken: a
+// client refreshes precisely when its access token has expired, and these
+// handlers verify strictly for themselves.
+app.use('/api/auth', require('./api/auth'));
+console.log('✓ Registered route: /api/auth (self-authenticating)');
+
 registerRoutes(routeGroups.public);
 registerRoutes(routeGroups.protected, true);
-
-// The patient surface the mobile app consumes. Mounted before the generic /api
-// router below, and with its own auth: that router is registered with no
-// verifyToken at all, so inheriting its mount would leave this unauthenticated.
-app.use(
-  '/api/patient',
-  Auth.verifyToken,
-  require('./helper/RequirePatient'),
-  require('./api/patient')
-);
-console.log('✓ Registered route: /api/patient (protected, patient only)');
 
 // API routes
 app.use('/api', require('./api'));
