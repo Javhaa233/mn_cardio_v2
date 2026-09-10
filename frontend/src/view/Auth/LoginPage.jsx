@@ -54,9 +54,12 @@ export default function LoginPage() {
     IdleTimer.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS);
   };
 
-  useEffect(() => () => {
-    if (IdleTimer.current) clearTimeout(IdleTimer.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    },
+    [],
+  );
 
   // Already signed in - don't make them log in twice.
   useEffect(() => {

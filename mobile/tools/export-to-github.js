@@ -37,13 +37,22 @@ const DIR_DENY = new Set([
 const PATH_DENY = ['backend/config/SSL', 'backend/config/Xyp'];
 
 const FILE_DENY = [
-  /^ssh\.env$/i, /^\.env$/i, /^\.env\..*/i, /^Config\.env.*/i,
+  // Anything ending in .env, anywhere in the tree, whatever it is called. The
+  // root allowlist already drops stray root files, but a credentials file such
+  // as ssh-mncardio.env would survive being moved into a subdirectory.
+  /\.env$/i, /^\.env\..*/i, /^Config\.env.*/i,
   /\.key$/i, /\.pem$/i, /\.pfx$/i, /\.p12$/i, /\.ovpn$/i,
   /\.keystore$/i, /\.jks$/i, /^id_rsa/i,
   /^tmp_.*\.js$/i, /^test_findAll\.js$/i, /^temp_DoctorsProfileForm\.jsx$/i,
   /^login-heartbeat\.html$/i, /^image.*\.png$/i, /_backup_.*\.xlsx$/i,
   /\.log$/i, /^~\$/,
 ];
+
+// Checked BEFORE FILE_DENY. Config-Template.env ends in .env and would
+// otherwise be caught by the rule above — but it is the placeholder file we
+// deliberately ship, and sanitiseTemplate() silently no-ops if it is missing,
+// so dropping it would go unnoticed until someone deployed from the export.
+const FILE_ALLOW = [/^Config-Template\.env$/i];
 
 // Loose files at the repo root are allowlisted, so nothing new rides along.
 const ROOT_FILE_ALLOW = new Set([
@@ -75,7 +84,11 @@ function walk(absDir, rel) {
     }
     if (entry.isDirectory() && DIR_DENY.has(name)) { skipped.push(childRel); continue; }
     if (PATH_DENY.some((p) => childRel === p || childRel.startsWith(p + '/'))) { skipped.push(childRel); continue; }
-    if (entry.isFile() && FILE_DENY.some((r) => r.test(name))) { skipped.push(childRel); continue; }
+    const explicitlyAllowed = entry.isFile() && FILE_ALLOW.some((r) => r.test(name));
+    if (entry.isFile() && !explicitlyAllowed && FILE_DENY.some((r) => r.test(name))) {
+      skipped.push(childRel);
+      continue;
+    }
 
     const abs = path.join(absDir, name);
     if (entry.isDirectory()) walk(abs, childRel);

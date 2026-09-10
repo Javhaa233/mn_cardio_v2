@@ -1,13 +1,11 @@
 import React from "react";
 import { Toolbar as MuiToolbar, Button, Box } from "@mui/material";
 import { useTranslation } from "react-i18next";
-import {
-  Refresh as RefreshIcon,
-  Add as AddIcon,
-  SaveAlt as ExportIcon,
-  Delete as DeleteIcon,
-  Edit as EditIcon,
-} from "@mui/icons-material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import AddIcon from "@mui/icons-material/Add";
+import ExportIcon from "@mui/icons-material/SaveAlt";
+import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 
 import { gridToolbarButtonSx } from "@/theme/controlStyles";
 

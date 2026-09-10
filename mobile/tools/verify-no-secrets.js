@@ -22,6 +22,7 @@ if (!TARGET) {
 const ROOT = path.resolve(__dirname, '..', '..');
 const SOURCES = [
   path.join(ROOT, 'ssh.env'),
+  path.join(ROOT, 'ssh-mncardio.env'),
   path.join(ROOT, 'backend', '.env'),
   path.join(ROOT, 'backend', '.env.development'),
   path.join(ROOT, 'backend', '.env.production'),
@@ -62,7 +63,10 @@ const files = [];
 })(TARGET);
 
 // Structural check: no secret-bearing file should exist at all.
-const BANNED = /(^|[\\/])(\.env($|\.)|Config\.env|ssh\.env)|\.(key|pem|pfx|p12|ovpn|jks|keystore)$/i;
+// Any file ending in .env, whatever its name — .env, Config.env, ssh.env,
+// ssh-mncardio.env — plus key material by extension. Config-Template.env is
+// the one deliberate exception: it ships, sanitised.
+const BANNED = /(^|[\\/])(?!Config-Template\.env$)[^\\/]*\.env(\.[^\\/]*)?$|\.(key|pem|pfx|p12|ovpn|jks|keystore)$/i;
 const bannedFiles = files.filter((f) => BANNED.test(f.replace(TARGET, '')));
 
 // Content check: does any real value appear anywhere?

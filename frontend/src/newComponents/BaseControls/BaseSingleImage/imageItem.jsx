@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { getFileSrc } from "utils/helper";
 import { IconButton, Tooltip } from "@mui/material";
-import { Download, Delete, Edit } from "@mui/icons-material";
+import Download from "@mui/icons-material/Download";
+import Delete from "@mui/icons-material/Delete";
+import Edit from "@mui/icons-material/Edit";
 import i18n from "i18n";
 
 export default ({ index, data, chooseFile, download, remove, ...props }) => {

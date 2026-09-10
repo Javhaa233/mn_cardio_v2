@@ -1,10 +1,8 @@
 import React, { useMemo } from "react";
 import { Button, Grid, Box } from "@mui/material";
 import BaseGrid from "baseComponents/BaseGrid/BaseGrid";
-import {
-  Refresh as RefreshIcon,
-  SaveAlt as ExportIcon,
-} from "@mui/icons-material";
+import RefreshIcon from "@mui/icons-material/Refresh";
+import ExportIcon from "@mui/icons-material/SaveAlt";
 import { Popup } from "components/customComponent/defaults";
 import { useBaseGrid } from "newComponents/BaseGrid";
 import useExcelImport from "./useExcelImport";

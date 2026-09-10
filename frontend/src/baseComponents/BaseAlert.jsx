@@ -1,10 +1,13 @@
-import {
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Button,
-} from "@mui/material";
+// Deep imports, not the "@mui/material" barrel. This file sits on the LOGIN
+// critical path (LoginPage -> helper -> BaseCrudHelper -> BaseAlert), and in dev
+// the barrel pulls @mui_material.js plus 137 transitive chunk files - 87 extra
+// requests and ~1.4 MB, through an import graph 12 levels deep, which serialises
+// badly on Vite dev's 6 sockets per origin.
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
+import Button from "@mui/material/Button";
 // translation
 import { useTranslation } from "react-i18next";
 import PropTypes from "prop-types";
