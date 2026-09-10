@@ -56,17 +56,57 @@ class MnCardioApp extends StatelessWidget {
           minScaleFactor: 1.0,
           maxScaleFactor: 1.5,
         );
-        return MediaQuery(
+        final Widget media = MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: scale),
           child: child ?? const SizedBox.shrink(),
         );
+
+        // Хамрах хүрээ (scope) нь Navigator-ААС ДЭЭШ байх ёстой.
+        //
+        // `builder`-ийн `child` бол Navigator өөрөө. Хэрэв scope-ыг доор нь —
+        // жишээ нь `home:` дэлгэцийн дотор — тавибал `Navigator.push`-оор
+        // нээгдсэн дэлгэц scope-ын ХАЖУУД, өөрөөр хэлбэл түүнээс гадна
+        // холбогдоно. Тэгвэл `context.read<DoctorRepository>()` мэтийн дуудлага
+        // `ProviderNotFoundException` шиднэ: жагсаалт ажиллаад дэлгэрэнгүй
+        // дэлгэц бүр унана.
+        return _SessionScope(child: media);
       },
       home: const _AuthGate(),
     );
   }
 }
 
+/// Нэвтэрсэн хэрэглэгчийн repository ба controller-уудыг **Navigator-аас дээш**
+/// байрлуулна.
+///
+/// `MaterialApp.builder` дотроос дуудагдана — тэнд `child` нь Navigator өөрөө
+/// тул энд өгсөн provider-уудыг `push` хийсэн дэлгэц бүр харна.
+class _SessionScope extends StatelessWidget {
+  const _SessionScope({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (auth.status != AuthStatus.authenticated) return child;
+
+    // Хэрэглэгч солигдвол бүх хяналт шинээр үүснэ — өмнөх хүний тэмдэглэл,
+    // чат хоцрох боломжгүй.
+    final key = ValueKey<int>(auth.user?.id ?? 0);
+    final store = context.read<SecureStore>();
+
+    // Эрхийг сервер тогтооно, нэвтрэх дэлгэц дээрх сонголт биш.
+    return auth.isDoctorSession
+        ? DoctorScope(key: key, api: auth.api, store: store, child: child)
+        : PatientScope(key: key, api: auth.api, store: store, child: child);
+  }
+}
+
 /// Нэвтрэлтийн төлөвөөр дэлгэц сонгоно.
+///
+/// Provider-уудыг энд ОРУУЛАХГҮЙ — тэдгээр нь [_SessionScope] дотор,
+/// Navigator-аас дээш байрлана.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -78,23 +118,9 @@ class _AuthGate extends StatelessWidget {
       AuthStatus.unknown => const _SplashScreen(),
       AuthStatus.unauthenticated => const LoginScreen(),
       AuthStatus.locked => const BiometricGateScreen(),
-      // Дэлгэцийн бүтэц нь хадгалсан `RoleId`-аар шийдэгдэнэ, нэвтрэх дэлгэц
-      // дээрх сонголтоор биш. Эрхийг сервер тогтооно.
-      AuthStatus.authenticated => auth.isDoctorSession
-          ? DoctorScope(
-              key: ValueKey<int>(auth.user?.id ?? 0),
-              api: auth.api,
-              store: context.read<SecureStore>(),
-              child: const DoctorShell(),
-            )
-          : PatientScope(
-              // Хэрэглэгч солигдвол бүх хяналт шинээр үүснэ — өмнөх хүний
-              // тэмдэглэл, чат хоцрох боломжгүй.
-              key: ValueKey<int>(auth.user?.id ?? 0),
-              api: auth.api,
-              store: context.read<SecureStore>(),
-              child: const MainShell(),
-            ),
+      // Дэлгэцийн бүтэц нь хадгалсан `RoleId`-аар шийдэгдэнэ.
+      AuthStatus.authenticated =>
+        auth.isDoctorSession ? const DoctorShell() : const MainShell(),
     };
   }
 }
