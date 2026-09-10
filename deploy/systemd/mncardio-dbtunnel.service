@@ -1,0 +1,36 @@
+[Unit]
+# MnCardio test environment: SSH tunnel from the app host (webhost) to the
+# MSSQL host (mncardiosrv1).
+#
+# Why a tunnel rather than connecting to the database directly:
+#
+#  1. config/DbConnection.js sets `encrypt: false`. A direct connection across
+#     the internet would carry credentials and patient data in clear text. SSH
+#     supplies the transport encryption the driver is not providing.
+#  2. That same file passes the host as `dialectOptions.server`, which Sequelize
+#     ignores — the app always dials localhost:1433. It works in production only
+#     because SQL Server is on the same box there. The tunnel makes localhost
+#     mean the right thing here instead of patching shared code that would then
+#     break production, where SQL_HOST is a NAT address the box cannot reach.
+#  3. It means port 1433 need not be exposed to the internet at all.
+Description=MnCardio test env - SSH tunnel to the MSSQL box
+Documentation=https://github.com/Javhaa233/mn_cardio_v2
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=its
+# The key on the far side is restricted in authorized_keys to
+# permitopen="127.0.0.1:1433" with no shell, so it can only ever open this one
+# forward.
+#
+# ExitOnForwardFailure turns a port clash into a hard failure rather than a
+# tunnel that is up but forwarding nothing — otherwise the app would fail to
+# connect while systemd reported the service as healthy.
+# ServerAlive* detects a peer that has gone away silently.
+ExecStart=/usr/bin/ssh -NT -o ExitOnForwardFailure=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=3 -o StrictHostKeyChecking=accept-new -o IdentitiesOnly=yes -i /home/its/.ssh/id_ed25519_dbtunnel -L 127.0.0.1:1433:127.0.0.1:1433 -p 22 admin630@103.87.69.175
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
