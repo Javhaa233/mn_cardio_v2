@@ -57,7 +57,38 @@ separate API off the same database; that permission is a trap and we are not usi
 
 ---
 
-## Reaching the backend
+## The test server — build against this
+
+**`https://mncardio.itsystem.mn`** is live. It is the shared test environment for the rest
+of the delivery: real schema, real data, TLS, and the same code you see in this repo.
+
+```
+GET  https://mncardio.itsystem.mn/health                 -> {"status":"ok", ...}
+POST https://mncardio.itsystem.mn/api/User/Login         -> doctor / staff token
+POST https://mncardio.itsystem.mn/api/PatientUser/Login  -> patient token
+```
+
+Test credentials for both a doctor and a patient account exist. Ask for them — they are
+kept in `test-environment.env` outside this repository and are deliberately not written
+down here. **Those passwords were set in the test database only**; the same accounts on
+production are untouched.
+
+What is real on it:
+
+| | |
+|---|---|
+| Database | restored from production — 226 tables, 680 organisations, 450,601 visits, 357,156 patients |
+| Tender forms | all 11 seeded, 1,687 fields |
+| Module 2.7 rehabilitation | **tables created — `/api/patient/rehab/*` returns 200, not 500** |
+| Doctor + patient + auth APIs | verified end to end over HTTPS with real logins |
+| Chat + notification sockets | WebSocket upgrade confirmed (101) on both paths |
+
+It is a **test** environment. Data can be reset, and it carries real patient records, so
+treat it with the same care as production.
+
+---
+
+## Running the backend locally
 
 ```
 cd backend

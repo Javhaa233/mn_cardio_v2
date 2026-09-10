@@ -4,7 +4,9 @@ Everything a Flutter client needs to talk to the MnCardio backend. Verified agai
 on 2026-09-10; each claim names the file it came from so you can re-check it when the
 backend moves.
 
-Base URL in development: `http://<host>:5001` — port is `process.env.PORT || 5001`
+Live test server: **`https://mncardio.itsystem.mn`** — build against this.
+
+Base URL in local development: `http://<host>:5001` — port is `process.env.PORT || 5001`
 (`server.js:382`). Health: `GET /health`.
 
 ---
