@@ -98,7 +98,22 @@ class BaseControllerHelper {
       SearchText,
       limit: PageData.Limit,
       offset: PageData.Offset,
-      SearchField,
+      /*
+       * Default to an empty array rather than passing `undefined` through.
+       *
+       * 29 call sites across the controllers do `Option.SearchField.push(...)`
+       * to append an organisation scope, with no guard — so omitting
+       * SearchField from the request body crashed the handler with
+       * "Cannot read properties of undefined (reading 'push')". It went
+       * unnoticed because the web client always sends the field; a client that
+       * does not (the mobile app, or any direct API caller) hit a hard failure
+       * on endpoints as central as AtrialRhythmNew/GetList, which backs tender
+       * form 2.2.
+       *
+       * Fixing it here rather than at the 29 call sites: an empty array is what
+       * every one of them already assumes it is pushing onto.
+       */
+      SearchField: Array.isArray(SearchField) ? SearchField : [],
       FindType,
       WhereType,
     };
