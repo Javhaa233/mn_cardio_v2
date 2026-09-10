@@ -130,7 +130,11 @@ exports.createJournal = async (req, res) => {
       inr: inr || null,
       comment: comment || null,
       date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 'A',
+      // rec_status is an INTEGER column and Sequelize validates it: 'A' throws
+      // SequelizeValidationError before the INSERT ever runs. The schema's
+      // values are numeric - 1 active, 2 deleted, 9 draft - and every read
+      // filters `rec_status <> '2'`.
+      rec_status: 1,
     });
 
     return ok(res, { id_data: created.id_data });
@@ -230,7 +234,11 @@ exports.createQuestion = async (req, res) => {
       comment,
       is_doctor: '0',
       date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 'A',
+      // rec_status is an INTEGER column and Sequelize validates it: 'A' throws
+      // SequelizeValidationError before the INSERT ever runs. The schema's
+      // values are numeric - 1 active, 2 deleted, 9 draft - and every read
+      // filters `rec_status <> '2'`.
+      rec_status: 1,
     });
 
     return ok(res, { id_data: created.id_data });
