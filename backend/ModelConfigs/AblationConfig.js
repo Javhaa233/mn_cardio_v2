@@ -1,0 +1,376 @@
+const { Models } = require('../config/DB');
+const Model = Models.Ablation;
+
+function AblationConfig() {
+  this.Fields = [
+    [
+      { Name: 'Id', Label: 'Id', Type: 'Text' },
+      {
+        Name: 'PatientId',
+        Label: 'Patient ID',
+        Type: 'GridLookUpSingleLoad',
+        Config: {
+          ObjectName: 'Patient',
+          IdField: 'id_data',
+          TextField: 'p_registration',
+          Fields: [
+            // { Name: "id_data", Label: "Id" },
+            { Name: 'p_lastname', Label: 'Last name' },
+            { Name: 'p_firstname', Label: 'first name' },
+            { Name: 'p_registration', Label: 'Register' },
+            { Name: 'DictProvinceCity.name', Label: 'City' },
+          ],
+          MinTextLength: '2',
+        },
+      },
+      {
+        Name: 'HospitalId',
+        Label: 'HospitalId',
+        Type: 'Text',
+      },
+      {
+        Name: 'DoctorId',
+        Label: 'Doctor',
+        Type: 'GridLookUpSingleLoad',
+        Config: {
+          ObjectName: 'DoctorsProfile',
+          IdField: 'id_data',
+          TextField: 'firstname',
+          Fields: [
+            // { Name: "id_data", Label: "Id" },
+            { Name: 'lastname', Label: 'Last name' },
+            { Name: 'firstname', Label: 'First name' },
+          ],
+          MinTextLength: '2',
+        },
+        EditField: false,
+      },
+      { Name: 'NurseId', Label: 'Сувилагч', Type: 'Text' },
+      {
+        Name: 'TechnicianId',
+        Label: 'Техникч',
+        Type: 'Text',
+      },
+      {
+        Name: 'ShinjilgeeDate',
+        Label: 'Шинжилгээний огноо',
+        Type: 'Date',
+      },
+      { Name: 'InDate', Label: 'Хэвтсэн огноо', Type: 'Date' },
+      { Name: 'OutDate', Label: 'Эмнэлгээс гарсан огноо', Type: 'Date' },
+      { Name: 'SendDoctorId', Label: 'Илгээсэн эмч', Type: 'Text' },
+      { Name: 'SendDate', Label: 'Илгээсэн огноо', Type: 'Date' },
+      {
+        Name: 'ArteriDaraltIhsdeg',
+        Label: 'Артерийн даралт ихсэлт',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ArteriDaraltIhsdegDetail',
+        Label: 'Артерийн даралт ихсэлт/Тийм',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_arteri_daralt_ihsdeg',
+      },
+      {
+        Name: 'Giperlipidemi',
+        Label: 'Гиперлипидеми',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'GiperlipidemiDetail',
+        Label: 'Гиперлипидеми/Тийм',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_giperlipidemi',
+      },
+      {
+        Name: 'ChihriinShijin',
+        Label: 'Чихрийн шижин',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ChihriinShijinDetail',
+        Label: 'Чихрийн шижин/Тийм',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_chihriin_shijin',
+      },
+      {
+        Name: 'ZvrhniiDutagdal',
+        Label: 'Зүрхний дутагдалд орж байсан эсэх',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'Harvalt',
+        Label: 'Харвалт / TIA',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ZahSudasniUwchin',
+        Label: 'Захын судасны өвчин',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ZvrhniBvtetsEmgeg',
+        Label: 'Зүрхний бүтцийн эмгэг',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'Ziu',
+        Label: 'ЗИӨ',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'Cardiomiopati',
+        Label: 'Кардиомиопати',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'CardiomiopatiYes',
+        Label: 'Кардиомиопати/Тийм',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_cardiomiopati',
+      },
+      {
+        Name: 'CardiomiopatiYesOther',
+        Label: 'Кардиомиопати бусад',
+        Type: 'Text',
+      },
+      {
+        Name: 'ZvrhniTurulhGajig',
+        Label: 'Зүрхний төрөлхийн гажиг',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'MitralHavhlagProlaps',
+        Label: 'Митрал хавхлагын пролапс',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'HavhlagaGajig',
+        Label: 'Хавхлагын гажиг',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ZvrhniShigdees',
+        Label: 'Зүрхний шигдээс',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ZvrhniShigdeesYes',
+        Label: 'Зүрхний шигдээс/Тийм',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_zvrhni_shigdees',
+      },
+      {
+        Name: 'BHDisplazi',
+        Label: 'БХ-ын дисплази',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'Other',
+        Label: 'Бусад',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'OtherDetail',
+        Label: 'Бусад тодорхой',
+        Type: 'Text',
+      },
+      {
+        Name: 'Ajilbar',
+        Label: 'Ажилбар',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_ajilbar',
+      },
+      {
+        Name: 'Zaalt',
+        Label: 'Заалт',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_zaalt',
+      },
+      {
+        Name: 'ZaaltOther',
+        Label: 'Заалт /бусад',
+        Type: 'Text',
+      },
+      {
+        Name: 'HemAldaltEmenEmchilge',
+        Label: 'Хэм алдагдлын эмэн эмчилгээ',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'HemAldaltEmenEmchilgeDetail',
+        Label: 'Хэм алдагдлын эмэн эмчилгээ',
+        Type: 'CheckBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_hemaldalt_emen_emchilge',
+      },
+      {
+        Name: 'HemAldaltEmenEmchilgeOther',
+        Label: 'Хэм алдагдлын эмэн эмчилгээ бусад',
+        Type: 'Text',
+      },
+      {
+        Name: 'LVEF',
+        Label: 'Үйл ажиллагааны үзүүлэлт: LVEF',
+        Type: 'Text',
+      },
+      {
+        Name: 'HemAldaltMesZasal',
+        Label: 'Хэм алдагдлын мэс заслын эмчилгээ',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'PacemakerSuulgats',
+        Label: 'Пейсмейкер суулгац',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'PacemakerSuulgatsYes',
+        Label: 'Пейсмейкер суулгац/Тийм',
+        Type: 'CheckBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'ab_pacemaker_suulgats',
+      },
+      {
+        Name: 'PacemakerSuulgatsYesDate',
+        Label: 'Пейсмейкер суулгац огноо',
+        Type: 'Date',
+      },
+      {
+        Name: 'ICDSuulgats',
+        Label: 'ICD суулгацтай',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'ICDSuulgatsYesDate',
+        Label: 'ICD суулгацтай огноо',
+        Type: 'Date',
+      },
+      {
+        Name: 'UmnuhKatetrAblatsi',
+        Label: 'Өмнөх катетр аблаци',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'UmnuhKatetrAblatsiYesHaan',
+        Label: 'Өмнөх катетр аблаци хаан',
+        Type: 'Text',
+      },
+      {
+        Name: 'UmnuhAblatsiHiilgesen',
+        Label: 'Өмнө нь аблаци хийлгэсэн огноо',
+        Type: 'Date',
+      },
+      {
+        Name: 'UmnuhAjilbarOther',
+        Label: 'Бусад',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+      {
+        Name: 'UmnuhAjilbarOtherYesDate',
+        Label: 'Бусад огноо',
+        Type: 'Date',
+      },
+      {
+        Name: 'EFShOnosh',
+        Label: 'ЭФШ-ний онош',
+        Type: 'CheckBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        LookUpConfig: {
+          Model: Models.ModelLookUp,
+          ParentValueField: 'id_data',
+          ChildValueField: 'value',
+          IdField: 'id_lookup',
+          Field: 'id_question',
+        },
+        Multiple: true,
+        OptionType: 'ab_efsh_onosh',
+      },
+      {
+        Name: 'EFShOnoshOther',
+        Label: 'ЭФШ-ний онош бусад',
+        Type: 'Text',
+      },
+      ////end
+      {
+        Name: 'IncArrhythLab',
+        Label: 'Inducible Arrhythmias in Laboratory',
+        Type: 'Text',
+      },
+      {
+        Name: 'IncArrhythLabOther',
+        Label: 'IncArrhythLabOther',
+        Type: 'Text',
+      },
+      {
+        Name: 'AblatsiHiigdsen',
+        Label: 'AblatsiHiigdsen',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        OptionType: 'yorn_mn',
+      },
+    ],
+  ];
+
+  this.ObjectName = 'Ablation';
+  this.Model = Model;
+  this.OptionTypes = Models.OptionTypes;
+  this.PK = 'Id';
+  this.NewObject = {};
+  this.TitleObject = {
+    Title: 'Ablation',
+    NewObjectTitle: 'Ablation create',
+    EditObjectTitle: 'Ablation edit',
+  };
+}
+
+module.exports = AblationConfig;

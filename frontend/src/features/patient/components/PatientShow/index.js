@@ -1,0 +1,14 @@
+export { default as VisitTable } from "./VisitTable";
+export { default as EchoTable } from "./EchoTable";
+export { default as EcgTable } from "./EcgTable";
+export { default as PatientInfo } from "./PatientInfo";
+export { default as BloodStrokeTable } from "./BloodStrokeTable";
+export { default as CalculatorTable } from "./CalculatorTable";
+export { default as PatientHistoryTable } from "./PatientHistoryTable";
+export { default as OutPatientInfoTable } from "./OutPatientInfoTable";
+export { default as PCathlabTable } from "./PCathlabTable";
+export { default as SurgeryReportTable } from "./SurgeryReportTable";
+export { default as PatientTransferTable } from "./PatientTransferTable";
+export { default as LaboratoryTestTable } from "./LaboratoryTestTable";
+export { default as SurgeryPlansTable } from "./SurgeryPlansTable";
+export * as NationalRegistry from "./NationalRegistry";

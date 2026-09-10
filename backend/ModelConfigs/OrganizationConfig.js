@@ -1,0 +1,242 @@
+const { Models } = require('../config/DB');
+const Model = Models.Organization;
+
+function OrganizationConfig() {
+  this.Fields = [
+    [
+      { Name: 'Id', Label: 'Id', Type: 'Text', EditField: false },
+      {
+        Name: 'ParentOrganization.Name',
+        Label: 'Parent organization',
+        Type: 'Text',
+        md: 6,
+        Position: 1,
+        EditField: false,
+      },
+      {
+        Name: 'ParentOrganizationId',
+        Label: 'Parent organization',
+        Type: 'GridLookUpSingle',
+        md: 4,
+        Config: {
+          Model: Model,
+          IdField: 'Id',
+          TextField: 'Name',
+          MinTextLength: 1,
+          SearchType: 'AllData',
+          Fields: [
+            { Name: 'Id', Label: 'Id' },
+            { Name: 'Name', Label: 'Name' },
+            { Name: 'vwOrganizationType.label', Label: 'Type' },
+          ],
+        },
+        DataFilter: [{ Field: 'OrganizationTypeId', Value: '1', Op: 'Equals' }],
+        GridField: false,
+        Position: 3,
+      },
+      // {
+      //   Name: "ParentOrganizationId",
+      //   Label: "Parent organization",
+      //   Type: "SingleSelectLoad",
+      //   md: 4,
+      //   Config: {
+      //     ObjectName: "Organization",
+      //     IdField: "Id",
+      //     MinTextLength: 0,
+      //     TextField: "Name",
+      //   },
+      //   DataFilter: [
+      //     {
+      //       Field: "OrganizationTypeId",
+      //       Value: "1",
+      //       Op: "Equals",
+      //     },
+      //   ],
+      //   EditField: true,
+      //   GridField: false,
+      //   Position: 3,
+      // },
+      {
+        Name: 'OrganizationTypeId',
+        Label: 'Organization type',
+        Type: 'SingleSelect',
+        md: 4,
+        OptionType: 'organization_type',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        EditField: true,
+        GridField: false,
+        Position: 3,
+      },
+      {
+        Name: 'vwOrganizationType.label',
+        Label: 'Organization type',
+        Type: 'Text',
+        md: 6,
+        Position: 1,
+        EditField: false,
+      },
+      { Name: 'Name', Label: 'Name', Type: 'Text', md: 4, Position: 1 },
+      {
+        Name: 'level',
+        Label: 'Organization level',
+        Type: 'SingleSelect',
+        md: 4,
+        OptionType: 'organization_level',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        EditField: true,
+        GridField: true,
+        Position: 1,
+      },
+      {
+        Name: 'addr_prov_city',
+        Label: 'Province/city',
+        Type: 'SingleSelect',
+        md: 4,
+        Config: {
+          Model: Models.DictProvinceCity,
+          IdField: 'id_data',
+          TextField: 'name',
+          MinTextLength: 1,
+        },
+        GridField: false,
+        Position: 1,
+      },
+      {
+        Name: 'DictProvinceCity.name',
+        Label: 'Province/city',
+        Type: 'Text',
+        Position: 1,
+        ReadOnly: true,
+        GridField: false,
+        EditField: false,
+      },
+      {
+        Name: 'ProvCityName',
+        Label: 'Province/city',
+        Type: 'Text',
+        Position: 1,
+        ReadOnly: true,
+        GridField: true,
+        EditField: false,
+      },
+      {
+        Name: 'addr_soum_dist',
+        Label: 'Soum/district',
+        Type: 'SingleSelect',
+        md: 4,
+        Config: {
+          SearchType: 'AllData',
+          Model: Models.DictSoumDistrict,
+          ObjectName: 'DictSoumDistrict',
+          IdField: 'id_data',
+          TextField: 'name',
+          MinTextLength: 0,
+          Fields: [
+            { Name: 'id_data', Label: 'Id' },
+            { Name: 'name', Label: 'Name' },
+            { Name: 'DictProvinceCity.name', Label: 'City' },
+          ],
+          //  SearchUrl: undefined
+        },
+        GridField: false,
+        Position: 1,
+      },
+      {
+        Name: 'DictSoumDistrict.name',
+        Label: 'Soum/district',
+        Type: 'Text',
+        Position: 1,
+        GridField: false,
+        EditField: false,
+      },
+      {
+        Name: 'SoumDistName',
+        Label: 'Soum/district',
+        Type: 'Text',
+        Position: 1,
+        GridField: true,
+        EditField: false,
+      },
+      {
+        Name: 'addr_bag_khoroo',
+        Label: 'Bag/khoroo',
+        Type: 'SingleSelectLoad',
+        md: 4,
+        GridField: false,
+        Config: {
+          ObjectName: 'DictBagKhoroo',
+          IdField: 'id_data',
+          TextField: 'name',
+          MinTextLength: 0,
+          Fields: [
+            { Name: 'id_data', Label: 'Id' },
+            { Name: 'name', Label: 'Name' },
+          ],
+        },
+      },
+      {
+        Name: 'DictBagKhoroo.name',
+        Label: 'Bag/khoroo',
+        Type: 'Text',
+        Position: 1,
+        GridField: false,
+        EditField: false,
+      },
+      {
+        Name: 'BagKhorooName',
+        Label: 'Bag/khoroo',
+        Type: 'Text',
+        Position: 1,
+        GridField: true,
+        EditField: false,
+      },
+      {
+        Name: 'IsSoumHospital',
+        Label: 'Сумын эмнэлэг мөн эсэх',
+        Type: 'RadioBox',
+        Config: { IdField: 'Value', TextField: 'Label' },
+        md: 4,
+        OptionType: 'yorn',
+        Position: 7,
+        GridField: false,
+      },
+      {
+        Name: 'CreateDate',
+        Label: 'Create date',
+        Type: 'Date',
+        md: 6,
+        Position: 1,
+        EditField: false,
+      },
+      {
+        Name: 'CreateUser.UserName',
+        Label: 'CreateUser',
+        Type: 'Text',
+        md: 6,
+        Position: 1,
+        EditField: false,
+      },
+      {
+        Name: 'CreateUserId',
+        Label: 'CreateUserId',
+        Type: 'Text',
+        md: 6,
+        Position: 1,
+        EditField: false,
+        GridField: false,
+      },
+    ],
+  ];
+
+  this.ObjectName = 'Organization';
+  this.Model = Model;
+  this.PK = 'Id';
+  this.NewObject = {};
+  this.TitleObject = {
+    Title: 'Organization',
+    NewObjectTitle: 'Organization create',
+    EditObjectTitle: 'Organization edit',
+  };
+}
+
+module.exports = OrganizationConfig;

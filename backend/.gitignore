@@ -1,0 +1,4 @@
+node_modules/*
+config/Config.env
+reportPDF/*
+config/Config.env*

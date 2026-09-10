@@ -1,0 +1,92 @@
+function CardiacRhythm(Data) {
+  const { PatientData } = Data;
+
+  return `<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <style>
+      html {
+          zoom: 1.45;
+      }
+      body {
+        margin: 0 auto;
+        font-family: Helvetica, "Arial", sans-serif;
+        font-size: 7px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      .main {
+        width: 565px;
+        overflow: hidden;
+        padding: 0 15px 0 15px;
+      }
+
+      .header {
+        text-align: center;
+        font-size: 9px;
+        padding: 2px;
+        font-weight: 500;
+        margin: 0 25% 10px 25%;
+      }
+
+      table {
+        width: 100%;
+        border: 1px solid #666666;
+        border-collapse: collapse;
+        font-size: 6px;
+      }
+
+      table tr {
+      }
+
+      table th {
+        background-color: #000;
+        text-align: left;
+        padding: 0 4px;
+      }
+
+      table td {
+        border: 1px solid #666666;
+        padding: 1px 4px;
+        vertical-align: top;
+      }
+
+      .tableHeader {
+        color: #fff;
+        font-weight: 500;
+        margin: 2px 0;
+      }
+
+      table tr.subheader {
+        background-color: #999999;
+      }
+
+      /* Check Div */
+      .checkDiv {
+        float: left;
+        position: relative;
+        border: 1px solid #ccc;
+        width: 6px;
+        height: 6px;
+        margin: 0 2px 1px 0;
+      }
+
+      .checkSpan {
+        position: absolute;
+        top: -4px;
+        font-size: 8px;
+        font-weight: 500;
+        /* visibility: "visible"; */
+      }
+    </style>
+  </head>
+  <body></body>
+</html>
+`;
+}
+
+module.exports = CardiacRhythm;

@@ -1,0 +1,491 @@
+td[role="columnheader"] {
+  text-align: center !important;
+  color: "black";
+}
+
+.dx-datagrid-headers {
+  color: #484747;
+}
+
+/* Scrollbar visibility - removed global hide to allow table horizontal scroll */
+
+.dx-datagrid-rowsview .dx-selection.dx-row:not(.dx-row-focused)>td,
+.dx-datagrid-rowsview .dx-selection.dx-row:not(.dx-row-focused)>tr>td,
+.dx-datagrid-rowsview .dx-selection.dx-row:not(.dx-row-focused):hover>td,
+.dx-datagrid-rowsview .dx-selection.dx-row:not(.dx-row-focused):hover>tr>td {
+  //#e6e6e6;
+  //background-color: #dadada;
+  background-color: #e6eeff;
+
+  color: #333;
+}
+
+body {
+  background-color: inherit;
+}
+
+.dx-pager .dx-pages .dx-page {
+  display: inline-block;
+  cursor: pointer;
+  margin-left: 5px;
+  margin-right: 1px;
+  border-color: transparent;
+  background-color: #d4d4d4;
+}
+
+.dx-pager .dx-page-sizes .dx-selection,
+.dx-pager .dx-pages .dx-selection {
+  cursor: inherit;
+  text-shadow: none;
+  color: white;
+  border-color: transparent;
+  background-color: #337ab7;
+}
+
+.dx-datagrid-search-text {
+  color: black;
+  background-color: #e5e600;
+}
+
+.dx-pager .dx-pages .dx-info {
+  display: inline-block;
+  margin-right: 9px;
+  color: #666666;
+  opacity: 0.8;
+}
+
+.btn-small .dx-button-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 1px 6px;
+  font-size: 14px;
+}
+
+.dx-popup-title.dx-toolbar {
+  padding: 8px 12px;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.dx-popup-title {
+  font-weight: 500;
+}
+
+// .dx-show-clear-button .dx-icon-clear {
+//     color: #ff4d4d;
+// }
+
+.dx-show-clear-button .dx-icon-clear:hover {
+  color: #ff4d4d;
+}
+
+.dx-icon .dx-icon-clear:hover {
+  color: #ff4d4d;
+}
+
+.dx-treelist-headers {
+  color: #262626;
+  font-weight: 500;
+}
+
+.dx-treelist-headers .dx-treelist-table .dx-row>td {
+  //background-color: #e6e6e6;
+  padding: 10px;
+}
+
+.dx-datagrid-headers {
+  color: #262626;
+  font-weight: 500;
+}
+
+.dx-datagrid-headers .dx-datagrid-table .dx-row>td {
+  //background-color: #e6e6e6;
+  padding: 10px;
+}
+
+.dx-field-item-help-text,
+.dx-field-item-label-text {
+  color: #404040;
+  //font-weight: 500;
+}
+
+.dx-treelist-rowsview.dx-treelist-nowrap .dx-treelist-table .dx-treelist-cell-expandable .dx-treelist-text-content:hover {
+  cursor: pointer;
+}
+
+.dx-layout-manager .dx-field-item:not(.dx-first-row) {
+  padding-top: 4px;
+}
+
+table .custom-table,
+th,
+td {
+  min-width: 30px;
+  // max-height: 400px;
+  text-align: center;
+  align-items: center;
+
+  border: 1px solid #ddd;
+  border-collapse: collapse;
+}
+
+table .custom-table {
+  background-color: white;
+  font-family: auto "Helvetica Neue", "Segoe UI", Helvetica, Verdana, sans-serif;
+  font-size: 14px;
+}
+
+.column-bold700 {
+  color: #262626;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.column-bold500 {
+  color: #262626;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.dx-pager .dx-pages .dx-info {
+  font-weight: 500;
+  color: black;
+}
+
+.status-success {
+  background-color: #019900;
+  padding: 2px;
+  border-radius: 4px;
+  color: white;
+  padding-inline: 10px;
+}
+
+.status-danger {
+  background-color: #fe0101;
+  padding: 2px;
+  border-radius: 4px;
+  color: white;
+  padding-inline: 10px;
+}
+
+div.image-polaroid {
+  width: 400px;
+  background-color: white;
+  box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2), 0 6px 20px 0 rgba(0, 0, 0, 0.19);
+}
+
+div.text-container {
+  text-align: center;
+  padding: 5px 20px;
+}
+
+.dx-texteditor-input[inputmode="decimal"] {
+  font-weight: 500;
+}
+
+.cust-tab-panel-active {
+  display: block;
+  padding-top: 2px;
+  height: 100%;
+  width: 100%;
+}
+
+.cust-tab-panel {
+  display: none;
+  padding-top: 2px;
+  height: 100%;
+  width: 100%;
+}
+
+.e-splitter.e-splitter-horizontal,
+.e-splitter.e-splitter-vertical {
+  border: none !important;
+}
+
+.dx-texteditor-input .input-bold500 {
+  font-weight: 500;
+}
+
+.input-bold500 {
+  font-weight: 500;
+}
+
+.dx-numberbox .dx-texteditor-input {
+  text-align: right;
+}
+
+table {
+  width: 100%;
+  background-color: white;
+  font-family: auto "Helvetica Neue", "Segoe UI", Helvetica, Verdana, sans-serif;
+  font-size: 14px;
+}
+
+table tr th,
+table tr td {
+  min-width: 30px;
+  // max-height: 400px;
+  text-align: center;
+  align-items: center;
+
+  border: 1px solid #ddd;
+  border-collapse: collapse;
+}
+
+table tr th,
+table tr td {
+  padding: 8px;
+}
+
+.ss {
+  writing-mode: vertical-rl;
+  transform: rotate(-180deg);
+}
+
+.customTableCell {
+  min-width: 30px;
+  // max-height: 400px;
+  border: 1px solid #ddd !important;
+  border-collapse: collapse !important;
+}
+
+.textAlignLeft {
+  text-align: left;
+}
+
+.textAlignRight {
+  text-align: right;
+}
+
+table.htCore .star {
+  color: #fcb515;
+}
+
+table.htCore tr.odd td {
+  background: #fafbff;
+}
+
+table.htCore td .progressBar {
+  background: #37bc6c;
+  height: 10px;
+}
+
+table.htCore tr.selected td {
+  background: #edf3fd;
+}
+
+.handsontable {
+  font-size: 15px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
+    "Ubuntu", "Helvetica Neue", Arial, sans-serif;
+  font-weight: 400;
+}
+
+.collapsibleIndicator {
+  text-align: center;
+}
+
+.handsontable .htRight .changeType {
+  margin: 3px 1px 0 13px;
+}
+
+.htDropdownMenu {
+  z-index: 9999 !important;
+}
+
+.dx-drawer-wrapper {
+  background-color: #fff;
+}
+
+//tree
+
+.dx-form-group-with-caption>.dx-form-group-content {
+  padding-top: 10px;
+  margin-top: 6px;
+  border-top: 1px solid #ddd;
+  padding-bottom: 6px;
+}
+
+.menuItems {
+  border-radius: 3px;
+  color: hsla(0, 0%, 100%, 0.7);
+  display: block;
+  font-size: 17px;
+  font-weight: 500;
+  margin: 0 10px;
+  padding: 0.6rem 1.1rem;
+  position: relative;
+  transition: all 0.4s;
+  cursor: pointer;
+}
+
+.menuItems span {
+  font-size: 17px;
+  font-weight: 500;
+}
+
+.menuItems a {
+  text-decoration: none;
+  color: hsla(0, 0%, 100%, 0.7);
+}
+
+.menuItemIcon {
+  font-size: 1.05rem;
+  line-height: 1.40625rem;
+  min-width: 1.5rem;
+  padding-bottom: 0.125em;
+  transition: all 0.4s;
+  vertical-align: middle;
+}
+
+#side-menu {
+  padding: 0px;
+}
+
+.activeMenu {
+  background-color: hsla(0, 0%, 100%, 0.1) !important;
+}
+
+.subItem {
+  padding-left: 30px;
+}
+
+.dx-datagrid-search-panel {
+  margin: 4px !important;
+}
+
+.dx-field-item-label-content {
+  max-width: 360px;
+  white-space: normal;
+}
+
+.main-panel-scroll,
+.main-panel-scroll .os-host,
+.main-panel-scroll .os-host-foreign,
+.main-panel-scroll .os-padding,
+.main-panel-scroll .os-viewport,
+.main-panel-scroll .os-content {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.main-panel-scroll {
+  display: flex;
+  flex-direction: column;
+}
+
+.main-panel-scroll .os-padding,
+.main-panel-scroll .os-viewport {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.main-panel-scroll .os-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+
+
+.dx-texteditor.dx-editor-outlined {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.dx-texteditor-input {
+  margin: 0;
+  padding: 4px 4px;
+  background: rgba(0, 0, 0, 0);
+  color: #333;
+  font-size: 13px;
+  border-radius: 4px;
+  min-height: 22px;
+}
+
+.dx-box-item-content {
+  flex-direction: column;
+  max-width: 100%;
+  font-size: 13px;
+}
+
+.dx-datagrid .dx-row>td {
+  padding: 5px;
+}
+
+.column-bold500 {
+  color: #262626;
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.dx-datagrid-headers .dx-datagrid-table .dx-row>td {
+  padding: 6px;
+}
+
+.dx-treelist-headers .dx-treelist-table .dx-row>td {
+  padding: 6px;
+}
+
+table {
+  width: 100%;
+  background-color: white;
+  font-family: auto "Helvetica Neue", "Segoe UI", Helvetica, Verdana, sans-serif;
+  font-size: 13px;
+}
+
+.dx-datagrid-headers .dx-texteditor-input,
+.dx-datagrid-rowsview .dx-texteditor-input {
+  padding: 4px;
+  min-height: 22px;
+}
+
+.dx-widget {
+  font-weight: 400;
+  font-size: 13px;
+  font-family: "Helvetica Neue", "Segoe UI", helvetica, verdana, sans-serif;
+}
+
+.dx-button-has-text .dx-icon {
+  width: 12px;
+  height: 12px;
+  background-position: 0 0;
+  background-size: 12px 12px;
+  padding: 0;
+  font-size: 13px;
+  text-align: center;
+  line-height: 14px;
+  margin-right: 6px;
+  margin-left: 0px;
+}
+
+.dx-datagrid .dx-row>td,
+.dx-datagrid .dx-row>tr>td {
+  padding: 4px;
+}
+
+.dx-button-has-text .dx-button-content {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 3px 8px;
+}
+
+.dx-field-item-label-location-left {
+  padding-right: 6px;
+}
+
+.dx-datagrid-filter-row .dx-editor-cell .dx-editor-with-menu .dx-placeholder::before,
+.dx-datagrid-filter-row .dx-editor-cell .dx-editor-with-menu .dx-texteditor-input {
+  padding-left: 22px;
+}
+
+.dx-treelist-filter-row .dx-editor-cell .dx-editor-with-menu .dx-placeholder::before,
+.dx-treelist-filter-row .dx-editor-cell .dx-editor-with-menu .dx-texteditor-input {
+  padding-left: 22px;
+}

@@ -1,0 +1,25 @@
+{
+  "watch": [
+    "server.js",
+    "controllers/**/*.js",
+    "api/**/*.js",
+    "helper/**/*.js",
+    "services/**/*.js",
+    "WebSockets/**/*.js",
+    "config/**/*.env"
+  ],
+  "ext": "js,json,env",
+  "ignore": [
+    "node_modules/**",
+    "public/**",
+    "*.test.js"
+  ],
+  "verbose": true,
+  "execArgs": [
+    "--max-http-header-size=524288"
+  ],
+  "env": {
+    "NODE_ENV": "development"
+  },
+  "delay": 1000
+}

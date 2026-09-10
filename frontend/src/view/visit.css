@@ -1,0 +1,122 @@
+table {
+  width: 100%;
+  border-collapse: collapse; /* This removes cell spacing */
+}
+
+th,
+td {
+  padding: 8px; /* Optional, you can adjust padding as needed */
+  text-align: left; /* Align text to the left */
+  border: 1px solid #ddd; /* Optional, adds borders around table cells */
+  font-weight: 400;
+}
+
+th {
+  font-weight: bold; /* Make header text bold */
+  background-color: #fff; /* Light background color for headers */
+}
+
+td {
+  background-color: #fff; /* White background for data cells */
+}
+
+/* Alternate row colors */
+#visittable tr:nth-of-type(even) {
+  background-color: #fff; /* White for odd rows */
+}
+
+#visittable tr:nth-of-type(odd) {
+  background-color: #f0f0f0; /* Light gray for even rows */
+}
+
+#container_visitdetail {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 100000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#background_visitdetail {
+  background: white;
+  opacity: 0.5;
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1000;
+}
+
+#visitdetail {
+  background: white;
+  width: 800px;
+  min-height: 800px;
+  border-radius: 5px;
+  border: 1px solid #ddd;
+  position: relative;
+  z-index: 100000001;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+#header_visitdetail {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 1rem;
+}
+
+#visitdetailcontents {
+  position: absolute;
+  top: 40px;
+  right: 0px;
+  bottom: 40px;
+  left: 0px;
+  border-top: 1px solid #ddd;
+  border-bottom: 1px solid #ddd;
+  padding: 1rem;
+  overflow: auto;
+}
+
+#bottom_visitdetail {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  padding: 0 1rem;
+}
+
+.fontweightbold {
+  font-weight: bold;
+}
+
+.divwithbottomborder {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #eee;
+  display: flex;
+  width: 100%;
+}
+.pagination-controls {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.pagination-controls button {
+  padding: 10px;
+  margin: 0 5px;
+}
+
+.pagination-controls select {
+  padding: 5px;
+  margin-left: 10px;
+}

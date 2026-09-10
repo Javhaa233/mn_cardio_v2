@@ -1,0 +1,92 @@
+import i18n from "../../i18n";
+
+export default {
+  showBorders: true,
+  //columnChooser: { enabled: true },
+  remoteOperations: {
+    filtering: true,
+    paging: true,
+    sorting: true,
+    summary: true,
+    grouping: true,
+    groupPaging: true,
+  },
+  columnAutoWidth: true,
+  // scrolling: {
+  //   columnRenderingMode: "virtual",
+  // },
+  // height: 400,
+  columnChooser: {
+    enabled: false,
+    title: i18n.t("Багана тохируулах"),
+    mode: "select",
+  },
+  columnFixing: { enabled: false },
+  sorting: {
+    ascendingText: "Өсөхөөр эрэмблэх",
+    descendingText: "Буурхаар эрэмблэх",
+    clearText: "Эрэмбийг болиулах",
+  },
+  allowColumnResizing: true,
+  noDataText: "Мэдээлэл бүртгэгдээгүй байна",
+  selection: { mode: "single", selectAllMode: "page" },
+  showColumnLines: true,
+  showRowLines: true,
+  rowAlternationEnabled: true,
+  paging: { defaultPageSize: 30, defaultPageIndex: 0 },
+  pager: {
+    visible: true,
+    showInfo: true,
+    showPageSizeSelector: true,
+    allowedPageSizes: [20, 50, 100, 1000],
+    infoText: "НИЙТ {1} ХУУДАС (НИЙТ {2} БИЧЛЭГ)",
+  },
+  loadPanel: {
+    text: "Уншиж байна түр хүлээнэ үү",
+    showPane: true,
+    shading: true,
+    enabled: true,
+    shadingColor: "rgba(0,0,0,0.2)",
+  },
+  filterRow: {
+    visible: true,
+    betweenEndText: "Дуусах",
+    betweenStartText: "Эхлэх",
+    operationDescriptions: {
+      between: "Хооронд",
+      contains: "Багтсан тэкст",
+      notContains: "Агуулагдаагүй тэкст",
+      equal: "Тэнцүү",
+      notEqual: "Ялгаатай",
+      lessThan: "Бага",
+      lessThanOrEqual: "Бага буюу тэнцүү",
+      startsWith: "Эхлэх",
+      endsWith: "Дуусах",
+      greaterThan: "Их",
+      greaterThanOrEqual: "Их буюу тэнцүү",
+    },
+    resetOperationText: "Цэвэрлэх",
+  },
+  style: { border: "1px solid #e0e0e0" },
+  // searchPanel: {
+  //   visible: true,
+  //   searchVisibleColumnsOnly: true,
+  //   placeholder: "Хайлт",
+  // },
+};
+
+export const localGridConfig = {
+  paging: { enabled: false },
+  pager: { visible: false },
+  filterRow: { applyFilter: false },
+  sorting: { mode: "none" },
+  loadPanel: { enabled: false },
+  remoteOperations: {
+    filtering: false,
+    paging: false,
+    sorting: false,
+    summary: false,
+    grouping: false,
+    groupPaging: false,
+  },
+};

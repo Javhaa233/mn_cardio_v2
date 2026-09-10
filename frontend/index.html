@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, shrink-to-fit=no"
+    />
+    <meta name="theme-color" content="#000000" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="shortcut icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" sizes="76x76" href="/logo.ico" />
+    <!-- Everything the page needs from a third party is listed here, and every
+         one of these is RENDER-BLOCKING: the browser will not paint the login
+         form until it has them. Four entries were removed on 2026-09-10
+         because nothing in the app used them:
+
+           - chartist CSS + JS  : "chartist" is not in package.json and not in
+                                  node_modules; its only consumer,
+                                  src/variables/charts.js, is imported by no
+                                  file. Dead Creative Tim template leftover.
+           - html2canvas (CDN)  : a DUPLICATE. The app does
+                                  `import html2canvas from "html2canvas"`, which resolves to
+                                  the bundled npm copy - the global this script
+                                  defined was never read. 198 KB.
+           - jvectormap CSS     : only .jvectormap-* class names in the dead
+                                  template stylesheet reference it.
+           - dataTables CSS     : "datatables" appears only inside comments.
+
+         That is ~250 KB and 5 blocking round trips off the login path.
+         What is left is genuinely used - see the note on each. -->
+
+    <!-- Warm up the font connections before the CSS below asks for them. -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- FontAwesome: really used - `fa`/`fas` classes appear in
+         ImageUpload.jsx, FixedPlugin.jsx, AdviceDetail.jsx and
+         CVDSentPrescription.jsx. Self-hosting this would remove one more
+         third-party dependency; left alone for now to avoid a visual change. -->
+    <link
+      href="https://use.fontawesome.com/releases/v5.0.7/css/all.css"
+      rel="stylesheet"
+    />
+
+    <!-- Roboto + Material Icons in ONE request. There used to be a second
+         <link> for Material Icons alone, but this URL already requests it, so
+         that was a duplicate round trip.
+         NOTE: the "5.0" below is a typo for "500" that predates this change.
+         Google still answers 200 and simply omits the weight, so Roboto Medium
+         is synthesised rather than real. Fixing it changes how weight-500 text
+         renders, so it is left for a deliberate typography pass, not smuggled
+         into a performance fix. -->
+    <link
+      rel="stylesheet"
+      type="text/css"
+      href="https://fonts.googleapis.com/css?family=Roboto:300,400,5.0,700|Material+Icons"
+    />
+    <title>MnCardio</title>
+  </head>
+  <body>
+    <noscript> You need to enable JavaScript to run this app. </noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/index.jsx"></script>
+  </body>
+</html>

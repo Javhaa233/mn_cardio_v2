@@ -1,0 +1,26 @@
+#tcd {
+  border-collapse: collapse !important;
+  border-spacing: 0;
+  width: 100%;
+}
+
+#tcd th,
+#tcd td {
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+#tcd th {
+  background-color: #f4f4f4;
+}
+
+/* Add padding to td and th, especially on the left and right */
+#tcd td,
+#tcd th {
+  padding: 5px 10px; /* 5px top and bottom, 10px left and right */
+  font-size: 11px;
+}
+
+#tcd tr:nth-of-type(even) {
+  background-color: #f0f0f0;
+}

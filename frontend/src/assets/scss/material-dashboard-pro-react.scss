@@ -1,0 +1,32 @@
+﻿/*!
+
+=========================================================
+* Material Dashboard PRO React - v1.8.0 Based on Material Dashboard PRO v1.3.0
+=========================================================
+
+* Product Page: https://www.creative-tim.com/product/material-dashboard-pro-react
+* Copyright 2019 Creative Tim (https://www.creative-tim.com)
+
+* Coded by Creative Tim
+
+=========================================================
+
+* The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+*/
+
+// variables and mixins
+@use "material-dashboard-pro-react/variables";
+@use "material-dashboard-pro-react/mixins";
+@use "material-dashboard-pro-react/shadows";
+
+// plugin css
+@use "material-dashboard-pro-react/plugins/plugin-react-big-calendar";
+@use "material-dashboard-pro-react/plugins/plugin-react-table";
+@use "material-dashboard-pro-react/plugins/plugin-react-tagsinput";
+
+// Core CSS
+@use "material-dashboard-pro-react/misc";
+@use "material-dashboard-pro-react/fileupload";
+@use "material-dashboard-pro-react/fixed-plugin";
+

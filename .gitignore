@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# Secrets. Nothing in this block may ever be committed.
+# The predecessor repository committed .env files and three private keys; that
+# is why every pattern here is deliberately broad.
+# ---------------------------------------------------------------------------
+ssh.env
+.env
+.env.*
+!.env.example
+**/config/Config.env
+**/config/Config.env.*
+*.key
+*.pem
+*.pfx
+*.p12
+*.ovpn
+*.keystore
+*.jks
+id_rsa*
+**/config/SSL/
+**/config/Xyp/
+
+# Flutter signing — the mobile app will need these and they must stay local
+**/android/key.properties
+**/ios/*.mobileprovision
+google-services.json
+GoogleService-Info.plist
+
+# ---------------------------------------------------------------------------
+# Dependencies and build output
+# ---------------------------------------------------------------------------
+node_modules/
+build/
+dist/
+coverage/
+.dart_tool/
+.pub-cache/
+.pub/
+**/ios/Pods/
+*.iml
+
+# ---------------------------------------------------------------------------
+# Backend runtime directories — generated at runtime, not source
+# ---------------------------------------------------------------------------
+backend/tmpFile/
+backend/outReports/
+backend/htmlOutput/
+backend/htmlReport/
+backend/outputExcel/
+backend/reportPDF/
+backend/ExportReports/
+
+# ---------------------------------------------------------------------------
+# Editor / OS / scratch
+# ---------------------------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+yarn-error.log*
+tmp_*
+~$*
+*_backup_*.xlsx

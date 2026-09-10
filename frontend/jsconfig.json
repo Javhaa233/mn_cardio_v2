@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "baseUrl": "src",
+    "paths": {
+      "@app/*": ["app/*"],
+      "@pages/*": ["pages/*"],
+      "@features/*": ["features/*"],
+      "@hooks/*": ["hooks/*"],
+      "@lib/*": ["lib/*"],
+      "assets/*": ["assets/*"],
+      "components/*": ["components/*"],
+      "baseComponents/*": ["baseComponents/*"],
+      "customComponents/*": ["customComponents/*"],
+      "newComponents/*": ["newComponents/*"],
+      "views/*": ["views/*"],
+      "queries/*": ["queries/*"],
+      "utils/*": ["utils/*"],
+      "store/*": ["store/*"],
+      "helper/*": ["helper/*"],
+      "config/*": ["config/*"],
+      "view/*": ["view/*"],
+      "i18n": ["i18n.js"]
+    }
+  }
+}
