@@ -5,7 +5,7 @@ import "./LoginScene.css";
 
 // If the map image never arrives, start the animation anyway rather than
 // leaving the user looking at an empty stage.
-const MAP_TIMEOUT_MS = 2000;
+const MAP_TIMEOUT_MS = 300;
 
 /**
  * LoginScene

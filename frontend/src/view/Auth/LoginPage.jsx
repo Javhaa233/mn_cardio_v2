@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 // translation
 import { useTranslation } from "react-i18next";
 // scene
@@ -15,6 +15,9 @@ import Helper from "helper";
 const SUPPORT_AFTER_ATTEMPTS = 3;
 const SUPPORT_PHONE = "99243182";
 
+// How long after the last keystroke the backdrop stays calmed.
+const TYPING_IDLE_MS = 1500;
+
 export default function LoginPage() {
   const { t } = useTranslation();
 
@@ -27,6 +30,33 @@ export default function LoginPage() {
   const [PasswordError, setPasswordError] = useState(false);
   const [FailedAttempts, setFailedAttempts] = useState(0);
   const [Typing, setTyping] = useState(false);
+
+  // `Typing` calms the backdrop while credentials are being entered. It must NOT
+  // be driven by focus. The username input carries autoFocus, so onFocus fired at
+  // mount and the scene was quieted from its very first frame - which paused the
+  // intro animations permanently. Eight rule blocks in LoginScene.css start at
+  // opacity:0 and only become visible VIA an animation (.hfill - the heart fill -
+  // plus .blip, .ring, .reglink, .hub-glow, .hub-core, .wave, .aimag), so they
+  // never appeared at all until the user clicked elsewhere and blurred the field.
+  // Confirmed in Chrome: at t=16s the stage was still "quiet" and .hfill was
+  // still opacity 0. Driving this from real input fixes it at the source.
+  const IdleTimer = useRef(null);
+
+  const StopTyping = () => {
+    if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    IdleTimer.current = null;
+    setTyping(false);
+  };
+
+  const MarkTyping = () => {
+    setTyping(true);
+    if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    IdleTimer.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS);
+  };
+
+  useEffect(() => () => {
+    if (IdleTimer.current) clearTimeout(IdleTimer.current);
+  }, []);
 
   // Already signed in - don't make them log in twice.
   useEffect(() => {
@@ -125,9 +155,9 @@ export default function LoginPage() {
             aria-invalid={UserNameError || undefined}
             value={UserName}
             disabled={Loading}
-            onFocus={() => setTyping(true)}
-            onBlur={() => setTyping(false)}
+            onBlur={StopTyping}
             onChange={(e) => {
+              MarkTyping();
               setUserName(e.target.value);
               if (e.target.value) setUserNameError(false);
             }}
@@ -144,9 +174,9 @@ export default function LoginPage() {
               aria-invalid={PasswordError || undefined}
               value={Password}
               disabled={Loading}
-              onFocus={() => setTyping(true)}
-              onBlur={() => setTyping(false)}
+              onBlur={StopTyping}
               onChange={(e) => {
+                MarkTyping();
                 setPassword(e.target.value);
                 if (e.target.value) setPasswordError(false);
               }}
