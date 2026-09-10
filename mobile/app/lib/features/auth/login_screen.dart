@@ -5,6 +5,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
 import '../../core/util/validators.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/app_snack.dart';
 import 'forgot_password_screen.dart';
 import 'server_settings_sheet.dart';
@@ -353,14 +354,19 @@ class _Brand extends StatelessWidget {
             width: 76,
             height: 76,
             alignment: Alignment.center,
+            // Вебийн хажуугийн цэсний градиент (indigo -> cyanDeep). Брэндийн
+            // таних тэмдэг вебэд нэвтрэх дэлгэцээс эхэлдэг тул энд ч мөн адил.
+            //
+            // Цагаан дүрс cyanDeep дээр ~3.0:1 — ТЕКСТЭД тэнцэхгүй ч энэ нь
+            // 38px дүрс, контрастын дүрмийн 24px босгоос дээш.
             decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(22),
+              gradient: AppColors.brandGradient,
+              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
             ),
-            child: Icon(
+            child: const Icon(
               Icons.favorite_rounded,
               size: 38,
-              color: theme.colorScheme.primary,
+              color: Colors.white,
             ),
           ),
           const SizedBox(height: 16),

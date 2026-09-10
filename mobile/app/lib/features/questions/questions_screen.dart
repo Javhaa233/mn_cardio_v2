@@ -6,6 +6,7 @@ import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/state_views.dart';
 import 'question.dart';
 import 'questions_controller.dart';
+import '../../shared/theme/app_colors.dart';
 
 /// 2.3 Эмчээс асуух асуулт.
 ///
@@ -163,9 +164,11 @@ class _QuestionBubble extends StatelessWidget {
     final theme = Theme.of(context);
     final isMine = !item.isDoctor;
 
+    // Вебийн "Асуултын түүх" дээр эмчийн хариу нь ЦАГААН карт, дээрээ цэнхэр
+    // "Эмч" шошготой. Саарал бөмбөлөг биш.
     final bubbleColor = isMine
         ? theme.colorScheme.primary.withValues(alpha: 0.10)
-        : theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.6);
+        : theme.colorScheme.surface;
     final borderColor = isMine
         ? theme.colorScheme.primary.withValues(alpha: 0.22)
         : theme.dividerColor;
@@ -203,7 +206,7 @@ class _QuestionBubble extends StatelessWidget {
                       size: 14,
                       color: isMine
                           ? theme.colorScheme.primary
-                          : theme.colorScheme.onSurfaceVariant,
+                          : AppColors.cyanInk,
                     ),
                     const SizedBox(width: 6),
                     Flexible(
@@ -214,7 +217,7 @@ class _QuestionBubble extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: isMine
                               ? theme.colorScheme.primary
-                              : theme.colorScheme.onSurfaceVariant,
+                              : AppColors.cyanInk,
                         ),
                       ),
                     ),

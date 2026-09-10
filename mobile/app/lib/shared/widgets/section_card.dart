@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_theme.dart';
+
 /// Гарчигтай хэсгийг ялгах карт.
 class SectionCard extends StatelessWidget {
   const SectionCard({
@@ -26,46 +28,63 @@ class SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final header = title;
 
+    // Вебийн карт: гарчиг, түүний доор картын бүтэн өргөнөөр татсан зураас,
+    // дараа нь агуулга. Зураас нь картын хажуугийн зайг огтолж гарах ёстой тул
+    // гарчиг ба агуулга тус тусдаа Padding-тэй — нэг Padding дотор байвал
+    // зураас богиносч, өөр карт мэт харагдана.
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
         if (header != null) ...<Widget>[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              if (icon != null) ...<Widget>[
-                Icon(icon, size: 20, color: theme.colorScheme.primary),
-                const SizedBox(width: 10),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    Text(header, style: theme.textTheme.titleSmall),
-                    if (subtitle != null) ...<Widget>[
-                      const SizedBox(height: 3),
-                      Text(subtitle!, style: theme.textTheme.bodySmall),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              padding.left,
+              padding.top,
+              padding.right,
+              14,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                if (icon != null) ...<Widget>[
+                  Icon(icon, size: 20, color: theme.colorScheme.primary),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      // Вебийн h3 — картын гарчгийн хэмжээ.
+                      Text(header, style: theme.textTheme.titleLarge),
+                      if (subtitle != null) ...<Widget>[
+                        const SizedBox(height: 4),
+                        Text(subtitle!, style: theme.textTheme.bodySmall),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-              if (trailing != null) trailing!,
-            ],
+                if (trailing != null) trailing!,
+              ],
+            ),
           ),
-          const SizedBox(height: 14),
+          const Divider(height: 1),
+          SizedBox(height: padding.top),
         ],
-        child,
+        Padding(
+          padding: EdgeInsets.fromLTRB(
+            padding.left,
+            header == null ? padding.top : 0,
+            padding.right,
+            padding.bottom,
+          ),
+          child: child,
+        ),
       ],
     );
 
     return Card(
       clipBehavior: Clip.antiAlias,
-      child: onTap == null
-          ? Padding(padding: padding, child: content)
-          : InkWell(
-              onTap: onTap,
-              child: Padding(padding: padding, child: content),
-            ),
+      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
     );
   }
 }
@@ -134,12 +153,25 @@ class StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = color ?? theme.colorScheme.primary;
+    // Вебийн нүүрийн үзүүлэлтүүд нь өнгөт биш, ЦАГААН карт: шошго дээрээ,
+    // доор нь том тоо бэхний өнгөөр. Өнгийг зөвхөн дүрсэнд үлдээв — тоог
+    // өнгөөр будвал зэрэгцээ таван хайрцаг тус бүр өөр өнгөтэй болж,
+    // аль нь эмнэлзүйн хувьд чухал болох нь алдагдана.
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withValues(alpha: 0.18)),
+        color: theme.cardTheme.color ?? theme.colorScheme.surface,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius),
+        border: Border.all(
+          color: theme.dividerTheme.color ?? theme.dividerColor,
+        ),
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: AppTheme.shadowInk,
+            blurRadius: 2,
+            offset: Offset(0, 1),
+          ),
+        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,7 +186,7 @@ class StatTile extends StatelessWidget {
               Expanded(
                 child: Text(
                   label,
-                  style: theme.textTheme.bodySmall?.copyWith(fontSize: 12.5),
+                  style: theme.textTheme.titleSmall,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -169,9 +201,11 @@ class StatTile extends StatelessWidget {
               Flexible(
                 child: Text(
                   value,
-                  style: theme.textTheme.titleLarge?.copyWith(
-                    color: accent,
+                  // Вебийн `display` — 34/700. Гар утсан дээр 30.
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontSize: 30,
                     fontWeight: FontWeight.w700,
+                    height: 1.15,
                   ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
