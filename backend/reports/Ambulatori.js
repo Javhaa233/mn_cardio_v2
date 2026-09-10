@@ -83,7 +83,7 @@ function Ambulatori(Data, BeginDate, Meta) {
       type="text/css"
       href="https://fonts.googleapis.com/css?family=Roboto:300,400,500,700|Material+Icons"
     />
-    <title>Ambulatori 2013.11.26_orig_ext</title>
+    <title>ЭМЧИЙН ҮЗЛЭГИЙН БҮРТГЭЛ (АМ-1Б)</title>
     <style rel="stylesheet" type="text/css">
       html { zoom: 1; }
       body {

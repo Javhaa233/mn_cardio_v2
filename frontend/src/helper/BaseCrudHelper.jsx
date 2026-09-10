@@ -627,6 +627,16 @@ class BaseCrudHelper {
     );
   };
 
+  /**
+   * Download a PDF report.
+   *
+   * NOTE the callback contract: this calls back with a plain BOOLEAN, not the
+   * { Success, Message, Data } envelope the rest of this helper uses. 40 call
+   * sites rely on it - `(Success) => ShowAlert(Success ? ... : ..., Success)`.
+   * Do not "align" it with ExportExcel, which passes { Success }: an object is
+   * always truthy, so every one of those sites would report a failed print as
+   * a success.
+   */
   BasePrintReport = async ({ Url, Data, FileName }, callback) => {
     const Token = localStorage.getItem("MnCardioToken");
     await Server({
@@ -671,6 +681,10 @@ class BaseCrudHelper {
       });
   };
 
+  /**
+   * Unused. No call site imports this - `BasePrintReport` above is the live one.
+   * Same boolean callback contract; see the note there before changing either.
+   */
   BasePrintReportNew = async ({ Url, Data, FileName }, callback) => {
     const Token = localStorage.getItem("MnCardioToken");
     await Server({

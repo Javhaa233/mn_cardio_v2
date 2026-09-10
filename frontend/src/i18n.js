@@ -3,12 +3,21 @@ import Backend from "i18next-http-backend";
 import LanguageDetector from "i18next-browser-languagedetector";
 import { initReactI18next } from "react-i18next";
 
-const fallbackLng = ["en"];
+// Mongolian is the product language: this is a Mongolian national system and
+// every source key in the catalogs is already Mongolian. Falling back to "en"
+// meant any browser reporting en-US - which is most of them, and every headless
+// one - rendered the citizen portal in English.
+const fallbackLng = ["mn"];
 const availableLanguages = ["en", "mn"];
 
 const options = {
-  // order and from where user language should be detected
-  order: ["navigator", "htmlTag", "path", "subdomain"],
+  // order and from where user language should be detected.
+  //
+  // "localStorage" has to be FIRST and has to be here at all: `caches` below
+  // writes the chosen language to localStorage, but a key missing from this
+  // list is never read back, so the toggle was written and then ignored on the
+  // next load.
+  order: ["localStorage", "cookie", "navigator", "htmlTag", "path", "subdomain"],
 
   // keys or params to lookup language from
   lookupQuerystring: "lng",

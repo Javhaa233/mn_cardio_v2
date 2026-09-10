@@ -126,9 +126,11 @@ class CreateAllVisits extends Component {
         },
         FileName: "AM-1B_" + range.Value[0] + "_" + range.Value[1] + ".pdf",
       },
-      (resData) => {
+      // BasePrintReport calls back with a plain boolean, not an envelope -
+      // unlike ExportExcel, which passes { Success }. 39 other call sites
+      // depend on the boolean, so the contract stays and the caller matches it.
+      (Success) => {
         this.setState({ printLoading: false });
-        const Success = !!(resData && resData.Success);
         this.ShowAlert(
           Success ? t("Файл татагдлаа") : t("Хэвлэхэд алдаа гарлаа"),
           Success,
