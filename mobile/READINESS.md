@@ -119,7 +119,35 @@ shipping a mobile app changes their severity.
 - Socket.IO fan-out is per-process (`ChatSocket.js:29-33`) — silently drops members under PM2
   cluster mode without a Redis adapter
 
-### 2.8 Small but real
+### 2.8 A doctor cannot read a patient's risk, e-visits or rehabilitation
+
+Tender §2, doctor module item 1.5 — "Үйлчлүүлэгч модулийн (Эрсдэл, цахим үзлэг,
+Сэргээн засахын модулыг харах боломжтой байна)". Found while building the mobile
+doctor module (2026-09-10); none of the three is reachable by a doctor today.
+
+`/api/patient/*` sits behind `requirePatient`, which refuses any role that is not
+`4`, and `/api/doctor/patients/:id` returns profile, visits, journal series and
+`isMonitoredByMe` — nothing else. So:
+
+| Sub-module | Doctor-facing route | State |
+|---|---|---|
+| Эрсдэл (ЗСӨ) | none | `PatientBodySize` / `PatientOwnHistory` have no controller at all, legacy or otherwise. Needs a new route. |
+| Цахим үзлэг | `/api/RemoteVisit/GetList` | Works, but it is the **generic CRUD list**: unfiltered it returns every patient's requests. The app filters with `SearchField: [{Field:'PatientId', Op:'Equals'}]` and then **re-checks every returned row's `PatientId` client-side**, refusing to display anything if the filter was not honoured. That check is a workaround, not a fix. |
+| Сэргээн засах | none | The tables do not exist yet either (§3), so this is blocked twice over. |
+
+The clean fix is three additions to `api/doctor/controller.js`, each scoped from
+the token the same way `getPatient` already is:
+
+```
+GET /api/doctor/patients/:id/risk      -> latest PatientBodySize + PatientOwnHistory
+GET /api/doctor/patients/:id/evisits   -> RemoteVisit rows for that patient
+GET /api/doctor/patients/:id/rehab     -> assessment + progress + vitals
+```
+
+Until they exist the app names the gap on screen rather than showing an empty
+tab, so it does not read as a broken feature at UAT.
+
+### 2.9 Small but real
 
 `POST /api/patient/journal` does not accept `blood_pressure2`, though reads return it and the
 summary chart plots it — a patient cannot record diastolic pressure. One line in

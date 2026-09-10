@@ -1,0 +1,73 @@
+name: mncardio
+description: МнКардио — Зүрх судасны үндэсний төвийн гар утасны хувилбар (үйлчлүүлэгчийн модуль).
+publish_to: "none"
+version: 0.1.0+1
+
+# Доод хязгаарыг Flutter 3.27 гэж тавьсан нь санаатай: код нь `Color.withValues`,
+# `CardThemeData`, `DialogThemeData` зэрэг тэр хувилбараас нэвтэрсэн API
+# ашигладаг. Үүнээс доош билд хийхгүй.
+environment:
+  sdk: ">=3.6.0 <4.0.0"
+  flutter: ">=3.27.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # --- Сүлжээ / API ---
+  # dio: interceptor заавал хэрэгтэй тул http биш dio. FLUTTER.md § "Packages".
+  dio: 5.7.0
+  socket_io_client: 2.0.3+1
+
+  # --- Хадгалалт ---
+  # JWT-г зөвхөн Keystore/Keychain дотор. shared_preferences нь задгай текст.
+  flutter_secure_storage: 9.2.2
+  shared_preferences: 2.3.2
+
+  # --- Нэвтрэлт ---
+  local_auth: 2.3.0
+  local_auth_android: 1.0.46
+  local_auth_darwin: 1.4.1
+
+  # --- Төлөв удирдлага ---
+  # Чиглүүлэлтэд Navigator-ыг шууд ашиглана: гүн холбоос (deep link) шаардлага
+  # тендерт байхгүй тул go_router нэмэх шалтгаангүй.
+  provider: 6.1.2
+
+  # --- Монгол хэл, огноо, тоон формат ---
+  intl: 0.19.0
+
+  # --- Хавсралт (зураг, дуу, баримт бичиг) ---
+  file_picker: 8.1.2
+  image_picker: 1.1.2
+  record: 5.1.2
+  open_filex: 4.5.0
+  permission_handler: 11.3.1
+
+  # --- График ---
+  fl_chart: 0.69.0
+
+  # --- Сануулга (push байхгүй тул төхөөрөмж дээрх мэдэгдэл) ---
+  flutter_local_notifications: 17.2.3
+  timezone: 0.9.4
+  flutter_timezone: 3.0.1
+
+  # --- Бусад ---
+  package_info_plus: 8.0.2
+  path_provider: 2.1.4
+  path: 1.9.0
+  uuid: 4.5.1
+  cupertino_icons: 1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: 5.0.0
+
+flutter:
+  uses-material-design: true
+  # Зурган нөөц одоогоор байхгүй — бүх дүрс Material icon. Нөөц нэмэх үед
+  # `assets:` хэсгийг сэргээнэ. Хоосон хавтас заавал билдийг унагаадаг тул
+  # урьдчилж бичихгүй.

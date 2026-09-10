@@ -1,0 +1,46 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# pubspec.lock -ыг ХАДГАЛНА. Хувилбар тогтмол байх нь тендерийн хүлээлгэн
+# өгөх шаардлагын нэг хэсэг (FLUTTER.md § "Packages").
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+android/app/upload-keystore.jks
+android/app/*.jks
+android/app/google-services.json
+**/*.keystore
+
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/Flutter.framework
+ios/Flutter/Flutter.podspec
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+ios/Runner/GoogleService-Info.plist
+*.mobileprovision
+*.p12
+*.p8
+*.cer
+
+# НУУЦ УТГА ХЭЗЭЭ Ч ЭНД ОРОХГҮЙ
+# Серверийн хаяг --dart-define -ээр, гарын үсгийн түлхүүр локал файлаар.
+.env
+.env.*
+*.pem
+*.key
