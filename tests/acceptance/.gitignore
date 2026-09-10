@@ -1,5 +1,8 @@
 # Run artefacts. The written report is kept as the contract deliverable;
-# screenshots and the raw dump are evidence for the run that produced them and
-# would otherwise add megabytes per run to the repository.
+# screenshots, videos, traces and the raw dump are evidence for the run that
+# produced them and would otherwise add tens of megabytes per run.
 results/*/screens/
 results/*/raw.json
+results/playwright-artifacts/
+results/playwright-report/
+node_modules/

@@ -1,0 +1,15 @@
+{
+  "name": "mncardio-acceptance",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Acceptance / UAT harness for MnCardio. Not part of the application build.",
+  "scripts": {
+    "test": "node run.js",
+    "sweep": "node sweep.js",
+    "journeys": "node journeys.js",
+    "ui": "npx playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.0"
+  }
+}
