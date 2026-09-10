@@ -15,7 +15,7 @@ abstract class PagedController<T> extends ChangeNotifier {
 
   final int pageSize;
 
-  AsyncState<List<T>> _state = const AsyncState<List<T>>.idle();
+  AsyncState<List<T>> _state = AsyncState<List<T>>.idle();
   bool _loadingMore = false;
   bool _hasMore = true;
   int _total = 0;
@@ -36,7 +36,7 @@ abstract class PagedController<T> extends ChangeNotifier {
     if (refresh && _state.hasData) {
       _emit(_state.toRefreshing());
     } else if (!_state.hasData) {
-      _emit(const AsyncState<List<T>>.loading());
+      _emit(AsyncState<List<T>>.loading());
     }
 
     try {
@@ -74,7 +74,7 @@ abstract class PagedController<T> extends ChangeNotifier {
   Future<void> reset() async {
     _hasMore = true;
     _total = 0;
-    _emit(const AsyncState<List<T>>.loading());
+    _emit(AsyncState<List<T>>.loading());
     await load();
   }
 
