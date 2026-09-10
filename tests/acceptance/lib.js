@@ -32,9 +32,15 @@ const CONFIG = {
   doctorPass: ENV.get('TEST_DOCTOR_PASSWORD'),
   patientUser: ENV.get('TEST_PATIENT_USER'),
   patientPass: ENV.get('TEST_PATIENT_PASSWORD'),
-  // batuna is RoleId 1; several endpoints are admin-only.
-  adminUser: process.env.ACCEPTANCE_ADMIN_USER || 'batuna',
-  adminPass: process.env.ACCEPTANCE_ADMIN_PASS || 'Cardio@123',
+  /*
+   * Admin account (RoleId 1) — several endpoints are admin-only.
+   *
+   * Read from test-environment.env or the environment. NEVER hardcode a
+   * password here as a convenience default: this file is committed, and the
+   * secret checker correctly refuses to publish an export that contains one.
+   */
+  adminUser: process.env.ACCEPTANCE_ADMIN_USER || ENV.get('TEST_ADMIN_USER'),
+  adminPass: process.env.ACCEPTANCE_ADMIN_PASS || ENV.get('TEST_ADMIN_PASSWORD'),
 };
 
 /** One HTTP call. Never throws; a transport error becomes a result object. */

@@ -40,9 +40,15 @@ const SOURCES = [
 // in most of the source tree. Flagging them produced only false positives, and
 // a check that cries wolf is a check people learn to ignore. The secret is the
 // password that guards the endpoint, and those are still checked.
+// Login NAMES are identifiers, not credentials, and they collide with ordinary
+// words: the admin account is called `batuna`, which is also a substring of the
+// npm package `batuna-utils-back` that api/base imports. Flagging it produced
+// five false positives across package.json and source. The PASSWORDS for these
+// same accounts remain checked, which is the part that matters.
 const NOT_SECRET = new Set([
   'SQL_DB', 'CLIENT_APP_URL', 'SSH_USER', 'REGNUM', 'NODE_ENV', 'PORT', 'SSL',
   'SQL_HOST', 'SSH_HOST', 'SSH_PORT', 'SQL_PORT',
+  'TEST_ADMIN_USER', 'TEST_DOCTOR_USER', 'TEST_PATIENT_USER',
 ]);
 const IGNORE_VALUE =
   /^(|true|false|0|1|development|production|localhost|127\.0\.0\.1|5001|3000|1433|22)$/i;
