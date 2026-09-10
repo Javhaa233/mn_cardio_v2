@@ -15,6 +15,7 @@ const ImageHelper = require('../../helper/ImageHelper');
 // table of their own; MayAttachTo needs both to authorize them.
 const ChatIdentity = require('../../helper/ChatIdentity');
 const ChatHelper = require('../../helper/ChatHelper');
+const PatientScope = require('../../helper/PatientScope');
 
 // routes
 router.post('/getData', getData);
@@ -229,6 +230,24 @@ async function destroy(req, res) {
         LogedUser,
         SaveLog: true,
       });
+      // BaseDelete returns null when the caller was refused, false when it
+      // threw, and the number of rows it actually removed otherwise. Reporting
+      // "Successfully deleted" regardless told callers a row was gone when the
+      // filter had matched nothing - and hid refusals as successes.
+      if (Result === null) {
+        return res.send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Энэ бичлэгийг устгах эрхгүй байна'))
+        );
+      }
+      if (Result === false) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+      }
+      if (Result === 0) {
+        return res.send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Устгах бичлэг олдсонгүй'))
+        );
+      }
+      result.Data = { Deleted: Result };
       return res.send(JSON.stringify(result));
     } else {
       return res.send(
@@ -363,6 +382,72 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser }) {
   return true;
 }
 
+/**
+ * Whether LogedUser may read the file the client is asking for.
+ *
+ * downloadFile used to pass the client-supplied FileInfo straight to
+ * BaseDownloadFile, which only resolves a path on disk. Nothing tied the
+ * handle back to a record, so any authenticated session could name any
+ * generated_name and fetch it - proven by a patient token downloading a file
+ * attached to a doctor's record.
+ *
+ * So: resolve the handle to its File row first, then authorize the record it
+ * hangs off. Returns the stored row (never the client's copy) or null.
+ */
+async function MayDownload({ FileInfo, LogedUser }) {
+  if (!FileInfo || !FileInfo.generated_name) return null;
+
+  const Stored = await Models.File.findOne({
+    where: { generated_name: FileInfo.generated_name },
+    attributes: [
+      'id_data',
+      'LinkedObjectName',
+      'LinkedObjectId',
+      'FieldName',
+      'ext',
+      'generated_name',
+      'original_name',
+      'rec_status',
+    ],
+    raw: true,
+  });
+
+  // No row, or soft-deleted: the handle is not a live attachment.
+  if (!Stored || String(Stored.rec_status) === '2') return null;
+
+  const LinkedObjectName = Stored.LinkedObjectName;
+  const LinkedObjectId = Stored.LinkedObjectId;
+  if (!LinkedObjectName || !LinkedObjectId) return null;
+
+  // Same rule that governs attaching a file to this record.
+  const Allowed = await MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser });
+  if (!Allowed) return null;
+
+  // MayAttachTo ends in `return true` for object types it does not name, which
+  // is the right default for staff but not for patients - it is what let a
+  // patient token through to a doctor's attachment. Patients get the explicit
+  // scope check as well.
+  if (PatientScope.IsPatient(LogedUser)) {
+    const scope = PatientScope.SCOPE_BY_OBJECT[LinkedObjectName];
+    if (!scope) return null;
+
+    const Owner = LogedUser[scope.From];
+    if (Owner === undefined || Owner === null || Owner === '') return null;
+
+    const ModelConfig = await BaseControllerHelper.GetConfigData(LinkedObjectName);
+    if (!ModelConfig || !ModelConfig.Model) return null;
+
+    const Row = await ModelConfig.Model.findOne({
+      where: { [ModelConfig.PK]: LinkedObjectId },
+      attributes: [ModelConfig.PK, scope.Field],
+      raw: true,
+    });
+    if (!Row || String(Row[scope.Field]) !== String(Owner)) return null;
+  }
+
+  return Stored;
+}
+
 async function uploadFile(req, res) {
   try {
     var result = { Success: true, Message: 'Successfully saved', Data: [] };
@@ -383,6 +468,10 @@ async function uploadFile(req, res) {
       PromiseData = await new Promise(function (resolve, reject) {
         form.parse(req, async function (err, fields, files) {
           if (err) reject(err);
+          // Files the loop below throws away. Without this the handler answered
+          // "Successfully saved" for a file it had just discarded, so the user
+          // believed an attachment existed that was never stored.
+          const Rejected = [];
           const LinkedObjectInfo = JSON.parse(fields['LinkedObjectInfo']);
           const LinkedObjectId = LinkedObjectInfo.LinkedObjectId;
           const LinkedObjectName = LinkedObjectInfo.LinkedObjectName;
@@ -441,6 +530,11 @@ async function uploadFile(req, res) {
 
                     if (ALLOWED_UPLOAD_EXT.indexOf(String(FileType).toLowerCase()) === -1) {
                       console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
+                      Rejected.push({
+                        Name: FileNameOriginal,
+                        Reason: 'ext',
+                        Message: 'Зөвшөөрөгдөөгүй өргөтгөлтэй файл: ' + FileType,
+                      });
                       try {
                         await fsPromises.unlink(OldPath);
                       } catch (e) {
@@ -462,6 +556,16 @@ async function uploadFile(req, res) {
                         SizeCap,
                         LinkedObjectName
                       );
+                      Rejected.push({
+                        Name: FileNameOriginal,
+                        Reason: 'size',
+                        Message:
+                          'Файлын хэмжээ хэтэрсэн: ' +
+                          Math.round(NewFile.size / 1048576) +
+                          ' МБ, зөвшөөрөх дээд хэмжээ ' +
+                          Math.round(SizeCap / 1048576) +
+                          ' МБ',
+                      });
                       try {
                         await fsPromises.unlink(OldPath);
                       } catch (e) {
@@ -528,6 +632,15 @@ async function uploadFile(req, res) {
               return resolve({ Skipped: 'empty payload' });
             }
 
+            // Stop before the replace-the-whole-field delete below if anything
+            // was rejected. A rejected file never made it into NotDelete, so
+            // running that loop would soft-delete the attachments already on
+            // the record - the caller would be told the save failed AND lose
+            // the files it already had.
+            if (Rejected.length > 0) {
+              return resolve({ Rejected });
+            }
+
             //delete file
             for (var i = 0; i < ListOldFiles.length; i++) {
               if (NotDelete.filter((s) => s + '' === ListOldFiles[i].id_data + '').length === 0) {
@@ -544,7 +657,7 @@ async function uploadFile(req, res) {
             }
           }
 
-          resolve();
+          resolve({ Rejected });
         });
       });
 
@@ -554,6 +667,16 @@ async function uploadFile(req, res) {
             BaseControllerHelper.GetDefaultErrorResult('Энэ бичлэгт файл хавсаргах эрхгүй байна')
           )
         );
+      }
+
+      // A discarded file is not a save. Say so, and name which ones went.
+      const Rejected = (PromiseData && PromiseData.Rejected) || [];
+      if (Rejected.length > 0) {
+        const Failure = BaseControllerHelper.GetDefaultErrorResult(
+          Rejected.map((r) => r.Name + ': ' + r.Message).join('; ')
+        );
+        Failure.Data = { Rejected };
+        return res.send(JSON.stringify(Failure));
       }
 
       result.Data = { PromiseData };
@@ -574,7 +697,20 @@ async function downloadFile(req, res) {
     const FileInfo = req.body.FileInfo;
     const LogedUser = req.LogedUser;
     if (FileInfo && LogedUser) {
-      const downloadFile = await BaseControllerHelper.BaseDownloadFile(FileInfo);
+      // Authorize against the STORED row, and hand BaseDownloadFile that row
+      // rather than the client's - the client does not get to pick the path.
+      const Stored = await MayDownload({ FileInfo, LogedUser });
+      if (!Stored) {
+        console.log(
+          '[BaseController/downloadFile] DENIED',
+          LogedUser.Id,
+          FileInfo.generated_name
+        );
+        return res.status(403).send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Энэ файлд хандах эрхгүй байна'))
+        );
+      }
+      const downloadFile = await BaseControllerHelper.BaseDownloadFile(Stored);
       if (downloadFile) {
         res.set('Content-Type', downloadFile.ContentType);
         return res.download(downloadFile.Path);
@@ -673,7 +809,7 @@ async function ExportExcel(req, res) {
       };
       if (OrderByField && OrderByType) Option.OrderBy = { OrderByField, OrderByType };
 
-      const { filePath } = await BaseControllerHelper.ExportExcel({
+      const { filePath, Message } = await BaseControllerHelper.ExportExcel({
         ObjectName,
         LogedUser,
         Option,
@@ -691,7 +827,7 @@ async function ExportExcel(req, res) {
           fs.unlink(path.resolve(filePath), () => {});
         });
       } else {
-        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Message)));
       }
     } else {
       return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));

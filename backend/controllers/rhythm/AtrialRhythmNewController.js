@@ -248,22 +248,27 @@ async function GetList(req, res) {
 async function checkConfirm(req, res) {
   var result = { Success: true, Message: '', check: false, Option: {} };
   try {
-    const isCheck = false;
     const AppId = req.body.AppId;
     const LogedUser = req.LogedUser;
     const { Id, PatRegNo } = req.body;
     if (LogedUser && Id) {
-      const isCheck = await Models.AtrialRhythmNew.findOne({
+      // The column is is_confirm. Selecting 'id_confirm' made MSSQL reject the
+      // query outright, so this endpoint always answered "An error occurred".
+      const Record = await Models.AtrialRhythmNew.findOne({
         where: { Id, PatRegNo },
-        attributes: ['Id', 'id_confirm'],
-      }).then(async (item) => {
-        return item.is_confirm === 'yes';
+        attributes: ['Id', 'is_confirm'],
       });
 
+      // findOne returns null for an unknown Id; reading through it threw.
       result.Success = true;
-      result.check = isCheck;
+      result.check = !!Record && Record.is_confirm === 'yes';
       return res.send(JSON.stringify(result));
     }
+    // Falling out of the if sent no response at all, so a request without an Id
+    // hung until the client gave up.
+    return res.send(
+      JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
+    );
   } catch (ex) {
     console.log(ex);
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));

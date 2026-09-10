@@ -9,6 +9,7 @@ const Auths = require('../../helper/Auth');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const MailHelper = require('../../helper/MailHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const { IsAcceptable, RequirementMessageMn } = require('../../helper/PasswordPolicy');
 
 // routes
 router.post('/Login', Login);
@@ -167,6 +168,11 @@ async function ResetPassword(req, res) {
       const user = await Models.PatientUsers.findOne({ where: { UserName } });
       if (user) {
         const hashToken = crypto.createHash('sha256').update(Token).digest('hex');
+        if (!IsAcceptable(Password)) {
+          result.Success = false;
+          result.Message = RequirementMessageMn;
+          return res.send(result);
+        }
         if (user.ForgotPassToken === hashToken) {
           const NewPass = await bcrypt.hash(Password, 8);
           await user.update({
@@ -203,6 +209,11 @@ async function ChangePassword(req, res) {
     if (LogedUser && NewPassword && Password) {
       const user = await Models.PatientUsers.findOne({ where: { Id: LogedUser.Id } });
       if (user) {
+        if (!IsAcceptable(NewPassword)) {
+          result.Success = false;
+          result.Message = RequirementMessageMn;
+          return res.send(result);
+        }
         const isPasswordMatch = await bcrypt.compare(Password, user.Password);
         if (isPasswordMatch) {
           const NewPass = await bcrypt.hash(NewPassword, 8);

@@ -14,6 +14,18 @@ const PatientScope = require('./PatientScope');
 
 const translate = require('../reports/translate.js');
 
+/**
+ * Hard ceiling on how many rows one export may pull into memory.
+ *
+ * Every row is hydrated one at a time by GetInfoData and then deep-cloned
+ * through JSON.parse(JSON.stringify(...)), so cost per row is high. 20,000 is
+ * far more than any clinical export needs and stays well inside the 1 GB
+ * max_memory_restart in ecosystem.config.js. Raise it with EXPORT_MAX_ROWS if a
+ * genuine bulk extract is ever needed.
+ */
+const EXPORT_ROW_CAP =
+  Number(process.env.EXPORT_MAX_ROWS) > 0 ? Number(process.env.EXPORT_MAX_ROWS) : 20000;
+
 class BaseControllerHelper {
   translateLabel = function (word) {
     return translate(word, 'mn');
@@ -819,7 +831,12 @@ class BaseControllerHelper {
       if (!ModelConfig) {
         throw new Error(`Model configuration not found for ObjectName: ${ObjectName}`);
       }
-      await ModelConfig.Model.destroy({ where: Option });
+      // Sequelize hands back the number of rows it actually removed. Return it
+      // rather than a bare `true` so callers can tell "deleted" from "matched
+      // nothing" - /BaseObject/destroy reported success for rows that never
+      // existed because that distinction was thrown away here.
+      const Removed = await ModelConfig.Model.destroy({ where: Option });
+      if (Removed === 0) return 0;
       if (SaveLog === true) {
         await this.CreateUserActionHistory({
           LinkObjectName: ObjectName,
@@ -830,7 +847,7 @@ class BaseControllerHelper {
           LogedUser,
         });
       }
-      return true;
+      return Removed;
     } catch (ex) {
       console.log(ex);
       return false;
@@ -1098,7 +1115,26 @@ class BaseControllerHelper {
 
     const ModHelper = new ModelHelper(ModelConfig.Model);
     ModHelper.LogedUser = LogedUser;
+
+    // The caller passes limit: 0 meaning "everything". Sequelize treats 0 as
+    // falsy and emits no FETCH clause at all, so the query really was
+    // unbounded: exporting Visit (~450,000 rows) allocated 2.3 GB and PM2
+    // killed the process. Ask for one row more than the cap, so an overflow is
+    // detectable without a second COUNT query.
+    Option.offset = 0;
+    Option.limit = EXPORT_ROW_CAP + 1;
+
     let { Data } = await ModHelper.FindAll(Option);
+    if (Data.length > EXPORT_ROW_CAP) {
+      throw {
+        ExportTooLarge: true,
+        Message:
+          'Экспортлох мөрийн тоо хэтэрсэн байна (дээд хязгаар ' +
+          EXPORT_ROW_CAP.toLocaleString('en-US') +
+          ' мөр). Хайлт, шүүлтээ нарийсгаад дахин оролдоно уу.',
+      };
+    }
+
     for (var i = 0; i < Data.length; i++) {
       await ModHelper.GetInfoData(Data[i], ModelConfig);
     }
@@ -1206,7 +1242,9 @@ class BaseControllerHelper {
       return { filePath };
     } catch (ex) {
       console.log(ex);
-      return { filePath: null };
+      // A row-cap refusal carries a message the user can act on; anything else
+      // stays opaque as before.
+      return { filePath: null, Message: ex && ex.ExportTooLarge ? ex.Message : null };
     }
   };
 
@@ -1239,7 +1277,7 @@ class BaseControllerHelper {
       return { filePath };
     } catch (ex) {
       console.log(ex);
-      return { filePath: null };
+      return { filePath: null, Message: ex && ex.ExportTooLarge ? ex.Message : null };
     }
   };
 

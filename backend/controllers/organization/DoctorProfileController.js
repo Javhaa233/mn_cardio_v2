@@ -6,6 +6,7 @@ const { Models } = require('../../config/DB');
 
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ModelHelper = require('../../helper/ModelHelper');
+const { PasswordRegex } = require('../../helper/PasswordPolicy');
 
 // routes
 router.post('/GetByUserId', GetByUserId);
@@ -166,13 +167,26 @@ async function GetByUserId(req, res) {
     var result = { Success: true, Message: '', Data: null, Option: {} };
 
     const { UserId, AppId } = req.body;
-    // const LogedUser = req.LogedUser;
+    const LogedUser = req.LogedUser;
+
+    if (!UserId) {
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('UserId шаардлагатай'))
+      );
+    }
+
+    // A request that omitted AppId put `undefined` straight into the where
+    // clause, which Sequelize rejects - so this answered "An error occurred"
+    // for every caller that did not happen to send it. Fall back to the
+    // caller's own AppId, and simply do not constrain the column if there is
+    // none to constrain it by.
+    const ScopeAppId = AppId !== undefined && AppId !== null ? AppId : LogedUser && LogedUser.AppId;
+    const Where = { '$Users.Id$': UserId };
+    if (ScopeAppId !== undefined && ScopeAppId !== null) Where.AppId = ScopeAppId;
 
     const DoctorsProfileConfigData = await BaseControllerHelper.GetConfigData('DoctorsProfile');
     const ModHelper = new ModelHelper(Models.DoctorsProfile);
-    let Doctors = await Models.DoctorsProfile.findAllNew({
-      where: { '$Users.Id$': UserId, AppId: AppId },
-    });
+    let Doctors = await Models.DoctorsProfile.findAllNew({ where: Where });
     Doctors = JSON.parse(JSON.stringify(Doctors));
 
     var Doctor = null;
@@ -200,8 +214,6 @@ async function GetByUserId(req, res) {
 async function ChangePassword(req, res) {
   var result = { Data: null, Message: '', Success: true };
 
-  const PasswordRegex =
-    /(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()+=-\?;,./{}|\":<>\[\]\\\' ~_]).{8,}/;
   const LogedUser = req.LogedUser;
   const { OldPassword, NewPassword, UserId, DoctorId } = req.body;
 

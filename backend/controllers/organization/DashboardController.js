@@ -9,6 +9,25 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 router.post('/GetCreateAllVisits', GetCreateAllVisits);
 router.post('/GetCreatePatients', GetCreatePatients);
 
+// The grouping codes BaseDateSelect.jsx emits. Anything else is a client bug.
+const GRP_TYPES = ['7DAYS', '1MONTH', '6MONTH', '1YEAR'];
+
+/**
+ * Both handlers pass these three straight into `replacements`, and Sequelize
+ * throws on a named replacement whose value is undefined. A request that
+ * omitted SelectType therefore came back as the opaque "An error occurred"
+ * with no hint that a parameter was missing. Name what is wrong instead.
+ */
+function CheckChartParams({ GrpType, StartDate, EndDate }) {
+  if (!GrpType) return 'SelectType шаардлагатай (7DAYS, 1MONTH, 6MONTH, 1YEAR)';
+  if (GRP_TYPES.indexOf(String(GrpType)) === -1) {
+    return 'SelectType буруу байна: ' + GrpType + ' (7DAYS, 1MONTH, 6MONTH, 1YEAR)';
+  }
+  if (!StartDate) return 'StartDate шаардлагатай';
+  if (!EndDate) return 'EndDate шаардлагатай';
+  return null;
+}
+
 async function GetCreatePatients(req, res) {
   try {
     var result = {
@@ -23,6 +42,10 @@ async function GetCreatePatients(req, res) {
     const EndDate = req.body.EndDate;
 
     if (LogedUser) {
+      const ParamError = CheckChartParams({ GrpType, StartDate, EndDate });
+      if (ParamError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ParamError)));
+      }
       // GrpType, StartDate and EndDate come straight from the request body and
       // used to be concatenated into the EXEC string, so any of them could
       // close the quote and append a statement. `replacements` hands them to
@@ -70,6 +93,10 @@ async function GetCreateAllVisits(req, res) {
     const EndDate = req.body.EndDate;
 
     if (LogedUser) {
+      const ParamError = CheckChartParams({ GrpType, StartDate, EndDate });
+      if (ParamError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ParamError)));
+      }
       // Same injection as GetCreatePatients above; same fix.
       //
       // One nuance: this call used to pass @GrpType as N'...'. `replacements`

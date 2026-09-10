@@ -9,6 +9,7 @@ const Auth = require('../../helper/Auth');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const MailHelper = require('../../helper/MailHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const { PasswordRegex, IsBcryptHash } = require('../../helper/PasswordPolicy');
 
 // routes
 router.post('/Login', (req, res, next) => {
@@ -57,6 +58,25 @@ async function Save(req, res) {
       }
     }
 
+    // This route writes Users directly, so it never passes through
+    // ModelHelper.SaveRoot - the only place a Type:'Password' field gets bcrypted.
+    // Hash here or the password lands in the table in plain text.
+    if (Data.Password && !IsBcryptHash(Data.Password)) {
+      if (!PasswordRegex.test(Data.Password)) {
+        const errorResult = {
+          Success: false,
+          Message:
+            'Нууц үг хамгийн багадаа 8 тэмдэгт, том, жижиг үсэг, тоо, тусгай тэмдэгт агуулсан байх ёстой',
+          Data: null,
+        };
+        return res.send(errorResult);
+      }
+      Data.Password = await bcrypt.hash(Data.Password, 8);
+    } else if (Data.Password === '' || Data.Password === null) {
+      // An update that leaves the field blank must not wipe the stored password.
+      delete Data.Password;
+    }
+
     let SaveUser;
     if (Data.Id) {
       // Update existing user
@@ -68,7 +88,7 @@ async function Save(req, res) {
     }
 
     if (SaveUser) {
-      console.log('[UserController/Save] Response:', JSON.stringify(SaveUser));
+      console.log('[UserController/Save] Response: saved user Id', SaveUser.Id);
       return res.send(SaveUser);
     } else {
       const errorResult = {
@@ -459,9 +479,6 @@ async function ResetPassword(req, res) {
   var result = { Data: null, Message: '', Success: true };
   const { UserName, Token, Password } = req.body;
 
-  const PasswordRegex =
-    /(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()+=-\?;,./{}|\":<>\[\]\\\' ~_]).{8,}/;
-
   if (UserName && Token && Password) {
     const user = await Models.Users.findOne({ where: { UserName }, raw: true });
     if (user) {
@@ -504,8 +521,6 @@ async function ChangePassword(req, res) {
 
   try {
     const LogedUser = req.LogedUser;
-    const PasswordRegex =
-      /(?=.*\d)(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*()+=-\?;,./{}|\":<>\[\]\\\' ~_]).{8,}/;
 
     if (LogedUser && NewPassword && Password) {
       const user = await Models.Users.findOne({

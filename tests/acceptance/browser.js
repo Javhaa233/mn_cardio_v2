@@ -169,10 +169,23 @@ async function run(outDir) {
 
   /* --------------------------------------- a real interaction: search */
 
+  // Was /admin/PatientInfo, which is a DETAIL screen (routes/adminRoutes.js marks
+  // it redirect:true) and renders "Үйлчлүүлэгч сонгогдоогүй байна" with no input at
+  // all when no patient is selected. CVDMonitoringList is a real patient list on
+  // BaseGrid.
+  //
+  // The selector was also too narrow: BaseGrid's per-column filter row renders
+  // via MUI Box component="input" (CustomColumnHeaders.jsx), which emits an
+  // <input> with NO type attribute, so input[type="text"] never matched it.
+  // Note the free-text search box in BaseCrudActions is dead everywhere -
+  // BaseCrudManager is its only caller and always passes HideSearchText={true}.
   reset();
-  await page.goto(CONFIG.base + '/admin/PatientInfo', { waitUntil: 'networkidle2', timeout: 60000 });
+  await page.goto(CONFIG.base + '/admin/CVDMonitoringList', {
+    waitUntil: 'networkidle2',
+    timeout: 60000,
+  });
   await settle(2500);
-  const searchBox = await page.$('input[type="text"]');
+  const searchBox = await page.$('input[type="text"], input:not([type]), .MuiInputBase-input');
   if (searchBox) {
     await searchBox.click({ clickCount: 3 });
     await searchBox.type('Бат', { delay: 40 });

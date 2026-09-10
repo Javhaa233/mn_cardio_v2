@@ -21,7 +21,25 @@ async function GetProvinceData(req, res) {
       if (Option.Type === 'Equals') where[Field] = Option.Value;
     }
 
-    const Model = Models[ObjectName];
+    // Models[undefined] is undefined, so a request without ObjectName died on
+    // `Model.findAll` with a TypeError and reported the opaque "An error
+    // occurred". Say which parameter is wrong instead.
+    if (!ObjectName || typeof ObjectName !== 'string') {
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('ObjectName шаардлагатай'))
+      );
+    }
+    const Model = Object.prototype.hasOwnProperty.call(Models, ObjectName)
+      ? Models[ObjectName]
+      : null;
+    if (!Model || typeof Model.findAll !== 'function') {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult('ObjectName олдсонгүй: ' + ObjectName)
+        )
+      );
+    }
+
     const Data = await Model.findAll({
       where: where,
       attributes: ['id_data', 'name'],

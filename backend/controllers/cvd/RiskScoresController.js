@@ -52,6 +52,28 @@ async function CalculateRisk(req, res) {
     const pressure = body.pressure ? parseFloat(body.pressure).toFixed(2) : 0;
     const BMI = body.BMI ? parseFloat(body.BMI).toFixed(2) : 0;
 
+    // Sequelize rejects an `undefined` where value, so a body missing any of
+    // these four died with the opaque "An error occurred" and gave the caller
+    // no idea which field it wanted. Note the spellings: the columns really are
+    // `cholestrol` / `isCholestrol`.
+    const Missing = [];
+    if (gender === undefined || gender === null || gender === '') Missing.push('gender');
+    if (isCholestrol === undefined || isCholestrol === null || isCholestrol === '')
+      Missing.push('isCholestrol');
+    if (isDiabetes === undefined || isDiabetes === null || isDiabetes === '')
+      Missing.push('isDiabetes');
+    if (isSmoker === undefined || isSmoker === null || isSmoker === '') Missing.push('isSmoker');
+    if (age === undefined || age === null || age === '') Missing.push('age');
+    if (Missing.length > 0) {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult(
+            'Дараах талбарууд шаардлагатай: ' + Missing.join(', ')
+          )
+        )
+      );
+    }
+
     let where = { gender, isCholestrol, isDiabetes, isSmoker };
 
     where = {

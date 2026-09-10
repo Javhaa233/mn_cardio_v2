@@ -228,13 +228,41 @@ const BODY = {
   '/api/DoctorProfile/GetCustomFormData': {},
   '/api/DoctorsTeam/GetList': { ObjectName: 'DoctorsTeam', PageSize: 3, PageNumber: 0 },
   '/api/DoctorsTeam/GetDoctorsTeams': {},
-  '/api/Report/GetProvinceData': {},
-  '/api/UserRequest/GetProvinceData': {},
+  // ObjectName is required; these are the three the report screen actually asks for
+  // (ReportLocationSelect.jsx). An empty body used to reach Models[undefined].
+  '/api/Report/GetProvinceData': {
+    ObjectName: 'DictProvinceCity',
+    Option: { Field: 'name', Type: 'NotEquals', Value: '' },
+  },
+  '/api/UserRequest/GetProvinceData': {
+    ObjectName: 'DictProvinceCity',
+    Option: { Field: 'name', Type: 'NotEquals', Value: '' },
+  },
   '/api/UserRequest/CheckUserName': { UserName: 'zz_nonexistent_zz', Email: 'zz@example.com' },
-  '/api/Dashboard/GetCreatePatients': { StartDate: '2026-01-01', EndDate: '2026-01-31' },
-  '/api/Dashboard/GetCreateAllVisits': { StartDate: '2026-01-01', EndDate: '2026-01-31' },
+  // SelectType is required - BaseDateSelect.jsx sends 7DAYS|1MONTH|6MONTH|1YEAR.
+  '/api/Dashboard/GetCreatePatients': {
+    SelectType: '1MONTH',
+    StartDate: '2026-01-01',
+    EndDate: '2026-01-31',
+  },
+  '/api/Dashboard/GetCreateAllVisits': {
+    SelectType: '1MONTH',
+    StartDate: '2026-01-01',
+    EndDate: '2026-01-31',
+  },
   '/api/Organization/GetOne/:id': null,
-  '/api/RiskScores/CalculateRisk': { Age: 55, Gender: 'M', Systolic: 140, Cholesterol: 5, IsSmoker: false, HasDiabetes: false },
+  // These field names were invented and matched nothing in the controller. The
+  // real contract is CalculateRisk.jsx -> CVDHelper.calculateRisk: lowercase,
+  // Yes/No strings, and the column really is spelled 'cholestrol'.
+  '/api/RiskScores/CalculateRisk': {
+    gender: 'M',
+    isCholestrol: 'No',
+    isDiabetes: 'No',
+    isSmoker: 'No',
+    age: 55,
+    pressure: 140,
+    BMI: 25,
+  },
 };
 
 // Which identity to call as. Default: doctor.

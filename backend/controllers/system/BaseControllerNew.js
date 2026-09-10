@@ -325,6 +325,22 @@ async function destroy(req, res) {
         Option,
         LogedUser,
       });
+      // Same contract as controllers/system/BaseController.js destroy():
+      // null = refused, false = threw, 0 = matched nothing.
+      if (Result === null) {
+        return res.send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Энэ бичлэгийг устгах эрхгүй байна'))
+        );
+      }
+      if (Result === false) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+      }
+      if (Result === 0) {
+        return res.send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Устгах бичлэг олдсонгүй'))
+        );
+      }
+      result.Data = { Deleted: Result };
       return res.send(JSON.stringify(result));
     } else {
       return res.send(
