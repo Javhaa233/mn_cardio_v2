@@ -1,7 +1,7 @@
 ﻿-- GENERATED. Option lists for form 2.2, from the tender's own checkbox cells.
 SET NOCOUNT ON;
 DECLARE @db sysname = DB_NAME();
-IF @db NOT IN ('MnCardio_restored','MnCardioNew')
+IF @db NOT IN ('MnCardio_restored','MnCardioNew','MnCardio_test')
 BEGIN RAISERROR('Refusing to run: unexpected database "%s".',16,1,@db); SET NOEXEC ON; END
 GO
 DELETE FROM dbo.OptionTypes WHERE dico LIKE 'f22[_]%';

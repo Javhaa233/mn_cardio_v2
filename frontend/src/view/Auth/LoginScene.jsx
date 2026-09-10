@@ -64,10 +64,17 @@ function LoginScene({ Quiet = false }) {
         onLoad={() => setReady(true)}
         onError={() => setReady(true)}
       />
+      {/* xMin, not xMid, on preserveAspectRatio below. The map artwork spans
+          x 23.8-1224.2, so its centre is x=624 while the viewBox centre is 800 -
+          the 376-unit band on the right is reserved for the login panel. With
+          xMid a narrow/tall window cropped symmetrically about x=800 and cut
+          179px off Mongolia's WEST (measured at 1280x950). Anchoring left makes
+          the crop eat the empty right band instead. mongolia-aimags.svg MUST
+          carry the identical value or the outline and the fills drift apart. */}
       <svg
         className="scene"
         viewBox="0 0 1600 900"
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMinYMid slice"
         xmlns="http://www.w3.org/2000/svg"
       >
         <g className="rings">
@@ -902,7 +909,7 @@ function LoginScene({ Quiet = false }) {
 
         <path
           className="trace base-c"
-          d="M-40,389 L55,389 L65,380 L75,389 L85,399 L95,347 L103,405 L113,389 L129,389 L139,378 L149,389 L205,389 L215,380 L225,389 L235,399 L245,347 L253,405 L263,389 L279,389 L289,378 L299,389 L355,389 L365,380 L375,389 L385,399 L395,347 L403,405 L413,389 L429,389 L439,378 L449,389 L505,389 L515,380 L525,389 L535,399 L545,347 L553,405 L563,389 L579,389 L589,378 L599,389 L685,389 L699,375 L711,389 L720,415 L731,237"
+          d="M-40,389 L55,389 L65,380 L75,389 L85,399 L95,347 L103,405 L113,389 L129,389 L139,378 L149,389 L214,389 L224,380 L234,389 L244,399 L254,347 L262,405 L272,389 L288,389 L298,378 L308,389 L373,389 L383,380 L393,389 L403,399 L413,347 L421,405 L431,389 L447,389 L457,378 L467,389 L532,389 L542,380 L552,389 L562,399 L572,347 L580,405 L590,389 L606,389 L616,378 L626,389 L685,389 L699,375 L711,389 L720,415 L731,237"
           pathLength="100"
         />
         <path
@@ -912,7 +919,7 @@ function LoginScene({ Quiet = false }) {
         />
         <path
           className="trace run run-c"
-          d="M-40,389 L55,389 L65,380 L75,389 L85,399 L95,347 L103,405 L113,389 L129,389 L139,378 L149,389 L205,389 L215,380 L225,389 L235,399 L245,347 L253,405 L263,389 L279,389 L289,378 L299,389 L355,389 L365,380 L375,389 L385,399 L395,347 L403,405 L413,389 L429,389 L439,378 L449,389 L505,389 L515,380 L525,389 L535,399 L545,347 L553,405 L563,389 L579,389 L589,378 L599,389 L685,389 L699,375 L711,389 L720,415 L731,237"
+          d="M-40,389 L55,389 L65,380 L75,389 L85,399 L95,347 L103,405 L113,389 L129,389 L139,378 L149,389 L214,389 L224,380 L234,389 L244,399 L254,347 L262,405 L272,389 L288,389 L298,378 L308,389 L373,389 L383,380 L393,389 L403,399 L413,347 L421,405 L431,389 L447,389 L457,378 L467,389 L532,389 L542,380 L552,389 L562,399 L572,347 L580,405 L590,389 L606,389 L616,378 L626,389 L685,389 L699,375 L711,389 L720,415 L731,237"
           pathLength="100"
         />
         <path

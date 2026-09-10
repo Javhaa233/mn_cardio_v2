@@ -39,7 +39,7 @@ const PATH_DENY = ['backend/config/SSL', 'backend/config/Xyp'];
 const FILE_DENY = [
   // Anything ending in .env, anywhere in the tree, whatever it is called. The
   // root allowlist already drops stray root files, but a credentials file such
-  // as ssh-mncardio.env would survive being moved into a subdirectory.
+  // as test-environment.env would survive being moved into a subdirectory.
   /\.env$/i, /^\.env\..*/i, /^Config\.env.*/i,
   /\.key$/i, /\.pem$/i, /\.pfx$/i, /\.p12$/i, /\.ovpn$/i,
   /\.keystore$/i, /\.jks$/i, /^id_rsa/i,

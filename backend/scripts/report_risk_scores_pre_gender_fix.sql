@@ -46,7 +46,7 @@
 SET NOCOUNT ON;
 
 DECLARE @db sysname = DB_NAME();
-IF @db NOT IN ('MnCardio_restored', 'MnCardioNew')
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
 BEGIN
     RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
     SET NOEXEC ON;

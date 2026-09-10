@@ -1,7 +1,7 @@
-# Deploying MnCardio
+# Deploying the MnCardio test environment
 
 Target: **`mncardio.itsystem.mn`** (`103.87.255.221`) — the shared test environment the web
-system and the mobile app both run against. Full plan and rationale:
+system and the mobile app both run against, until the delivery is finished. Full plan and rationale:
 `~/.claude/plans/create-new-folder-and-toasty-bonbon.md`.
 
 The box **already serves other sites**. Survey before changing anything, back up every config
@@ -9,7 +9,7 @@ with `cp -a`, and never `systemctl reload nginx` without `nginx -t` passing firs
 
 ## Credentials
 
-`c:\Ajil\mn_cardio_v2\ssh-mncardio.env` — `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD`.
+`c:\Ajil\mn_cardio_v2\test-environment.env` — `SSH_HOST`, `SSH_PORT`, `SSH_USER`, `SSH_PASSWORD`.
 Outside both repos, and excluded from the GitHub export by pattern and by the root allowlist.
 `ssh.env` (production) is a different file and a different server; do not confuse them.
 

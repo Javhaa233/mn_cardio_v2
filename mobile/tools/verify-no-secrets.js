@@ -22,7 +22,7 @@ if (!TARGET) {
 const ROOT = path.resolve(__dirname, '..', '..');
 const SOURCES = [
   path.join(ROOT, 'ssh.env'),
-  path.join(ROOT, 'ssh-mncardio.env'),
+  path.join(ROOT, 'test-environment.env'),
   path.join(ROOT, 'backend', '.env'),
   path.join(ROOT, 'backend', '.env.development'),
   path.join(ROOT, 'backend', '.env.production'),
@@ -30,11 +30,22 @@ const SOURCES = [
 ];
 
 // Values that are public or too generic to be evidence of a leak.
+//
 // SQL_DB is the database name and appears legitimately in USE [...] statements;
 // CLIENT_APP_URL is the public site address; SSH_USER appears in documented
-// default paths. None of these is a credential.
-const NOT_SECRET = new Set(['SQL_DB', 'CLIENT_APP_URL', 'SSH_USER', 'REGNUM', 'NODE_ENV', 'PORT', 'SSL']);
-const IGNORE_VALUE = /^(|true|false|0|1|development|production|localhost|5001|3000|1433)$/i;
+// default paths.
+//
+// SQL_HOST and SSH_HOST are endpoints, not credentials: they resolve in public
+// DNS, and the test environment's SQL_HOST is literally 127.0.0.1, which occurs
+// in most of the source tree. Flagging them produced only false positives, and
+// a check that cries wolf is a check people learn to ignore. The secret is the
+// password that guards the endpoint, and those are still checked.
+const NOT_SECRET = new Set([
+  'SQL_DB', 'CLIENT_APP_URL', 'SSH_USER', 'REGNUM', 'NODE_ENV', 'PORT', 'SSL',
+  'SQL_HOST', 'SSH_HOST', 'SSH_PORT', 'SQL_PORT',
+]);
+const IGNORE_VALUE =
+  /^(|true|false|0|1|development|production|localhost|127\.0\.0\.1|5001|3000|1433|22)$/i;
 
 const secrets = new Map(); // value -> Set("file:KEY")
 for (const src of SOURCES) {
@@ -64,7 +75,7 @@ const files = [];
 
 // Structural check: no secret-bearing file should exist at all.
 // Any file ending in .env, whatever its name — .env, Config.env, ssh.env,
-// ssh-mncardio.env — plus key material by extension. Config-Template.env is
+// test-environment.env — plus key material by extension. Config-Template.env is
 // the one deliberate exception: it ships, sanitised.
 const BANNED = /(^|[\\/])(?!Config-Template\.env$)[^\\/]*\.env(\.[^\\/]*)?$|\.(key|pem|pfx|p12|ovpn|jks|keystore)$/i;
 const bannedFiles = files.filter((f) => BANNED.test(f.replace(TARGET, '')));
