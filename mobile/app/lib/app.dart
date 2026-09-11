@@ -40,7 +40,11 @@ class MnCardioApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Вебэд харанхуй горим байхгүй бөгөөд апп түүнтэй адилхан харагдах
+      // ёстой. `system` үед утас харанхуй горимд байвал нүүр хуудас бараан
+      // navy болж, вебийн цайвар хөх дэвсгэр хэзээ ч гарахгүй байв.
+      // `AppTheme.dark()` хэвээр — буцаахад энэ мөрийг л солино.
+      themeMode: ThemeMode.light,
       locale: const Locale('mn'),
       supportedLocales: const <Locale>[Locale('mn')],
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[

@@ -13,11 +13,12 @@ class AppTheme {
 
   /// Булангийн радиус — `frontend/src/theme/tokens.js` § `radius`.
   ///
-  /// `radius.md` (карт) ба `radius.sm` (контрол). Картны дотор сууж буй
-  /// контрол хоёр дахь карт мэт биш, контрол мэт харагдах ёстой — тиймээс
-  /// хоёр өөр утга.
-  static const double cardRadius = 10; // radius.md
-  static const double controlRadius = 6; // radius.sm
+  /// Карт нь `radius.sm` (6px): вебийн бүх карт `UniCard`-аар зурагддаг бөгөөд
+  /// тэр нь `radius.sm` авдаг. Контрол нь `radius.xs` = `CONTROL.radius` (3px),
+  /// тиймээс картын дотор сууж буй контрол хоёр дахь карт мэт биш, контрол
+  /// мэт харагдана.
+  static const double cardRadius = 6; // radius.sm — UniCard
+  static const double controlRadius = 3; // radius.xs — CONTROL.radius
   static const double gap = 16; // space.4
 
   /// Сүүдэр нь **бэхний navy өнгөөр** будагдана, хэзээ ч саарал хар биш

@@ -37,11 +37,12 @@ class SectionCard extends StatelessWidget {
       children: <Widget>[
         if (header != null) ...<Widget>[
           Padding(
+            // Вебийн UniCard: гарчгийн дээд, доод зай тэнцүү.
             padding: EdgeInsets.fromLTRB(
               padding.left,
               padding.top,
               padding.right,
-              14,
+              padding.top,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
