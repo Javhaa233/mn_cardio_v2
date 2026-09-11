@@ -95,9 +95,8 @@ $permissions = @'
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.VIBRATE" />
 
-    <!-- Чатын хавсралт: зураг авах, дуу бичих -->
+    <!-- Чатын хавсралт: зураг авах -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
@@ -229,8 +228,6 @@ if (-not (Test-Path $plistPath)) {
 	<string>Эмчдээ зураг илгээхийн тулд камер ашиглана.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Эмчдээ зураг хавсаргахын тулд зургийн санд хандана.</string>
-	<key>NSMicrophoneUsageDescription</key>
-	<string>Эмчдээ дуут мессеж илгээхийн тулд микрофон ашиглана.</string>
 '@
 
     if ($plist -match 'NSFaceIDUsageDescription') {
