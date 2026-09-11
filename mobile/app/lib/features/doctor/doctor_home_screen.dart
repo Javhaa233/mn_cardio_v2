@@ -3,13 +3,17 @@ import 'package:provider/provider.dart';
 
 import '../../core/util/mn_format.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/section_card.dart';
 import '../chat/chat_controller.dart';
-import 'doctor_advice_screen.dart';
+import '../chat/chat_models.dart';
+import '../chat/chat_repository.dart';
+import '../chat/doctor_search_screen.dart';
 import 'doctor_controllers.dart';
 import 'doctor_models.dart';
-import 'doctor_patients_screen.dart';
 import 'doctor_report_screen.dart';
+import 'feed_widgets.dart';
+import 'ticket_composer_screen.dart';
 
 /// Эмчийн нүүр хуудас.
 class DoctorHomeScreen extends StatefulWidget {
@@ -23,10 +27,21 @@ class DoctorHomeScreen extends StatefulWidget {
 }
 
 class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
+  final ScrollController _scroll = ScrollController();
+
   @override
   void initState() {
     super.initState();
+    _scroll.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadOnce());
+  }
+
+  @override
+  void dispose() {
+    _scroll
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
   }
 
   void _loadOnce() {
@@ -38,6 +53,18 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
 
     final chat = context.read<ChatRoomsController>();
     if (chat.state.isIdle) chat.load();
+
+    final feed = context.read<DoctorFeedController>();
+    if (feed.state.isIdle) feed.load();
+  }
+
+  /// Тасалбарын урсгал нүүр хуудасны хамгийн доор тул төгсгөлд ойртоход
+  /// дараагийн хуудсыг татна — вебийн хязгааргүй гүйлгэлттэй ижил.
+  void _onScroll() {
+    if (!_scroll.hasClients) return;
+    if (_scroll.position.extentAfter < 800) {
+      context.read<DoctorFeedController>().loadMore();
+    }
   }
 
   Future<void> _refresh() async {
@@ -45,30 +72,50 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
       context.read<DoctorProfileController>().load(refresh: true),
       context.read<DoctorReportController>().load(refresh: true),
       context.read<ChatRoomsController>().load(refresh: true),
+      context.read<DoctorFeedController>().load(refresh: true),
     ]);
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final feed = context.watch<DoctorFeedController>();
+
     return Scaffold(
       body: SafeArea(
         bottom: false,
         child: RefreshIndicator(
           onRefresh: _refresh,
           child: ListView(
+            controller: _scroll,
             physics: const AlwaysScrollableScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
             children: <Widget>[
               const _DoctorGreeting(),
+              const SizedBox(height: 16),
+              const _DoctorSearchHero(),
+              const SizedBox(height: 12),
+              const _ComposerCard(),
               const SizedBox(height: 18),
               const _SummaryCard(),
-              const SizedBox(height: 18),
-              Text(
-                'Миний хэсэг',
-                style: Theme.of(context).textTheme.titleSmall,
+              // "Миний хэсэг"-ийн 5 хавтанг хассан (2026-09-11): Үзлэг, Хяналт нь
+              // доод цэсний табууд, Миний зөвлөгөө / тайлан / Үйлчлүүлэгч хайх
+              // нь "Цэс" таб дээр байгаа тул давхардал байв.
+              const SizedBox(height: 26),
+              // Вебийн нүүр хуудасны гол хэсэг — нийтлэгдсэн тасалбарууд.
+              Row(
+                children: <Widget>[
+                  Expanded(
+                    child: Text('Тасалбарууд', style: theme.textTheme.titleLarge),
+                  ),
+                  if (feed.isFiltered && feed.state.isReady)
+                    Text('${feed.total} тасалбар', style: theme.textTheme.bodySmall),
+                ],
               ),
               const SizedBox(height: 10),
-              _ModuleGrid(onOpenTab: widget.onOpenTab),
+              FeedFilterBar(controller: feed),
+              const SizedBox(height: 12),
+              ...buildFeedItems(context, feed),
             ],
           ),
         ),
@@ -199,126 +246,294 @@ class _SummaryCard extends StatelessWidget {
   }
 }
 
-class _ModuleGrid extends StatelessWidget {
-  const _ModuleGrid({required this.onOpenTab});
-
-  final ValueChanged<int> onOpenTab;
+/// "Эмч хайх" — нүүр хуудасны хамгийн дээд хэсэг.
+///
+/// Вебийн эмч сонгогчийн (`Chat/DoctorPicker.jsx`) гурван шүүлтүүр: аймаг/хот,
+/// сум/дүүрэг, нэр-мэргэжил-байгууллага. Энд шүүлтүүрийг л бэлдэж, хайх үед
+/// жагсаалтыг бүтэн дэлгэцээр нээнэ — урт жагсаалтыг нүүр хуудсан дээр
+/// гүйлгэвэл доорх хэсгүүд харагдахаа болино.
+///
+/// Брэндийн градиент дээр. Вебэд градиент нь хажуугийн цэсэнд байдаг; гар
+/// утсанд хамгийн түрүүнд харагдах энэ карт түүнийг авч явна. Цагаан бичиг
+/// градиентын индиго (дээд зүүн) талд байрлана — тэнд контраст ~7:1.
+class _DoctorSearchHero extends StatefulWidget {
+  const _DoctorSearchHero();
 
   @override
-  Widget build(BuildContext context) {
-    final modules = <_Tile>[
-      _Tile(
-        label: 'Миний үзлэгүүд',
-        description: 'Бүртгэсэн үзлэг',
-        icon: Icons.assignment_outlined,
-        onTap: () => onOpenTab(1),
-      ),
-      _Tile(
-        label: 'Миний хяналт',
-        description: 'Хяналтад буй хүмүүс',
-        icon: Icons.monitor_heart_outlined,
-        onTap: () => onOpenTab(2),
-      ),
-      _Tile(
-        label: 'Миний зөвлөгөө',
-        description: 'Бичсэн зөвлөгөө',
-        icon: Icons.tips_and_updates_outlined,
-        onTap: () => _push(context, const DoctorAdviceScreen()),
-      ),
-      _Tile(
-        label: 'Миний тайлан',
-        description: 'Тоон үзүүлэлт',
-        icon: Icons.insights_outlined,
-        onTap: () => _push(context, const DoctorReportScreen()),
-      ),
-      _Tile(
-        label: 'Үйлчлүүлэгч хайх',
-        description: 'РД, нэрээр',
-        icon: Icons.person_search_outlined,
-        onTap: () => _push(context, const DoctorPatientsScreen()),
-      ),
-    ];
+  State<_DoctorSearchHero> createState() => _DoctorSearchHeroState();
+}
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 1.42,
-      ),
-      itemCount: modules.length,
-      itemBuilder: (BuildContext context, int index) =>
-          _ModuleTile(tile: modules[index]),
-    );
+class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
+  final TextEditingController _query = TextEditingController();
+  DirectoryFilters _filters = DirectoryFilters.empty;
+  String? _province;
+  String? _soum;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadFilters();
+    });
   }
 
-  void _push(BuildContext context, Widget screen) {
+  @override
+  void dispose() {
+    _query.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadFilters() async {
+    try {
+      final filters = await context.read<ChatRepository>().directoryFilters();
+      if (!mounted) return;
+      setState(() => _filters = filters);
+    } catch (e) {
+      // Шүүлтүүргүйгээр хайлт ажиллана; мөр л харагдахгүй.
+      debugPrint('[home] directory filters failed: $e');
+    }
+  }
+
+  void _search() {
+    FocusScope.of(context).unfocus();
     Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => screen),
+      MaterialPageRoute<void>(
+        builder: (_) => DoctorSearchScreen(
+          initialProvince: _province,
+          initialSoum: _soum,
+          initialSearch: _query.text.trim(),
+        ),
+      ),
     );
   }
-}
 
-class _Tile {
-  const _Tile({
-    required this.label,
-    required this.description,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final String description;
-  final IconData icon;
-  final VoidCallback onTap;
-}
-
-class _ModuleTile extends StatelessWidget {
-  const _ModuleTile({required this.tile});
-
-  final _Tile tile;
+  InputDecoration _field({String? hint, Widget? prefix, Widget? suffix}) {
+    final radius = BorderRadius.circular(AppTheme.controlRadius + 3);
+    return InputDecoration(
+      hintText: hint,
+      prefixIcon: prefix,
+      suffixIcon: suffix,
+      isDense: true,
+      filled: true,
+      fillColor: Colors.white,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      border: OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
+      enabledBorder:
+          OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
+      disabledBorder:
+          OutlineInputBorder(borderRadius: radius, borderSide: BorderSide.none),
+      // Текст бус заагч тул cyan зөвшөөрөгдөнө.
+      focusedBorder: OutlineInputBorder(
+        borderRadius: radius,
+        borderSide: const BorderSide(color: AppColors.cyan, width: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    return SectionCard(
-      onTap: tile.onTap,
-      padding: const EdgeInsets.all(14),
+    final province = _province;
+    final soums = province == null
+        ? const <DirectoryPlace>[]
+        : _filters.soumsOf(province);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: AppColors.brandGradient,
+        borderRadius: BorderRadius.circular(AppTheme.cardRadius * 2),
+        // tokens.js § elevation.3 — navy өнгөтэй, саарал хар биш.
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: AppTheme.shadowInk,
+            blurRadius: 20,
+            offset: Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: <Widget>[
-          Container(
-            width: 40,
-            height: 40,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(tile.icon, size: 20, color: theme.colorScheme.primary),
-          ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          Row(
             children: <Widget>[
-              Text(
-                tile.label,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.titleSmall,
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.person_search_rounded,
+                  color: Colors.white,
+                ),
               ),
-              const SizedBox(height: 2),
-              Text(
-                tile.description,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text(
+                      'Эмч хайх',
+                      style: theme.textTheme.titleLarge?.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Улсын хэмжээнд эмчийг олж, шууд чатлана',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: Colors.white.withValues(alpha: 0.92),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ],
           ),
+          const SizedBox(height: 14),
+          if (!_filters.isEmpty) ...<Widget>[
+            Row(
+              children: <Widget>[
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    initialValue: _province,
+                    isExpanded: true,
+                    decoration: _field(),
+                    items: <DropdownMenuItem<String?>>[
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text('Бүх аймаг / хот'),
+                      ),
+                      for (final DirectoryPlace p in _filters.provinces)
+                        DropdownMenuItem<String?>(
+                          value: p.name,
+                          child: Text(p.label, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: (String? value) => setState(() {
+                      _province = value;
+                      // Өмнөх аймгийн сум шинэд таарахгүй.
+                      _soum = null;
+                    }),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: DropdownButtonFormField<String?>(
+                    key: ValueKey<String>('hero-soum-${province ?? ''}'),
+                    initialValue: _soum,
+                    isExpanded: true,
+                    decoration: _field(),
+                    disabledHint: const Text(
+                      'Бүх сум / дүүрэг',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    items: <DropdownMenuItem<String?>>[
+                      const DropdownMenuItem<String?>(
+                        value: null,
+                        child: Text(
+                          'Бүх сум / дүүрэг',
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      for (final DirectoryPlace s in soums)
+                        DropdownMenuItem<String?>(
+                          value: s.name,
+                          child: Text(s.label, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
+                    onChanged: soums.isEmpty
+                        ? null
+                        : (String? value) => setState(() => _soum = value),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+          ],
+          TextField(
+            controller: _query,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => _search(),
+            decoration: _field(
+              hint: 'Эмчийн нэр, мэргэжил, байгууллагаар хайх',
+              prefix: const Icon(Icons.search_rounded),
+              suffix: Padding(
+                padding: const EdgeInsets.all(4),
+                child: IconButton.filled(
+                  onPressed: _search,
+                  tooltip: 'Хайх',
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 20),
+                ),
+              ),
+            ),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// "Шинэ тасалбар бичих…" — вебийн `PostComposer`-ийн хаалттай төлөв.
+class _ComposerCard extends StatelessWidget {
+  const _ComposerCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final me = context.watch<DoctorProfileController>().me;
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.of(context).push<bool>(
+          MaterialPageRoute<bool>(builder: (_) => const TicketComposerScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: <Widget>[
+              CircleAvatar(
+                radius: 20,
+                backgroundColor: AppColors.primaryLight,
+                child: Text(
+                  me?.initials ?? '—',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: theme.colorScheme.primary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Container(
+                  height: 42,
+                  alignment: Alignment.centerLeft,
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(999),
+                    border: Border.all(color: theme.dividerColor),
+                  ),
+                  child: Text(
+                    'Шинэ тасалбар бичих…',
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: theme.textTheme.bodySmall?.color,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                Icons.add_photo_alternate_outlined,
+                color: theme.colorScheme.primary,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

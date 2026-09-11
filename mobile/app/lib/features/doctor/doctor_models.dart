@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:typed_data';
+
 import '../../core/util/json_read.dart';
 import '../../core/util/mn_format.dart';
 import '../journal/journal_entry.dart';
@@ -527,4 +530,287 @@ class DoctorEvisit {
         comment: J.strOr(json, <String>['Comment']),
         createDate: J.date(json, <String>['CreateDate']),
       );
+}
+
+/// Тасалбарын хэлбэр — `OptionTypes` (`dico = ticket_type`).
+///
+/// `/BaseObject/getData` хариунд `{Label, Value}` хэлбэртэй ирдэг (SQL нь
+/// баганыг ингэж нэрлэдэг). Утга нь өгөгдлийн санд текст ч, тоо ч байж болох
+/// тул хоёуланг нь мөр болгож уншина.
+class TicketTypeOption {
+  const TicketTypeOption({required this.value, required this.label});
+
+  final String value;
+  final String label;
+
+  factory TicketTypeOption.fromJson(Map<String, dynamic> json) {
+    String read(String upper, String lower) =>
+        '${json[upper] ?? json[lower] ?? ''}'.trim();
+    return TicketTypeOption(
+      value: read('Value', 'value'),
+      label: read('Label', 'label'),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Тасалбарын урсгал — вебийн `view/AdviceHome.jsx` (`/Advice/GetFeed`)
+// ---------------------------------------------------------------------------
+
+int _feedInt(dynamic v, {int fallback = 0}) {
+  if (v is num) return v.toInt();
+  return int.tryParse('${v ?? ''}') ?? fallback;
+}
+
+/// Огнооны эхний 10 тэмдэгт. `date_creation` өгөгдлийн санд зөвхөн огноогоор
+/// хадгалагддаг; хариултын цаг нь урсгалд хэрэггүй дэлгэрэнгүй.
+String _feedDay(dynamic v) {
+  final s = '${v ?? ''}';
+  return s.length >= 10 ? s.substring(0, 10) : s;
+}
+
+Map<String, dynamic> _feedMap(dynamic v) =>
+    v is Map ? Map<String, dynamic>.from(v) : <String, dynamic>{};
+
+String _feedFirst(List<dynamic> values) {
+  for (final dynamic v in values) {
+    final s = '${v ?? ''}'.trim();
+    if (s.isNotEmpty) return s;
+  }
+  return '';
+}
+
+/// Тасалбар, хариултын хавсралт.
+///
+/// Сервер зургийг base64 thumbnail болгож (`FileSrc`), `FileInfo`-той хамт
+/// өгдөг. Зураг бус файлд `FileSrc` ирдэггүй — тэр нь нэрээрээ л харагдана.
+class FeedFile {
+  FeedFile({required this.name, required this.ext, this.src});
+
+  final String name;
+  final String ext;
+  final String? src;
+
+  static const Set<String> _imageExt = <String>{
+    'jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'heic',
+  };
+
+  bool get isImage => _imageExt.contains(ext) && bytes != null;
+
+  /// Нэг удаа задлаад хадгална: карт дахин зурагдах бүрт base64 задлахгүй,
+  /// `MemoryImage` ч байтын ижил instance-аар кэшлэгдэнэ.
+  late final Uint8List? bytes = _decode(src);
+
+  static Uint8List? _decode(String? src) {
+    if (src == null || src.isEmpty) return null;
+    final comma = src.startsWith('data:') ? src.indexOf(',') : -1;
+    try {
+      return base64Decode(comma == -1 ? src : src.substring(comma + 1));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  factory FeedFile.fromJson(Map<String, dynamic> json) {
+    final info = _feedMap(json['FileInfo']);
+    final src = json['FileSrc'];
+    return FeedFile(
+      name: _feedFirst(<dynamic>[info['Name'], info['original_name'], 'файл']),
+      ext: '${info['ext'] ?? ''}'.toLowerCase().replaceAll('.', ''),
+      src: src is String ? src : null,
+    );
+  }
+
+  static List<FeedFile> listOf(dynamic value) => value is List
+      ? value
+          .whereType<Map<dynamic, dynamic>>()
+          .map((Map<dynamic, dynamic> m) =>
+              FeedFile.fromJson(Map<String, dynamic>.from(m)))
+          .toList(growable: false)
+      : const <FeedFile>[];
+}
+
+/// Тасалбарын хариулт.
+class FeedComment {
+  FeedComment({
+    required this.id,
+    required this.text,
+    required this.date,
+    required this.authorName,
+    this.avatar,
+    this.files = const <FeedFile>[],
+    this.fileTotal = 0,
+  });
+
+  final int id;
+  final String text;
+  final String date;
+  final String authorName;
+  final FeedFile? avatar;
+  final List<FeedFile> files;
+  final int fileTotal;
+
+  /// `GetFeed`-ийн картад зориулсан урьдчилан харах хэлбэр.
+  factory FeedComment.fromFeed(Map<String, dynamic> json) {
+    final avatarSrc = json['AvatarSrc'];
+    final files = FeedFile.listOf(json['Files']);
+    return FeedComment(
+      id: _feedInt(json['Id']),
+      text: '${json['Text'] ?? ''}',
+      date: _feedDay(json['Date']),
+      authorName: '${json['AuthorName'] ?? ''}'.trim(),
+      avatar: avatarSrc is String && avatarSrc.isNotEmpty
+          ? FeedFile(name: 'avatar', ext: 'jpg', src: avatarSrc)
+          : null,
+      files: files,
+      fileTotal: _feedInt(json['FileTotal'], fallback: files.length),
+    );
+  }
+
+  /// `GetComments`-ийн хуучин бичлэгийн хэлбэр — вебийн `toPreviewComment`.
+  factory FeedComment.fromThread(Map<String, dynamic> json) {
+    final dp = _feedMap(json['DoctorsProfile']);
+    final users = _feedMap(json['Users']);
+    final fromParts = <dynamic>[dp['lastname'], dp['firstname']]
+        .where((dynamic v) => '${v ?? ''}'.trim().isNotEmpty)
+        .join(' ');
+    final avatars = FeedFile.listOf(dp['Files']);
+    final files = FeedFile.listOf(json['Files']);
+    return FeedComment(
+      id: _feedInt(json['id_data']),
+      text: '${json['adv_com_comment'] ?? ''}',
+      date: _feedDay(json['date_creation']),
+      authorName: _feedFirst(<dynamic>[dp['FullName'], fromParts, users['UserName']]),
+      avatar: avatars.isEmpty ? null : avatars.first,
+      files: files,
+      fileTotal: files.length,
+    );
+  }
+}
+
+/// Урсгалын нэг тасалбар (`GetFeed`, `GetTicket`).
+class FeedTicket {
+  FeedTicket({
+    required this.id,
+    required this.isMine,
+    required this.status,
+    required this.date,
+    required this.body,
+    required this.authorName,
+    this.avatar,
+    this.organizationName,
+    this.province,
+    this.soum,
+    this.patientAge,
+    this.patientGender,
+    this.files = const <FeedFile>[],
+    this.fileTotal = 0,
+    this.commentQty = 0,
+    this.viewQty = 0,
+    this.comments = const <FeedComment>[],
+  });
+
+  final int id;
+  final bool isMine;
+
+  /// `adv_ticket_closed`: `n` нээлттэй, `y` хаагдсан, `3` ноорог.
+  final String status;
+  final String date;
+  final String body;
+  final String authorName;
+  final FeedFile? avatar;
+  final String? organizationName;
+  final String? province;
+  final String? soum;
+  final int? patientAge;
+  final String? patientGender;
+  final List<FeedFile> files;
+  final int fileTotal;
+  final int commentQty;
+  final int viewQty;
+  final List<FeedComment> comments;
+
+  bool get isOpen => status == 'n';
+  bool get isClosed => status == 'y';
+  bool get isDraft => status == '3';
+  bool get hasBody => body.trim().isNotEmpty;
+  DateTime? get createdAt => DateTime.tryParse(date);
+
+  String get statusLabel => switch (status) {
+        'n' => 'Нээлттэй',
+        'y' => 'Хаагдсан',
+        '3' => 'Ноорог',
+        _ => '',
+      };
+
+  String get place => <String?>[province, soum]
+      .where((String? s) => (s ?? '').trim().isNotEmpty)
+      .join(' · ');
+
+  String get patientLabel => <String>[
+        if (patientAge != null) '$patientAge нас',
+        if (patientGender != null) patientGender!,
+      ].join(' · ');
+
+  factory FeedTicket.fromFeed(Map<String, dynamic> json) {
+    final dp = _feedMap(json['DoctorsProfile']);
+    final users = _feedMap(json['Users']);
+    final org = _feedMap(dp['Organization']);
+    final patient = _feedMap(json['Patient']);
+    final fromParts = <dynamic>[dp['firstname'], dp['lastname']]
+        .where((dynamic v) => '${v ?? ''}'.trim().isNotEmpty)
+        .join(' ');
+    final avatars = FeedFile.listOf(dp['Files']);
+    final files = FeedFile.listOf(json['Files']);
+
+    return FeedTicket(
+      id: _feedInt(json['id_data']),
+      isMine: json['IsMine'] == true,
+      status: '${json['adv_ticket_closed'] ?? ''}'.trim(),
+      date: _feedDay(json['date_creation']),
+      body: '${json['Body'] ?? ''}',
+      // Жинхэнэ нэрийг нэвтрэх нэрээс түрүүлж — хариултын урьдчилсан харагдац
+      // ч вебэд ийм дараалалтай.
+      authorName: _feedFirst(<dynamic>[dp['FullName'], fromParts, users['UserName'], '—']),
+      avatar: avatars.isEmpty ? null : avatars.first,
+      organizationName: _feedFirst(<dynamic>[org['Name']]).isEmpty
+          ? null
+          : _feedFirst(<dynamic>[org['Name']]),
+      province: _feedFirst(<dynamic>[_feedMap(json['DictProvinceCity'])['name']]),
+      soum: _feedFirst(<dynamic>[_feedMap(json['DictSoumDistrict'])['name']]),
+      patientAge: _ageFrom(patient['p_birthday']),
+      patientGender: _genderLabel(patient['p_gender']),
+      files: files,
+      fileTotal: _feedInt(json['FileTotal'], fallback: files.length),
+      commentQty: _feedInt(json['CommentQty']),
+      viewQty: _feedInt(json['ViewQty']),
+      comments: json['Comments'] is List
+          ? (json['Comments'] as List<dynamic>)
+              .whereType<Map<dynamic, dynamic>>()
+              .map((Map<dynamic, dynamic> m) =>
+                  FeedComment.fromFeed(Map<String, dynamic>.from(m)))
+              .toList(growable: false)
+          : const <FeedComment>[],
+    );
+  }
+
+  /// Вебийн `ObjectHelper.getGenderLabel`: `1`/`F` эмэгтэй, `2`/`M` эрэгтэй.
+  static String? _genderLabel(dynamic value) {
+    final v = '${value ?? ''}'.trim().toUpperCase();
+    if (v == '1' || v == 'F' || v == 'FEMALE') return 'Эмэгтэй';
+    if (v == '2' || v == 'M' || v == 'MALE') return 'Эрэгтэй';
+    return null;
+  }
+
+  static int? _ageFrom(dynamic value) {
+    final born = DateTime.tryParse('${value ?? ''}');
+    if (born == null) return null;
+    final now = DateTime.now();
+    var age = now.year - born.year;
+    if (now.month < born.month ||
+        (now.month == born.month && now.day < born.day)) {
+      age--;
+    }
+    return age < 0 || age > 130 ? null : age;
+  }
 }

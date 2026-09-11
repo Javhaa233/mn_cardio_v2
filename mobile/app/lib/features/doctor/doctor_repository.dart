@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:dio/dio.dart';
+
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/network/envelope.dart';
@@ -35,6 +40,21 @@ enum AdviceFilter {
 /// жижиг үсгийн дугтуй. **Ямар ч endpoint эмч, хэрэглэгч, байгууллагын
 /// танигч хүлээж авдаггүй** — гурвуулаа токеноос гарна. Энэ нь нэг эмч нөгөө
 /// эмчийн ачааллыг хүсэлтийн бие засаж уншихаас сэргийлдэг (API.md §4).
+/// Нүүр хуудасны тасалбарын шүүлтүүр — вебийн `AdviceFeed/FilterBar.jsx`,
+/// серверийн `BuildTabWhere`.
+enum FeedFilter {
+  all('all', 'Бүгд'),
+  open('open', 'Нээлттэй'),
+  closed('closed', 'Хаагдсан'),
+  mine('mine', 'Миний'),
+  drafts('drafts', 'Миний ноорог');
+
+  const FeedFilter(this.apiValue, this.label);
+
+  final String apiValue;
+  final String label;
+}
+
 class DoctorRepository {
   DoctorRepository(this._api);
 
@@ -180,6 +200,270 @@ class DoctorRepository {
       offset: offset,
       query: <String, dynamic>{'search': search.trim()},
     );
+  }
+
+  // ------------------------------------------------------------------
+  // Шинэ тасалбар — вебийн `customComponents/AdviceFeed/PostComposer.jsx`
+  // ------------------------------------------------------------------
+
+  /// Тасалбарын хавсралтын дээд хэмжээ — сервер чатаас бусад бүх объектод
+  /// 10 МБ хэрэглэнэ (`BaseController.js` § `MAX_UPLOAD_BYTES`).
+  static const int maxTicketFileBytes = 10 * 1024 * 1024;
+
+  /// Тасалбарын хэлбэрүүд.
+  ///
+  /// Вебийн композер ч ингэж `/BaseObject/getData`-ээс авдаг: сонголт нь
+  /// `OptionTypes` хүснэгтийн мөр, тиймээс шинэ хэлбэр нэмэх нь кодын өөрчлөлт
+  /// биш, өгөгдлийн сангийн мөр.
+  Future<List<TicketTypeOption>> fetchTicketTypes() async {
+    final data = await _api.legacyObject(
+      '/api/BaseObject/getData',
+      body: <String, dynamic>{'ObjectName': 'Advice'},
+    );
+    for (final field in _flattenFields(data['Fields'])) {
+      if (field['Name'] != 'ticket_type') continue;
+      return Envelope.asList(field['Data'])
+          .map(TicketTypeOption.fromJson)
+          // '-1' бол "сонгоогүй" гэсэн тэмдэг — сервер ч татгалздаг.
+          .where((TicketTypeOption o) => o.value.isNotEmpty && o.value != '-1')
+          .toList(growable: false);
+    }
+    return const <TicketTypeOption>[];
+  }
+
+  /// `Fields` нь ModelConfig-ийн мөрүүд — массив доторх массив.
+  static List<Map<String, dynamic>> _flattenFields(dynamic value) {
+    final out = <Map<String, dynamic>>[];
+    void walk(dynamic v) {
+      if (v is List) {
+        for (final dynamic e in v) {
+          walk(e);
+        }
+      } else if (v is Map) {
+        out.add(Envelope.asMap(v));
+      }
+    }
+
+    walk(value);
+    return out;
+  }
+
+  /// Тасалбар үүсгээд нэг үйлдлээр нийтэлнэ (`CustomSaveAndPublish`).
+  ///
+  /// Харагдах хүрээг (`level`, аймаг, сум) сервер эмчийн байгууллагаас өөрөө
+  /// тогтооно — клиент дамжуулахгүй, дамжуулсан ч үл тоомсорлоно.
+  Future<int> publishTicket({
+    required int patientId,
+    required String ticketType,
+    required String body,
+  }) {
+    return _createTicket(
+      '/api/Advice/CustomSaveAndPublish',
+      patientId: patientId,
+      ticketType: ticketType,
+      body: body,
+    );
+  }
+
+  /// Ноорог (`CustomSave`) — зөвхөн зохиогчид харагдана.
+  Future<int> saveTicketDraft({
+    required int patientId,
+    required String ticketType,
+    required String body,
+  }) {
+    return _createTicket(
+      '/api/Advice/CustomSave',
+      patientId: patientId,
+      ticketType: ticketType,
+      body: body,
+    );
+  }
+
+  Future<int> _createTicket(
+    String path, {
+    required int patientId,
+    required String ticketType,
+    required String body,
+  }) async {
+    final data = await _api.legacyObject(
+      path,
+      body: <String, dynamic>{
+        'Data': jsonEncode(<String, dynamic>{
+          'adv_id_patient': patientId,
+          'ticket_type': ticketType,
+          'Body': body.trim(),
+        }),
+      },
+    );
+    final id = data['DataId'];
+    return id is num ? id.toInt() : int.tryParse('$id') ?? 0;
+  }
+
+  /// Тасалбарын хавсралт. Тасалбар үүссэний ДАРАА — File мөр нь тасалбарын
+  /// id-г заадаг. Вебийнх шиг бүх файл нэг хүсэлтэд, `File{i}Info` нь `Name`
+  /// -тэй: сервер тэр нэрийг уншдаг, дутуу бол хүсэлт хариугүй үлддэг байв.
+  Future<void> uploadTicketFiles({
+    required int ticketId,
+    required List<File> files,
+  }) {
+    return _uploadLinkedFiles(
+      linkedObjectName: 'Advice',
+      linkedObjectId: ticketId,
+      files: files,
+    );
+  }
+
+  /// `/BaseObject/uploadFile` — вебийн `BaseUploadFile`-тэй ижил: бүх файл нэг
+  /// хүсэлтэд, `File{i}Info` нь `Name`-тэй. Сервер тэр нэрийг уншдаг, дутуу бол
+  /// хүсэлт хариугүй үлддэг байв; файл бүрийг тусад нь илгээвэл сервер
+  /// өмнөхийг нь устгадаг.
+  Future<void> _uploadLinkedFiles({
+    required String linkedObjectName,
+    required int linkedObjectId,
+    required List<File> files,
+  }) async {
+    if (files.isEmpty) return;
+    final fields = <String, dynamic>{
+      'LinkedObjectInfo': jsonEncode(<String, dynamic>{
+        'LinkedObjectId': linkedObjectId,
+        'LinkedObjectName': linkedObjectName,
+        'FieldName': 'Files',
+      }),
+    };
+    for (var i = 0; i < files.length; i++) {
+      final name = files[i].uri.pathSegments.last;
+      fields['File$i'] =
+          await MultipartFile.fromFile(files[i].path, filename: name);
+      fields['File${i}Info'] = jsonEncode(<String, dynamic>{'Name': name});
+    }
+    await _api.upload(
+      '/api/BaseObject/uploadFile',
+      form: FormData.fromMap(fields),
+    );
+  }
+
+  // ------------------------------------------------------------------
+  // Тасалбарын урсгал — вебийн `view/AdviceHome.jsx`, `AdviceComment.jsx`
+  // ------------------------------------------------------------------
+
+  /// Хамрах хүрээг сервер тогтооно (`BuildAdviceScope`): эмч өөрийн
+  /// байгууллагын түвшинд харагдах тасалбаруудыг л хардаг.
+  Future<Paged<FeedTicket>> fetchFeed({
+    FeedFilter filter = FeedFilter.all,
+    String search = '',
+    int pageNumber = 0,
+    int pageSize = 10,
+  }) async {
+    final response = await _api.legacyResponse(
+      '/api/Advice/GetFeed',
+      body: <String, dynamic>{
+        'PageNumber': pageNumber,
+        'PageSize': pageSize,
+        'Filter': filter.apiValue,
+        'Search': search.trim(),
+      },
+    );
+    final body = Envelope.asMap(response.data);
+    final rows = Envelope.asList(body['Data'])
+        .map(FeedTicket.fromFeed)
+        .toList(growable: false);
+    final rawTotal = Envelope.asMap(body['Option'])['Total'];
+    final total = rawTotal is num
+        ? rawTotal.toInt()
+        : int.tryParse('$rawTotal') ?? rows.length;
+    return Paged<FeedTicket>(
+      items: rows,
+      total: total,
+      limit: pageSize,
+      offset: pageNumber * pageSize,
+    );
+  }
+
+  /// Нэг тасалбар — урсгалын картын адил баяжуулсан, илүү том зурагтай.
+  /// Олдохгүй бол `null` (сервер хоосон `Data` буцаадаг).
+  Future<FeedTicket?> fetchTicket(int id) async {
+    final response = await _api.legacyResponse(
+      '/api/Advice/GetTicket',
+      body: <String, dynamic>{'AdviceId': id},
+    );
+    final data = Envelope.asMap(Envelope.asMap(response.data)['Data']);
+    return data.isEmpty ? null : FeedTicket.fromFeed(data);
+  }
+
+  Future<List<FeedComment>> fetchComments(int adviceId) async {
+    final rows = await _api.legacyList(
+      '/api/Advice/GetComments',
+      body: <String, dynamic>{'AdviceId': adviceId},
+    );
+    return rows.map(FeedComment.fromThread).toList(growable: false);
+  }
+
+  /// Хариулт бичих. Шинэ хариултын id-г буцаана — зураг түүнд хавсарна.
+  Future<int> postComment({
+    required int adviceId,
+    required String text,
+  }) async {
+    final data = await _api.legacyObject(
+      '/api/Advice/CreateComment',
+      body: <String, dynamic>{
+        'ObjectName': 'AdviceComment',
+        'Data': jsonEncode(<String, dynamic>{
+          'adv_com_id_adv': adviceId,
+          'adv_com_comment': text.trim(),
+        }),
+      },
+    );
+    final id = data['DataId'];
+    return id is num ? id.toInt() : int.tryParse('$id') ?? 0;
+  }
+
+  Future<void> uploadCommentFiles({
+    required int commentId,
+    required List<File> files,
+  }) {
+    return _uploadLinkedFiles(
+      linkedObjectName: 'AdviceComment',
+      linkedObjectId: commentId,
+      files: files,
+    );
+  }
+
+  /// Тасалбар хаах — вебийн дэлгэрэнгүй хуудасны "Close". Эрхийг сервер
+  /// шалгана.
+  Future<void> closeTicket(int id) async {
+    await _api.legacyObject(
+      '/api/Advice/CustomSave',
+      body: <String, dynamic>{
+        'Data': jsonEncode(<String, dynamic>{
+          'id_data': id,
+          'adv_ticket_closed': 'y',
+        }),
+      },
+    );
+  }
+
+  /// "Үзсэн" тоолуур — вебийн дэлгэрэнгүй хуудас нээгдэх бүрт бичдэг
+  /// (`SaveAdviceViews`). Бүтэлгүйтэл уншигчид хамаагүй тул залгина.
+  Future<void> markViewed({required int adviceId, required int userId}) async {
+    final now = DateTime.now();
+    String two(int v) => v.toString().padLeft(2, '0');
+    final stamp = '${now.year}-${two(now.month)}-${two(now.day)} '
+        '${two(now.hour)}:${two(now.minute)}:${two(now.second)}';
+    try {
+      await _api.legacy(
+        '/api/BaseObject/create',
+        body: <String, dynamic>{
+          'ObjectName': 'AdviceViews',
+          'Data': jsonEncode(<String, dynamic>{
+            'AdviceId': adviceId,
+            'UserId': userId,
+            'ViewDate': stamp,
+          }),
+        },
+      );
+    } catch (_) {
+      // Тоолуур л алдагдана; тасалбарыг уншихад саад болохгүй.
+    }
   }
 
   Future<PatientCard> fetchPatientCard(int id) async {

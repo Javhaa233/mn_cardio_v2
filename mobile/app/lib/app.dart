@@ -180,6 +180,11 @@ class DoctorScope extends StatelessWidget {
           create: (_) => DoctorReportController(doctorRepo),
         ),
 
+        // Нүүр хуудасны тасалбарын урсгал — вебийн AdviceHome.
+        ChangeNotifierProvider<DoctorFeedController>(
+          create: (_) => DoctorFeedController(doctorRepo),
+        ),
+
         // Чат — эмч, үйлчлүүлэгч хоёуланд ижил гадаргуу.
         ChangeNotifierProvider<ChatRoomsController>(
           create: (BuildContext context) => ChatRoomsController(
