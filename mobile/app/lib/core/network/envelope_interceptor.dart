@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
@@ -19,6 +21,9 @@ class EnvelopeInterceptor extends Interceptor {
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
+    // Бусад бүх шалгалтаас өмнө — [decodeJsonString]-ийг үзнэ үү.
+    response.data = decodeJsonString(response.data);
+
     final failure = envelopeFailureOf(
       response.data,
       statusCode: response.statusCode,
@@ -84,7 +89,7 @@ class EnvelopeInterceptor extends Interceptor {
     }
 
     final status = err.response?.statusCode;
-    final body = err.response?.data;
+    final body = decodeJsonString(err.response?.data);
 
     final fromEnvelope = envelopeFailureOf(body, statusCode: status);
     if (fromEnvelope != null) return fromEnvelope;
@@ -121,5 +126,26 @@ class EnvelopeInterceptor extends Interceptor {
       default:
         return 'Алдаа гарлаа. Дахин оролдоно уу.';
     }
+  }
+}
+
+/// JSON-ийг агуулсан String хариуг задална, бусдыг хөндөхгүй.
+///
+/// Хуучин давхарга (`/api/Chat/*` гэх мэт) хариуг `res.send(JSON.stringify(...))`
+/// -ээр илгээдэг тул Content-Type нь `text/html`. Dio зөвхөн JSON Content-Type-
+/// ийг задалдаг — вебийн axios шиг String-ийг өөрөө оролдож задалдаггүй. Иймд
+/// тэдгээр хариу String хэвээр ирж, дугтуйн шалгалт болон бүх `asMap`/`asList`
+/// хоосон утга буцаадаг байв: чатын жагсаалт, эмчийн лавлах, аймаг/сумын
+/// шүүлтүүр бүгд хоосон, `Success:false` ч "амжилт" мэт өнгөрдөг байв.
+///
+/// Байт (`ResponseType.bytes`) болон JSON биш текст өөрчлөгдөхгүй.
+dynamic decodeJsonString(dynamic data) {
+  if (data is! String) return data;
+  final trimmed = data.trimLeft();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return data;
+  try {
+    return jsonDecode(trimmed);
+  } on FormatException {
+    return data;
   }
 }
