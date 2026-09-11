@@ -467,197 +467,212 @@ async function uploadFile(req, res) {
     if (ObjectName && LogedUser) {
       PromiseData = await new Promise(function (resolve, reject) {
         form.parse(req, async function (err, fields, files) {
-          if (err) reject(err);
-          // Files the loop below throws away. Without this the handler answered
-          // "Successfully saved" for a file it had just discarded, so the user
-          // believed an attachment existed that was never stored.
-          const Rejected = [];
-          const LinkedObjectInfo = JSON.parse(fields['LinkedObjectInfo']);
-          const LinkedObjectId = LinkedObjectInfo.LinkedObjectId;
-          const LinkedObjectName = LinkedObjectInfo.LinkedObjectName;
-          const FieldName = LinkedObjectInfo.FieldName;
+          // formidable ignores the promise this async callback returns, so
+          // anything thrown in here used to escape the surrounding Promise: it
+          // never settled, no response was sent, and the client sat until its
+          // own timeout. A mobile chat upload with FileInfo = {} did exactly
+          // that on FileInfo.Name.replace. Every failure is now a rejection,
+          // which the outer catch answers.
+          try {
+            if (err) return reject(err);
+            // Files the loop below throws away. Without this the handler answered
+            // "Successfully saved" for a file it had just discarded, so the user
+            // believed an attachment existed that was never stored.
+            const Rejected = [];
+            const LinkedObjectInfo = JSON.parse(fields['LinkedObjectInfo']);
+            const LinkedObjectId = LinkedObjectInfo.LinkedObjectId;
+            const LinkedObjectName = LinkedObjectInfo.LinkedObjectName;
+            const FieldName = LinkedObjectInfo.FieldName;
 
-          if (LinkedObjectId && LinkedObjectName) {
-            const Allowed = await MayAttachTo({
-              LinkedObjectName,
-              LinkedObjectId,
-              LogedUser,
-            });
-            if (!Allowed) {
-              console.log(
-                '[BaseController/uploadFile] DENIED',
-                LogedUser.Id,
+            if (LinkedObjectId && LinkedObjectName) {
+              const Allowed = await MayAttachTo({
                 LinkedObjectName,
-                LinkedObjectId
-              );
-              return resolve({ Denied: true });
-            }
+                LinkedObjectId,
+                LogedUser,
+              });
+              if (!Allowed) {
+                console.log(
+                  '[BaseController/uploadFile] DENIED',
+                  LogedUser.Id,
+                  LinkedObjectName,
+                  LinkedObjectId
+                );
+                return resolve({ Denied: true });
+              }
 
-            const ListOldFiles = await Models.File.findAll({
-              attributes: ['id', 'id_data', 'LinkedObjectName', 'LinkedObjectId', 'FieldName'],
-              where: {
-                LinkedObjectName: LinkedObjectName,
-                LinkedObjectId: LinkedObjectId,
-                FieldName: FieldName,
-                rec_status: '9',
-              },
-              raw: true,
-            });
+              const ListOldFiles = await Models.File.findAll({
+                attributes: ['id', 'id_data', 'LinkedObjectName', 'LinkedObjectId', 'FieldName'],
+                where: {
+                  LinkedObjectName: LinkedObjectName,
+                  LinkedObjectId: LinkedObjectId,
+                  FieldName: FieldName,
+                  rec_status: '9',
+                },
+                raw: true,
+              });
 
-            var NotDelete = [];
-            var FileCount = 0;
-            for (var Field in fields) {
-              if (Field !== 'LinkedObjectInfo' && Field.indexOf('Info') > -1) {
-                FileCount++;
-                var FileInfo = JSON.parse(fields[Field]);
-                //not change file
-                if (FileInfo.id_data) {
-                  if (ListOldFiles.filter((s) => s.id_data === FileInfo.id_data).length === 1) {
-                    NotDelete.push(FileInfo.id_data);
-                  }
-                } else {
-                  //new file
-                  const key = Field.replace('Info', '');
-                  let NewFile = files[key];
-                  if (Array.isArray(NewFile)) {
-                    NewFile = NewFile[0];
-                  }
+              var NotDelete = [];
+              var FileCount = 0;
+              for (var Field in fields) {
+                if (Field !== 'LinkedObjectInfo' && Field.indexOf('Info') > -1) {
+                  FileCount++;
+                  var FileInfo = JSON.parse(fields[Field]);
+                  //not change file
+                  if (FileInfo.id_data) {
+                    if (ListOldFiles.filter((s) => s.id_data === FileInfo.id_data).length === 1) {
+                      NotDelete.push(FileInfo.id_data);
+                    }
+                  } else {
+                    //new file
+                    const key = Field.replace('Info', '');
+                    let NewFile = files[key];
+                    if (Array.isArray(NewFile)) {
+                      NewFile = NewFile[0];
+                    }
 
-                  if (NewFile) {
-                    const OldPath = NewFile.filepath || NewFile.path;
-                    const FileNameOriginal = NewFile.originalFilename || NewFile.name;
-                    const FileType = ImageHelper.getType(FileNameOriginal);
+                    if (NewFile) {
+                      const OldPath = NewFile.filepath || NewFile.path;
+                      const FileNameOriginal = NewFile.originalFilename || NewFile.name;
+                      const FileType = ImageHelper.getType(FileNameOriginal);
 
-                    if (ALLOWED_UPLOAD_EXT.indexOf(String(FileType).toLowerCase()) === -1) {
-                      console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
-                      Rejected.push({
-                        Name: FileNameOriginal,
-                        Reason: 'ext',
-                        Message: 'Зөвшөөрөгдөөгүй өргөтгөлтэй файл: ' + FileType,
-                      });
-                      try {
-                        await fsPromises.unlink(OldPath);
-                      } catch (e) {
-                        /* temp file may already be gone */
+                      if (ALLOWED_UPLOAD_EXT.indexOf(String(FileType).toLowerCase()) === -1) {
+                        console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
+                        Rejected.push({
+                          Name: FileNameOriginal,
+                          Reason: 'ext',
+                          Message: 'Зөвшөөрөгдөөгүй өргөтгөлтэй файл: ' + FileType,
+                        });
+                        try {
+                          await fsPromises.unlink(OldPath);
+                        } catch (e) {
+                          /* temp file may already be gone */
+                        }
+                        continue;
                       }
-                      continue;
-                    }
 
-                    // Per-object size cap. formidable admitted anything up to
-                    // MAX_UPLOAD_CEILING because the object was not known yet;
-                    // this is where the stricter default is applied to
-                    // everything that is not chat.
-                    const SizeCap = UploadCapFor(LinkedObjectName);
-                    if (NewFile.size > SizeCap) {
-                      console.log(
-                        '[BaseController/uploadFile] REJECTED size:',
-                        NewFile.size,
-                        '>',
-                        SizeCap,
-                        LinkedObjectName
-                      );
-                      Rejected.push({
-                        Name: FileNameOriginal,
-                        Reason: 'size',
-                        Message:
-                          'Файлын хэмжээ хэтэрсэн: ' +
-                          Math.round(NewFile.size / 1048576) +
-                          ' МБ, зөвшөөрөх дээд хэмжээ ' +
-                          Math.round(SizeCap / 1048576) +
-                          ' МБ',
-                      });
-                      try {
-                        await fsPromises.unlink(OldPath);
-                      } catch (e) {
-                        /* temp file may already be gone */
+                      // Per-object size cap. formidable admitted anything up to
+                      // MAX_UPLOAD_CEILING because the object was not known yet;
+                      // this is where the stricter default is applied to
+                      // everything that is not chat.
+                      const SizeCap = UploadCapFor(LinkedObjectName);
+                      if (NewFile.size > SizeCap) {
+                        console.log(
+                          '[BaseController/uploadFile] REJECTED size:',
+                          NewFile.size,
+                          '>',
+                          SizeCap,
+                          LinkedObjectName
+                        );
+                        Rejected.push({
+                          Name: FileNameOriginal,
+                          Reason: 'size',
+                          Message:
+                            'Файлын хэмжээ хэтэрсэн: ' +
+                            Math.round(NewFile.size / 1048576) +
+                            ' МБ, зөвшөөрөх дээд хэмжээ ' +
+                            Math.round(SizeCap / 1048576) +
+                            ' МБ',
+                        });
+                        try {
+                          await fsPromises.unlink(OldPath);
+                        } catch (e) {
+                          /* temp file may already be gone */
+                        }
+                        continue;
                       }
-                      continue;
+
+                      // getDateNumbers() has one-second resolution, so two
+                      // concurrent requests from the same user in the same second
+                      // used to generate the same name and silently overwrite each
+                      // other. The random suffix costs nothing and removes that.
+                      const FileName =
+                        BaseHelper.getDateNumbers() +
+                        '_' +
+                        LogedUser.Id +
+                        '_' +
+                        FileCount +
+                        '_' +
+                        Math.random().toString(36).slice(2, 6);
+                      const FilePath = path.join(process.env.ALLFILE_DIR, FileName);
+
+                      // Move file with proper error handling (copy then delete to handle cross-device moves)
+                      try {
+                        await fsPromises.copyFile(OldPath, FilePath);
+                        await fsPromises.unlink(OldPath);
+                      } catch (error) {
+                        console.error('File move error:', error);
+                        throw new Error(`Failed to save file: ${error.message}`);
+                      }
+
+                      // Create database record after file is successfully moved
+                      await BaseControllerHelper.BaseCreate({
+                        ObjectName: 'File',
+                        Data: {
+                          LinkedObjectName: LinkedObjectName,
+                          LinkedObjectId: LinkedObjectId,
+                          FieldName: FieldName,
+                          ext: FileType,
+                          size: NewFile.size,
+                          generated_name: FileName,
+                          // A client that omits Name still gets a sensible
+                          // original_name rather than a TypeError.
+                          original_name: (FileInfo.Name || FileNameOriginal || '').replace(
+                            '.' + FileType,
+                            ''
+                          ),
+                        },
+                        LogedUser,
+                        SaveLog: true,
+                      });
                     }
-
-                    // getDateNumbers() has one-second resolution, so two
-                    // concurrent requests from the same user in the same second
-                    // used to generate the same name and silently overwrite each
-                    // other. The random suffix costs nothing and removes that.
-                    const FileName =
-                      BaseHelper.getDateNumbers() +
-                      '_' +
-                      LogedUser.Id +
-                      '_' +
-                      FileCount +
-                      '_' +
-                      Math.random().toString(36).slice(2, 6);
-                    const FilePath = path.join(process.env.ALLFILE_DIR, FileName);
-
-                    // Move file with proper error handling (copy then delete to handle cross-device moves)
-                    try {
-                      await fsPromises.copyFile(OldPath, FilePath);
-                      await fsPromises.unlink(OldPath);
-                    } catch (error) {
-                      console.error('File move error:', error);
-                      throw new Error(`Failed to save file: ${error.message}`);
-                    }
-
-                    // Create database record after file is successfully moved
-                    await BaseControllerHelper.BaseCreate({
-                      ObjectName: 'File',
-                      Data: {
-                        LinkedObjectName: LinkedObjectName,
-                        LinkedObjectId: LinkedObjectId,
-                        FieldName: FieldName,
-                        ext: FileType,
-                        size: NewFile.size,
-                        generated_name: FileName,
-                        original_name: FileInfo.Name.replace('.' + FileType, ''),
-                      },
-                      LogedUser,
-                      SaveLog: true,
-                    });
                   }
+                }
+              }
+
+              // This loop implements replace-the-whole-field: anything not named
+              // in the request is soft-deleted. That means a request carrying no
+              // file-info fields at all used to wipe every file on the object.
+              // Combined with the missing ownership check above, that was a
+              // one-request "delete all photos on any ticket" primitive.
+              //
+              // A payload with zero file-info fields is now treated as "no
+              // change" rather than "remove everything". Genuinely clearing a
+              // field is what /BaseObject/deleteFile is for, and a caller that
+              // really means it can still say so explicitly.
+              const AllowRemoveAll = LinkedObjectInfo.AllowRemoveAll === true;
+              if (FileCount === 0 && !AllowRemoveAll) {
+                return resolve({ Skipped: 'empty payload' });
+              }
+
+              // Stop before the replace-the-whole-field delete below if anything
+              // was rejected. A rejected file never made it into NotDelete, so
+              // running that loop would soft-delete the attachments already on
+              // the record - the caller would be told the save failed AND lose
+              // the files it already had.
+              if (Rejected.length > 0) {
+                return resolve({ Rejected });
+              }
+
+              //delete file
+              for (var i = 0; i < ListOldFiles.length; i++) {
+                if (NotDelete.filter((s) => s + '' === ListOldFiles[i].id_data + '').length === 0) {
+                  await BaseControllerHelper.BaseUpdate({
+                    ObjectName: 'File',
+                    Data: {
+                      id_data: ListOldFiles[i].id_data,
+                      rec_status: '2',
+                    },
+                    LogedUser,
+                    SaveLog: true,
+                  });
                 }
               }
             }
 
-            // This loop implements replace-the-whole-field: anything not named
-            // in the request is soft-deleted. That means a request carrying no
-            // file-info fields at all used to wipe every file on the object.
-            // Combined with the missing ownership check above, that was a
-            // one-request "delete all photos on any ticket" primitive.
-            //
-            // A payload with zero file-info fields is now treated as "no
-            // change" rather than "remove everything". Genuinely clearing a
-            // field is what /BaseObject/deleteFile is for, and a caller that
-            // really means it can still say so explicitly.
-            const AllowRemoveAll = LinkedObjectInfo.AllowRemoveAll === true;
-            if (FileCount === 0 && !AllowRemoveAll) {
-              return resolve({ Skipped: 'empty payload' });
-            }
-
-            // Stop before the replace-the-whole-field delete below if anything
-            // was rejected. A rejected file never made it into NotDelete, so
-            // running that loop would soft-delete the attachments already on
-            // the record - the caller would be told the save failed AND lose
-            // the files it already had.
-            if (Rejected.length > 0) {
-              return resolve({ Rejected });
-            }
-
-            //delete file
-            for (var i = 0; i < ListOldFiles.length; i++) {
-              if (NotDelete.filter((s) => s + '' === ListOldFiles[i].id_data + '').length === 0) {
-                await BaseControllerHelper.BaseUpdate({
-                  ObjectName: 'File',
-                  Data: {
-                    id_data: ListOldFiles[i].id_data,
-                    rec_status: '2',
-                  },
-                  LogedUser,
-                  SaveLog: true,
-                });
-              }
-            }
+            resolve({ Rejected });
+          } catch (ex) {
+            reject(ex);
           }
-
-          resolve({ Rejected });
         });
       });
 
