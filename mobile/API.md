@@ -380,6 +380,8 @@ GET    /monitoring                          ?limit &offset
 POST   /monitoring                          { "PatientId": 123 }
 DELETE /monitoring/:patientId
 GET    /monitoring/:patientId/journal       ?from &to
+GET    /monitoring/:patientId/questions     ?limit &offset
+POST   /monitoring/:patientId/questions     { "comment": "..." }
 ```
 
 The list returns `{ id_data, since, patient, latestReading }` per row — the most recent
@@ -387,6 +389,13 @@ journal reading is included, so the screen needs no second call per patient.
 
 `journal` returns `{ rows, labels, series{blood_pressure, blood_pressure2, pulse, weight} }`
 and refuses a patient you do not monitor with `403 NOT_MONITORED`.
+
+`questions` is the doctor's side of 2.3 (added 2026-09-11). `GET` returns exactly the shape of
+the patient's `GET /api/patient/questions` — `{ id_data, comment, is_doctor, date_creation,
+doctor_name }`, newest first — so the client reuses one model. `POST` answers as the doctor in
+the token (`is_doctor 1`, the same row the web's `MonitorQuestion` writes) and returns
+`{ id_data }`; an empty comment is `400 COMMENT_REQUIRED`. Both refuse an unmonitored patient
+with `403 NOT_MONITORED`.
 
 > Add and remove take the doctor **from the token**. The legacy equivalents
 > (`/api/PatientMonitoring/SavePatient`, `RemovePatient`) read `UserId` and `DoctorId` from the

@@ -1,5 +1,6 @@
 const { Models, Op } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 
 /**
  * Handlers for /api/patient/*.
@@ -118,23 +119,28 @@ exports.createJournal = async (req, res) => {
 
     if (!date) return fail(res, 'DATE_REQUIRED', 'Огноо оруулна уу');
 
-    const created = await Models.PatientMonitoring.create({
-      // Ownership is stamped from the session, not the body.
-      patient_id: req.Patient.PatientId,
-      patient_registration: req.Patient.PatRegNo,
-      date,
-      time: time || null,
-      blood_pressure: blood_pressure || null,
-      pulse: pulse || null,
-      weight: weight || null,
-      inr: inr || null,
-      comment: comment || null,
-      date_creation: ObjectHelper.getDateYMDHMS(),
-      // int NOT NULL; 9 is the live value every other writer uses (2 = deleted).
-      rec_status: 9,
+    // BaseCreate, not Model.create: the legacy table requires id, id_group,
+    // user_mod, date_modif and rec_status (int, 9 = live) with no defaults, and
+    // ModelHelper is what stamps them. A bare create failed on every save.
+    // PatientScope also stamps patient_id from the session, not the body.
+    const Id = await BaseControllerHelper.BaseCreate({
+      ObjectName: 'PatientMonitoring',
+      Data: {
+        patient_id: req.Patient.PatientId,
+        patient_registration: req.Patient.PatRegNo,
+        date,
+        time: time || null,
+        blood_pressure: blood_pressure || null,
+        pulse: pulse || null,
+        weight: weight || null,
+        inr: inr || null,
+        comment: comment || null,
+      },
+      LogedUser: req.LogedUser,
     });
+    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'createJournal');
 
-    return ok(res, { id_data: created.id_data });
+    return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'createJournal');
   }
@@ -225,16 +231,20 @@ exports.createQuestion = async (req, res) => {
       return fail(res, 'COMMENT_REQUIRED', 'Асуултаа бичнэ үү');
     }
 
-    const created = await Models.VisitComments.create({
-      patient_user_id: req.Patient.PatientUserId,
-      patient_id: req.Patient.PatientId,
-      comment,
-      is_doctor: '0',
-      date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 9,
+    // Same reason as createJournal: ModelHelper stamps the legacy bookkeeping.
+    const Id = await BaseControllerHelper.BaseCreate({
+      ObjectName: 'VisitComments',
+      Data: {
+        patient_user_id: req.Patient.PatientUserId,
+        patient_id: req.Patient.PatientId,
+        comment,
+        is_doctor: 0,
+      },
+      LogedUser: req.LogedUser,
     });
+    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'createQuestion');
 
-    return ok(res, { id_data: created.id_data });
+    return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'createQuestion');
   }

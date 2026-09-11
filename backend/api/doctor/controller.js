@@ -561,16 +561,16 @@ exports.replyPatientQuestion = async (req, res) => {
       return fail(res, 'NOT_MONITORED', 'Таны хяналтад байхгүй байна', 403);
     }
 
-    const created = await Models.VisitComments.create({
-      user_id: D.UserId,
-      patient_id: PatientId,
-      comment,
-      is_doctor: 1,
-      date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 9,
+    // BaseCreate so ModelHelper stamps id, id_group, user_mod, date_modif and
+    // rec_status - the legacy table has no defaults for them.
+    const Id = await BaseControllerHelper.BaseCreate({
+      ObjectName: 'VisitComments',
+      Data: { user_id: D.UserId, patient_id: PatientId, comment, is_doctor: 1 },
+      LogedUser: req.LogedUser,
     });
+    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'replyPatientQuestion');
 
-    return ok(res, { id_data: created.id_data });
+    return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'replyPatientQuestion');
   }
