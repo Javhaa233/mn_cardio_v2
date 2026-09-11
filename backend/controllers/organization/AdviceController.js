@@ -1183,7 +1183,7 @@ async function GetTicket(req, res) {
 /**
  * Aggregates for the analytics rail.
  *
- * Scoped with the same BuildAdviceScope as the feed, so "Нийт тасалбар" here
+ * Scoped with the same BuildAdviceScope as the feed, so "Нийт асуумж" here
  * and Option.Total there are the same number rather than two plausible ones.
  *
  * All bucketing goes through a hardcoded map of sequelize.literal - the

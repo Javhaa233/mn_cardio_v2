@@ -26,7 +26,7 @@ import HomeMonitoringPatients from "customComponents/Home/HomeMonitoringPatients
 import HomeQuickActions from "customComponents/Home/HomeQuickActions";
 
 /**
- * The doctor's home screen: a full-width feed of тасалбар, with rails carrying
+ * The doctor's home screen: a full-width feed of асуумж, with rails carrying
  * the rest of the doctor's day.
  *
  * This page owns almost nothing. It holds the current tab and search text,
@@ -35,7 +35,7 @@ import HomeQuickActions from "customComponents/Home/HomeQuickActions";
  * WHY THE RAILS LOOK LIKE THIS. They used to be one AnalyticsRail: four stacked
  * panels of ticket totals, a ticket trend chart, and two ticket bar charts, all
  * from one GetStats call - the same dataset four ways. Opening the app therefore
- * told a doctor how many тасалбар exist and nothing about their own day. The
+ * told a doctor how many асуумж exist and nothing about their own day. The
  * rails now carry today's work, the patients under their monitoring, unread
  * notifications, and the six screens they open daily.
  *
@@ -113,8 +113,8 @@ function AdviceHome() {
             saying so is the difference between "try another filter" and
             "write the first one". */}
         {search || filter !== "all"
-          ? t("Шүүлтэд тохирох тасалбар олдсонгүй")
-          : t("Тасалбар байхгүй байна")}
+          ? t("Шүүлтэд тохирох асуумж олдсонгүй")
+          : t("Асуумж байхгүй байна")}
       </Typography>
       <Box sx={{ mt: space[4] }}>
         {search || filter !== "all" ? (
@@ -136,7 +136,7 @@ function AdviceHome() {
               "&:hover": { backgroundColor: colors.brand.ink },
             }}
           >
-            {t("Эхний тасалбараа нийтлэх")}
+            {t("Эхний асуумжаа нийтлэх")}
           </Button>
         )}
       </Box>
@@ -221,7 +221,7 @@ function AdviceHome() {
               variant="body1"
               sx={{ color: colors.label.error, mb: space[3] }}
             >
-              {t("Тасалбаруудыг ачаалж чадсангүй")}
+              {t("Асуумжуудыг ачаалж чадсангүй")}
             </Typography>
             <Button variant="outlined" onClick={reload}>
               {t("Дахин оролдох")}
@@ -244,7 +244,7 @@ function AdviceHome() {
                   color: colors.brand.inkDim,
                 }}
               >
-                {total.toLocaleString()} {t("тасалбар")}
+                {total.toLocaleString()} {t("асуумж")}
               </Typography>
             ) : null}
 
@@ -264,7 +264,7 @@ function AdviceHome() {
                   color: colors.brand.inkDim,
                 }}
               >
-                {t("Бүх тасалбарыг үзлээ")}
+                {t("Бүх асуумжийг үзлээ")}
               </Typography>
             ) : null}
           </>
@@ -275,7 +275,7 @@ function AdviceHome() {
           action follows the reader instead. */}
       <Fab
         color="primary"
-        aria-label={t("Шинэ тасалбар")}
+        aria-label={t("Шинэ асуумж")}
         onClick={focusComposer}
         sx={{
           display: { xs: "flex", md: "none" },

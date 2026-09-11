@@ -421,7 +421,7 @@ async function MayDownload({ FileInfo, LogedUser }) {
   if (!LinkedObjectName || !LinkedObjectId) return null;
 
   /*
-   * Тасалбар attachments follow the rule for READING the ticket, not the rule
+   * Асуумж attachments follow the rule for READING the ticket, not the rule
    * for attaching to it. MayAttachTo is author-or-admin, which is right for a
    * write and wrong for a read: the feed is a consult board where doctors open
    * each other's tickets to look at the films on them, so the attach rule would

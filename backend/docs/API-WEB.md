@@ -116,7 +116,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/PatientUser/ResetPassword` | public | `PatientUserController.js:20` |  |
 | `POST` | `/api/PatientUser/ChangePassword` | token (route-level) | `PatientUserController.js:21` |  |
 
-### 4.3. Байгууллага, эмч, баг, зөвлөгөө (тасалбар), хяналтын самбар — `controllers/organization/`
+### 4.3. Байгууллага, эмч, баг, зөвлөгөө (асуумж), хяналтын самбар — `controllers/organization/`
 
 Угтвар: `/api/DoctorsTeam`, `/api/Advice`, `/api/DoctorProfile`, `/api/Organization`, `/api/Dashboard` · 37 endpoint.
 
