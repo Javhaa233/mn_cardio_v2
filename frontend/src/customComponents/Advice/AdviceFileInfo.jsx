@@ -107,6 +107,16 @@ export default function AdviceFileInfo(props) {
     return ext && imageExtensions.includes(ext);
   };
 
+  // The server reports, with the row, whether the bytes are actually on the
+  // host - see BaseControllerHelper.FileOnDisk. An older server leaves the flag
+  // undefined, which reads as available.
+  const isMissingFile = (file) => file?.FileInfo?.Available === false;
+
+  const missingStyle = (file) =>
+    isMissingFile(file)
+      ? { cursor: "not-allowed", opacity: 0.65, textDecoration: "line-through" }
+      : { cursor: "pointer" };
+
   const downloadFile = async (file) =>
     await Helper.BaseCrudHelper.BaseDownloadFile(file);
 
@@ -229,10 +239,20 @@ export default function AdviceFileInfo(props) {
                         }}
                         key={key}
                       >
-                        <LightTooltip title={t("Download")}>
+                        <LightTooltip
+                          title={
+                            isMissingFile(file)
+                              ? t("Файл серверт олдсонгүй")
+                              : t("Download")
+                          }
+                        >
                           <LinkStyle
-                            style={{ cursor: "pointer" }}
-                            onClick={() => downloadFile(file)}
+                            style={missingStyle(file)}
+                            onClick={
+                              isMissingFile(file)
+                                ? undefined
+                                : () => downloadFile(file)
+                            }
                           >
                             {file.FileInfo.original_name}.{file.FileInfo.ext}
                           </LinkStyle>
@@ -256,10 +276,20 @@ export default function AdviceFileInfo(props) {
                     }}
                     key={key}
                   >
-                    <LightTooltip title={t("Download")}>
+                    <LightTooltip
+                      title={
+                        isMissingFile(file)
+                          ? t("Файл серверт олдсонгүй")
+                          : t("Download")
+                      }
+                    >
                       <LinkStyle
-                        style={{ cursor: "pointer" }}
-                        onClick={() => downloadFile(file)}
+                        style={missingStyle(file)}
+                        onClick={
+                          isMissingFile(file)
+                            ? undefined
+                            : () => downloadFile(file)
+                        }
                       >
                         {file.FileInfo.original_name}.{file.FileInfo.ext}
                       </LinkStyle>

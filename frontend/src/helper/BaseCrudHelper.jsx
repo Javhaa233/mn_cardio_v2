@@ -471,6 +471,43 @@ class BaseCrudHelper {
   };
 
   /**
+   * The message to show when a file download fails.
+   *
+   * Both download endpoints report failure two ways: HTTP 200 with a JSON error
+   * envelope, and a real status code - 404 when the bytes are not in
+   * ALLFILE_DIR, 403 from the download authorization gate. Because the request
+   * asks for `responseType: "blob"`, BOTH arrive as a Blob, so
+   * `err.response.data.Message` is always undefined and the alert used to fall
+   * back to axios's own "Request failed with status code 404". That string told a
+   * doctor nothing and sent us looking for a routing fault that did not exist.
+   *
+   * So: read the blob back as text, take the server's Message, and only then
+   * fall back to a status the user can act on.
+   */
+  DownloadErrorMessage = async (err) => {
+    const Response = err && err.response;
+    const Body = Response && Response.data;
+
+    if (Body && typeof Body.text === "function") {
+      try {
+        const Parsed = JSON.parse(await Body.text());
+        if (Parsed && Parsed.Message) return Parsed.Message;
+      } catch (ex) {
+        // Not a JSON envelope - fall through to the status map below.
+      }
+    } else if (Body && Body.Message) {
+      return Body.Message;
+    }
+
+    const Status = Response && Response.status;
+    if (Status === 404) return i18n.t("Файл серверт олдсонгүй");
+    if (Status === 403) return i18n.t("Энэ файлд хандах эрхгүй байна");
+    if (Status === 401)
+      return i18n.t("Нэвтрэх хугацаа дууссан. Дахин нэвтэрнэ үү");
+    return i18n.t("Файл татахад алдаа гарлаа");
+  };
+
+  /**
    * Fetch a file's bytes as a Blob instead of saving it to disk.
    *
    * BaseDownloadFile below always ends in a save-as. The feed's lightbox needs
@@ -499,7 +536,7 @@ class BaseCrudHelper {
       data: (Source && Source.Body) || { FileInfo: file.FileInfo },
       responseType: "blob",
     })
-      .then((res) => {
+      .then(async (res) => {
         const data = res.data;
         // The endpoint answers with HTTP 200 + a JSON error envelope when it
         // fails, so a Blob is not by itself proof of success.
@@ -508,12 +545,23 @@ class BaseCrudHelper {
           (data.type === "application/json" ||
             res.headers["content-type"] === "application/json")
         ) {
-          callback && callback(null);
+          let Message = "";
+          try {
+            Message = (JSON.parse(await data.text()) || {}).Message || "";
+          } catch (ex) {
+            // Leave it empty; the caller falls back to its own wording.
+          }
+          callback && callback(null, Message);
           return;
         }
         callback && callback(data);
       })
-      .catch(() => callback && callback(null));
+      // Second argument: why it failed. Callers render the thumbnail underneath,
+      // so without this a missing original is a silent forever-blur.
+      .catch(async (err) => {
+        const Message = await this.DownloadErrorMessage(err);
+        callback && callback(null, Message);
+      });
   };
 
   // `Source` optionally overrides the endpoint - see BaseDownloadFileBlob above.
@@ -573,9 +621,8 @@ class BaseCrudHelper {
 
             callback && callback({ success: true });
           })
-          .catch((err) => {
-            const errorMessage =
-              err.response?.data?.Message || err.message || "Download failed";
+          .catch(async (err) => {
+            const errorMessage = await this.DownloadErrorMessage(err);
             process.env.NODE_ENV === "development" && console.log({ err });
 
             // Show error message to user

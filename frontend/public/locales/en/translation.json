@@ -1680,5 +1680,20 @@
   "үзүүлсэн": "үзүүлсэн",
   "Бүх аймаг / хот": "Бүх аймаг / хот",
   "Бүх сум / дүүрэг": "Бүх сум / дүүрэг",
-  "Холболт тасарлаа. Дахин холбогдож байна...": "Холболт тасарлаа. Дахин холбогдож байна..."
+  "Холболт тасарлаа. Дахин холбогдож байна...": "Холболт тасарлаа. Дахин холбогдож байна...",
+  "Файл серверт олдсонгүй": "File not found on the server",
+  "Энэ файлд хандах эрхгүй байна": "You do not have access to this file",
+  "Нэвтрэх хугацаа дууссан. Дахин нэвтэрнэ үү": "Your session has expired. Please sign in again",
+  "Файл татахад алдаа гарлаа": "The file could not be downloaded",
+  "Бүртгэлийг дуусгах уу? Дуусгасны дараа засах боломжгүй.": "Complete this record? It cannot be edited afterwards.",
+  "Баталгаажсан — засах боломжгүй": "Completed — cannot be edited",
+  "Шинэ бүртгэл (өмнөхөөс хуулах)": "New record (copy from previous)",
+  "Дуусгаж хадгалах": "Complete and save",
+  "огноо, цаг хуулагдахгүй": "dates and times are not copied",
+  "Өөрчлөлт хийгдээгүй байна": "No changes to save",
+  "Хадгалахад алдаа гарлаа": "Could not save",
+  "Энэ маягтын талбарууд хараахан тодорхойлогдоогүй байна": "This form's fields have not been defined yet",
+  "Бөглөсөн": "Filled",
+  "Хэсэгчлэн бөглөсөн": "Partly filled",
+  "Бөглөөгүй": "Not filled"
 }

@@ -373,7 +373,9 @@ class BaseControllerHelper {
     // JWT-only path (Auth.js, when the DB lookup fails) carries it flat. Read
     // both, or scoping silently falls open on the degraded path.
     const OrganizationId =
-      (LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : null) || LogedUser.OrganizationId || null;
+      (LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : null) ||
+      LogedUser.OrganizationId ||
+      null;
     if (!OrganizationId) return;
 
     // Get child organization IDs
@@ -903,6 +905,31 @@ class BaseControllerHelper {
     return resolvedPath;
   };
 
+  /**
+   * Whether the bytes behind a File row are on THIS host.
+   *
+   * A File row and its bytes can part company: the test environment restored the
+   * production database but never received ALLFILE_DIR, so ~14.8k rows describe
+   * files that are only on the production box. The client used to learn this
+   * one dead click at a time, as a 404 on downloadFile. Reporting it with the
+   * row lets the UI mark the attachment instead of offering it.
+   *
+   * One existsSync per file, next to the stat these functions already do for
+   * images.
+   */
+  FileOnDisk = function (FileRow) {
+    try {
+      const Validated = this.ValidateFilePath(FileRow && FileRow.generated_name);
+      if (!fs.existsSync(Validated)) return false;
+      // Older uploads are a DIRECTORY holding a single file called `file`.
+      return fs.statSync(Validated).isDirectory()
+        ? fs.existsSync(path.join(Validated, 'file'))
+        : true;
+    } catch (ex) {
+      return false;
+    }
+  };
+
   GetFileSrc = async function (Files) {
     var ResultFiles = [];
     for (var i = 0; i < Files.length; i++) {
@@ -935,7 +962,11 @@ class BaseControllerHelper {
       } else {
         File.Type = '';
       }
-      File.FileInfo = { ...Files[i], Name: Files[i].original_name };
+      File.FileInfo = {
+        ...Files[i],
+        Name: Files[i].original_name,
+        Available: this.FileOnDisk(Files[i]),
+      };
       ResultFiles.push(File);
     }
     return ResultFiles;
@@ -974,7 +1005,7 @@ class BaseControllerHelper {
           Result.push({
             FileSrc: fs.readFileSync(CachePath, 'utf8'),
             Type: 'image/' + Src.ext,
-            FileInfo: { ...Src, Name: Src.original_name },
+            FileInfo: { ...Src, Name: Src.original_name, Available: this.FileOnDisk(Src) },
           });
           continue;
         }
@@ -1034,7 +1065,11 @@ class BaseControllerHelper {
       } else {
         File.Type = '';
       }
-      File.FileInfo = { ...Files[i], Name: Files[i].original_name };
+      File.FileInfo = {
+        ...Files[i],
+        Name: Files[i].original_name,
+        Available: this.FileOnDisk(Files[i]),
+      };
       ResultFiles.push(File);
     }
     return ResultFiles;
@@ -1265,8 +1300,7 @@ class BaseControllerHelper {
       const filePath = this.ExportFilePath(Export.safeName, 'txt');
 
       // A tab or newline inside a value would break the column alignment.
-      const cell = (v) =>
-        (v === undefined || v === null ? '' : v + '').replace(/[\t\r\n]+/g, ' ');
+      const cell = (v) => (v === undefined || v === null ? '' : v + '').replace(/[\t\r\n]+/g, ' ');
 
       const lines = []
         .concat(provenance.map((p) => '# ' + p))
@@ -1280,7 +1314,6 @@ class BaseControllerHelper {
       return { filePath: null, Message: ex && ex.ExportTooLarge ? ex.Message : null };
     }
   };
-
 
   fitToColumn = function (workSheetData) {
     // get maximum character of each column

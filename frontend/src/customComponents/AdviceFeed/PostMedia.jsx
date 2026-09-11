@@ -4,10 +4,12 @@ import Chip from "@mui/material/Chip";
 import PictureAsPdfOutlinedIcon from "@mui/icons-material/PictureAsPdfOutlined";
 import DescriptionOutlinedIcon from "@mui/icons-material/DescriptionOutlined";
 import InsertDriveFileOutlinedIcon from "@mui/icons-material/InsertDriveFileOutlined";
+import Tooltip from "@mui/material/Tooltip";
+import { useTranslation } from "react-i18next";
 import Helper from "helper";
 import { colors } from "@/theme/colors";
 import { radius, space } from "@/theme/tokens";
-import { partitionFiles, fileName } from "./mediaUtils";
+import { partitionFiles, fileName, isMissing } from "./mediaUtils";
 import Lightbox from "./Lightbox";
 
 /**
@@ -120,11 +122,21 @@ export default function PostMedia({
   // from. Chat passes a membership-checked endpoint; the feed passes nothing.
   DownloadSource,
 }) {
+  const { t } = useTranslation();
   const [openAt, setOpenAt] = useState(-1);
-  const { photos, docs } = partitionFiles(Files);
-  const extra = Math.max(0, (FileTotal || photos.length) - photos.length);
+  const { photos: allPhotos, docs } = partitionFiles(Files);
 
-  if (!photos.length && !docs.length) return null;
+  /*
+   * An attachment whose bytes are gone from the server cannot be a tile: there
+   * is no thumbnail either, so it rendered as a broken <img> and clicking it
+   * opened an empty lightbox. Route it into the chip row instead, where it can
+   * say what it is and that it is unavailable.
+   */
+  const photos = allPhotos.filter((f) => !isMissing(f));
+  const chips = [...docs, ...allPhotos.filter(isMissing)];
+  const extra = Math.max(0, (FileTotal || allPhotos.length) - allPhotos.length);
+
+  if (!photos.length && !chips.length) return null;
 
   const open = (i) => setOpenAt(i);
 
@@ -236,7 +248,7 @@ export default function PostMedia({
         </Box>
       ) : null}
 
-      {docs.length ? (
+      {chips.length ? (
         <Box
           sx={{
             display: "flex",
@@ -245,30 +257,52 @@ export default function PostMedia({
             mt: space[3],
           }}
         >
-          {docs.map((f, i) => (
-            <Chip
-              key={i}
-              data-stop
-              icon={docIcon(f.FileInfo && f.FileInfo.ext)}
-              label={fileName(f)}
-              variant="outlined"
-              size="small"
-              onClick={(e) => {
-                e.stopPropagation();
-                Helper.BaseCrudHelper.BaseDownloadFile(
-                  f,
-                  null,
-                  DownloadSource && DownloadSource(f),
-                );
-              }}
-              sx={{
-                borderRadius: radius.sm,
-                borderColor: colors.brand.hairline,
-                color: colors.brand.ink,
-                maxWidth: "100%",
-              }}
-            />
-          ))}
+          {chips.map((f, i) => {
+            const missing = isMissing(f);
+            const chip = (
+              <Chip
+                key={i}
+                data-stop
+                icon={docIcon(f.FileInfo && f.FileInfo.ext)}
+                label={fileName(f)}
+                variant="outlined"
+                size="small"
+                // A file the server cannot serve is not offered as a click.
+                onClick={
+                  missing
+                    ? undefined
+                    : (e) => {
+                        e.stopPropagation();
+                        Helper.BaseCrudHelper.BaseDownloadFile(
+                          f,
+                          null,
+                          DownloadSource && DownloadSource(f),
+                        );
+                      }
+                }
+                sx={{
+                  borderRadius: radius.sm,
+                  borderColor: colors.brand.hairline,
+                  color: missing ? colors.brand.inkMuted : colors.brand.ink,
+                  maxWidth: "100%",
+                  ...(missing
+                    ? {
+                        opacity: 0.65,
+                        cursor: "not-allowed",
+                        textDecoration: "line-through",
+                      }
+                    : null),
+                }}
+              />
+            );
+            return missing ? (
+              <Tooltip key={i} title={t("Файл серверт олдсонгүй")}>
+                <span>{chip}</span>
+              </Tooltip>
+            ) : (
+              chip
+            );
+          })}
         </Box>
       ) : null}
 

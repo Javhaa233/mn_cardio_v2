@@ -39,6 +39,45 @@ Anything with quotes, newlines or a heredoc goes through `--script`. Do not figh
 | 6 | `config/Config.env` **and** `.env` | Both. `config/DbConnection.js` calls a bare `dotenv.config()` and reads `backend/.env`, so standalone scripts see only that file. `chmod 600`. |
 | 7 | PM2 | `pm2 start ecosystem.config.js --env production`, then `pm2 save && pm2 startup`. |
 | 8 | nginx + certbot | `deploy/nginx/*`. Certbot rewrites the site file to add TLS; DNS already resolves so HTTP-01 validates. |
+| 9 | **Attachment bytes** | The restore brings the `File` ROWS, not the files. Copy what you need into `ALLFILE_DIR` — see below. |
+
+## Step 9: the attachments, which the restore does not bring
+
+Restoring the database and stopping there gives you a system where every legacy
+attachment renders in the UI and then **404s** on `/BaseObject/downloadFile` — the row
+exists, the bytes do not. Nothing warns you: `server.js:52-58` silently creates the empty
+directory, and `NODE_ENV=production` swallows the `BaseDownloadFile: Validated path does
+not exist` line. This cost a day of chasing a routing fault that was never there.
+
+Production holds **23 GB** in `/home/admin630/upload_files` (2,399 files + 12,380 upload
+directories). The test box has 47 GB total, so a full mirror does not fit. Copy by class —
+live `File` rows weigh:
+
+| Linked object | Rows | Size |
+|---|---|---|
+| FollowUp | 7,745 | 12.6 GB |
+| ExaminationEcho | 2,592 | 4.5 GB |
+| Visit | 1,494 | 1.4 GB |
+| AdviceComment (тасалбар) | 640 | 849 MB |
+| EcgExamination | 692 | 849 MB |
+| DoctorsProfile (avatars) | 156 | 43 MB |
+
+List one class and copy it:
+
+```
+node scripts/advice_attachments.js --list names.txt      # from backend/, Advice + AdviceComment
+uv run --with paramiko python deploy/scripts/relay_attachments.py --list names.txt --dry-run
+uv run --with paramiko python deploy/scripts/relay_attachments.py --list names.txt
+```
+
+The relay streams prod -> here -> test over SSH. It is deliberately not an rsync between
+the two hosts: that would need sshpass installed or an SSH key planted on production, and
+neither is worth leaving behind for a one-off copy. It skips what is already there, so an
+interrupted run just resumes, and it refuses to start if the copy would leave the test box
+under 5 GB free — that box also serves `wellcom` and `itsystem-api`.
+
+**Done so far:** the 638 Advice/AdviceComment files (847 MB), on 2026-09-10. Everything
+else still 404s there by design.
 
 ## Things that will bite
 

@@ -29,7 +29,83 @@ router.post('/Delete', Delete);
 router.post('/PrintHtml', PrintHtml);
 router.post('/PrintReport', PrintReport);
 
-const Fail = (Message) => ({ Success: false, Message: Message || 'An error occurred', Data: null });
+const { IsVisible, IsEmpty } = require('../../helper/TenderFormVisibility');
+
+const Fail = (Message) => ({ Success: false, Message: Message || 'Алдаа гарлаа', Data: null });
+
+const LOCKED_MESSAGE = 'Баталгаажсан бүртгэлийг засах боломжгүй. Шинэ бүртгэл үүсгэнэ үү.';
+
+const IsAdmin = (LogedUser) => String((LogedUser || {}).RoleId) === '1';
+
+/**
+ * Organizations the caller acts for. verifyToken hydrates both the user row and
+ * the linked doctor profile, and existing records were stamped from
+ * LogedUser.OrganizationId, so a match on either one is ownership.
+ */
+function CallerOrganizations(LogedUser) {
+  const u = LogedUser || {};
+  return [u.OrganizationId, u.Doctor && u.Doctor.OrganizationId]
+    .filter((v) => v !== undefined && v !== null && v !== '')
+    .map(String);
+}
+
+/**
+ * The record, if this caller may change it. Every write goes through here.
+ *
+ * - Another organization's record is refused unless the caller is an admin
+ *   (role 1). Reads stay open: the access matrix (tracker #7) is ЗСҮТ's to
+ *   approve, and a returning patient's earlier record is clinically relevant.
+ * - A confirmed record is refused, admin or not. Tender appendix 3.1
+ *   (L8599-8605): a completed registry "is completed, saved and cannot be
+ *   edited". There is no unlock. A repeat procedure is a NEW record, which is
+ *   offered a copy of the previous one (GetPrevious).
+ */
+async function LoadWritable(Id, LogedUser, transaction) {
+  const Row = await Models.TenderFormData.findOne({ where: { Id }, transaction });
+  if (!Row || Row.rec_status === 2) return { Error: 'Бүртгэл олдсонгүй' };
+  if (!IsAdmin(LogedUser) && Row.OrganizationId !== null && Row.OrganizationId !== undefined) {
+    if (!CallerOrganizations(LogedUser).includes(String(Row.OrganizationId))) {
+      return { Error: 'Өөр байгууллагын бүртгэлийг өөрчлөх эрхгүй' };
+    }
+  }
+  if (Row.Status === 1) return { Error: LOCKED_MESSAGE, Locked: true, Row };
+  return { Row };
+}
+
+/**
+ * Why an answer does not fit its field's type, or null.
+ *
+ * Save stays partial - doctors fill these forms a section at a time - but what
+ * IS sent must be the right kind of value. Otherwise the generated per-form
+ * views CAST it to NULL and it silently drops out of every search and export.
+ */
+function TypeProblem(FieldType, Value) {
+  if (IsEmpty(Value)) return null;
+  if (FieldType === 'Number') {
+    const n = Number(String(Value).replace(',', '.').trim());
+    return Number.isFinite(n) ? null : 'тоо биш';
+  }
+  if (FieldType === 'Date' || FieldType === 'DateTime') {
+    return Number.isNaN(Date.parse(String(Value))) ? 'огноо биш' : null;
+  }
+  return null;
+}
+
+/** Audit trail for the acts that change a record's standing. Never fails the request. */
+async function Audit(LogedUser, Id, Action, Notes, NotesMn) {
+  try {
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'TenderFormData',
+      LinkObjectId: Id,
+      Action,
+      Notes,
+      NotesMn,
+      LogedUser,
+    });
+  } catch (ex) {
+    console.error('[TenderForm/Audit] could not record', Action, 'on', Id, '-', ex.message);
+  }
+}
 
 // Cache option lists per dico for the lifetime of one request batch.
 async function LoadOptions(OptionTypes) {
@@ -94,10 +170,10 @@ function BuildFields(Rows, Options) {
 async function GetConfig(req, res) {
   try {
     const FormCode = req.body.FormCode;
-    if (!FormCode) return res.send(Fail('FormCode is required'));
+    if (!FormCode) return res.send(Fail('Маягтын код шаардлагатай'));
 
     const Form = await Models.TenderForm.findOne({ where: { FormCode }, raw: true });
-    if (!Form) return res.send(Fail('Form not found: ' + FormCode));
+    if (!Form) return res.send(Fail('Маягт олдсонгүй: ' + FormCode));
 
     const Rows = await Models.TenderFormField.findAll({
       where: { FormCode, IsActive: true },
@@ -148,7 +224,7 @@ async function GetData(req, res) {
   try {
     const { FormCode, PatRegNo, Id } = req.body;
     if (!Id && (!FormCode || !PatRegNo))
-      return res.send(Fail('FormCode and PatRegNo are required'));
+      return res.send(Fail('Маягтын код ба регистрийн дугаар шаардлагатай'));
 
     const Where = Id ? { Id } : { FormCode, PatRegNo, rec_status: { [Op.ne]: 2 } };
 
@@ -188,12 +264,19 @@ async function GetData(req, res) {
  * have the previous record duplicated; dropping the identity is what makes the
  * copy save as a new instance rather than overwriting the old one.
  *
+ * What belongs to the earlier EPISODE stays with it: every Date/DateTime
+ * field, every field whose code names a date or a time (3.1 keeps its times
+ * as text - Time1stQualifyingECG, PainBeginingTime), and the identity fields
+ * the dictionary marks required (the case number and principal date of each
+ * form). Copying those would file the new procedure under the old admission.
+ *
  * `ExcludeId` lets the caller ignore an instance it is already editing.
  */
 async function GetPrevious(req, res) {
   try {
     const { FormCode, PatRegNo, ExcludeId } = req.body;
-    if (!FormCode || !PatRegNo) return res.send(Fail('FormCode and PatRegNo are required'));
+    if (!FormCode || !PatRegNo)
+      return res.send(Fail('Маягтын код ба регистрийн дугаар шаардлагатай'));
 
     const Where = { FormCode, PatRegNo, rec_status: { [Op.ne]: 2 } };
     if (ExcludeId) Where.Id = { [Op.ne]: ExcludeId };
@@ -216,12 +299,32 @@ async function GetPrevious(req, res) {
       return res.send({ Success: true, Message: '', Data: null });
     }
 
+    const Dictionary = await Models.TenderFormField.findAll({
+      where: { FormCode },
+      attributes: ['FieldCode', 'FieldType', 'IsRequired'],
+      raw: true,
+    });
+    const EpisodeBound = new Set(
+      Dictionary.filter(
+        (f) =>
+          f.FieldType === 'Date' ||
+          f.FieldType === 'DateTime' ||
+          !!f.IsRequired ||
+          /Date|Time/.test(f.FieldCode)
+      ).map((f) => f.FieldCode)
+    );
+    Object.keys(Answers).forEach((k) => {
+      if (EpisodeBound.has(k) || IsEmpty(Answers[k])) delete Answers[k];
+    });
+
     return res.send({
       Success: true,
       Message: '',
       Data: {
         Answers,
         PreviousDate: Row.FormDate,
+        PreviousStatus: Row.Status,
+        OrganizationName: await GetOrganizationName(Row.OrganizationId),
         FieldCount: Object.keys(Answers).length,
       },
     });
@@ -399,7 +502,7 @@ async function PrintReport(req, res) {
 async function GetList(req, res) {
   try {
     const { FormCode, PatRegNo } = req.body;
-    if (!FormCode) return res.send(Fail('FormCode is required'));
+    if (!FormCode) return res.send(Fail('Маягтын код шаардлагатай'));
 
     const Where = { FormCode, rec_status: { [Op.ne]: 2 } };
     if (PatRegNo) Where.PatRegNo = PatRegNo;
@@ -430,7 +533,7 @@ async function CustomSave(req, res) {
 
     if (!FormCode || (!Id && !PatRegNo)) {
       await t.rollback();
-      return res.send(Fail('FormCode and PatRegNo are required'));
+      return res.send(Fail('Маягтын код ба регистрийн дугаар шаардлагатай'));
     }
 
     let Modified = {};
@@ -439,32 +542,63 @@ async function CustomSave(req, res) {
         typeof req.body.Data === 'string' ? JSON.parse(req.body.Data) : req.body.Data || {};
     } catch (e) {
       await t.rollback();
-      return res.send(Fail('Data is not valid JSON'));
+      return res.send(Fail('Өгөгдлийн бүтэц буруу байна'));
     }
 
     // only accept keys the dictionary knows about
-    const Allowed = await Models.TenderFormField.findAll({
+    const Dictionary = await Models.TenderFormField.findAll({
       where: { FormCode, IsActive: true },
-      attributes: ['FieldCode'],
+      attributes: ['FieldCode', 'FieldType', 'LabelMn'],
       raw: true,
       transaction: t,
     });
-    const AllowedSet = new Set(Allowed.map((a) => a.FieldCode));
-    const Rejected = Object.keys(Modified).filter((k) => !AllowedSet.has(k));
+    const ByCode = new Map(Dictionary.map((f) => [f.FieldCode, f]));
+    const Rejected = Object.keys(Modified).filter((k) => !ByCode.has(k));
     const Clean = {};
     Object.keys(Modified).forEach((k) => {
-      if (AllowedSet.has(k)) Clean[k] = Modified[k];
+      if (ByCode.has(k)) Clean[k] = Modified[k];
     });
     if (Rejected.length) {
       console.warn('[TenderForm/CustomSave] ignored unknown fields:', Rejected.join(', '));
     }
 
+    const Wrong = Object.keys(Clean)
+      .map((k) => {
+        const f = ByCode.get(k);
+        const Problem = TypeProblem(f.FieldType, Clean[k]);
+        return Problem ? f.LabelMn + ' (' + Problem + ')' : null;
+      })
+      .filter(Boolean);
+    if (Wrong.length) {
+      await t.rollback();
+      return res.send(
+        Fail(
+          'Буруу утгатай талбар: ' + Wrong.slice(0, 5).join(', ') + (Wrong.length > 5 ? '…' : '')
+        )
+      );
+    }
+
+    // An Id is an existing record, and must be one this caller may still change.
+    // (It used to fall through to creating a fresh record for an unknown Id.)
     let Row = null;
-    if (Id) Row = await Models.TenderFormData.findOne({ where: { Id }, transaction: t });
+    if (Id) {
+      const Writable = await LoadWritable(Id, LogedUser, t);
+      if (Writable.Error) {
+        await t.rollback();
+        return res.send(Fail(Writable.Error));
+      }
+      Row = Writable.Row;
+    }
 
     if (Row) {
       const Existing = JSON.parse(Row.Data || '{}');
       const Merged = { ...Existing, ...Clean };
+      // An emptied answer is removed rather than stored as null. This is also
+      // how a field hidden by a changed parent loses its stale value: the
+      // editor sends null for it at save time.
+      Object.keys(Merged).forEach((k) => {
+        if (IsEmpty(Merged[k])) delete Merged[k];
+      });
       await Row.update(
         {
           Data: JSON.stringify(Merged),
@@ -475,6 +609,9 @@ async function CustomSave(req, res) {
         { transaction: t }
       );
     } else {
+      Object.keys(Clean).forEach((k) => {
+        if (IsEmpty(Clean[k])) delete Clean[k];
+      });
       Row = await Models.TenderFormData.create(
         {
           FormCode,
@@ -485,7 +622,8 @@ async function CustomSave(req, res) {
           VisitId: VisitId || null,
           SurgeryId: SurgeryId || null,
           DoctorId: LogedUser.Id || null,
-          OrganizationId: LogedUser.OrganizationId || null,
+          OrganizationId:
+            LogedUser.OrganizationId || (LogedUser.Doctor && LogedUser.Doctor.OrganizationId) || null,
           Data: JSON.stringify(Clean),
           Status: 0,
           rec_status: 1,
@@ -505,21 +643,69 @@ async function CustomSave(req, res) {
   } catch (ex) {
     await t.rollback();
     console.error('[TenderForm/CustomSave]', ex);
-    return res.send(Fail(ex.message));
+    return res.send(Fail());
   }
 }
 
+/**
+ * Complete and lock - tender appendix 3.1, "COMPLETE AND SAVE?" (L8599-8605).
+ *
+ * Required fields are owed HERE, not at every save: the forms are filled a
+ * section at a time, but a record asserted complete must actually be complete.
+ * Visibility uses the same rule as the editor and the print, so a required
+ * field inside a section the answers skipped is not owed.
+ */
 async function Confirm(req, res) {
   try {
     const { Id } = req.body;
-    if (!Id) return res.send(Fail('Id is required'));
+    if (!Id) return res.send(Fail('Бүртгэлийн дугаар шаардлагатай'));
     const LogedUser = req.LogedUser || {};
 
-    const [count] = await Models.TenderFormData.update(
-      { Status: 1, UpdateDate: new Date(), UpdateUserId: LogedUser.Id || null },
-      { where: { Id } }
+    const Writable = await LoadWritable(Id, LogedUser);
+    if (Writable.Locked) {
+      return res.send({ Success: true, Message: 'Аль хэдийн баталгаажсан байна', Data: { Id } });
+    }
+    if (Writable.Error) return res.send(Fail(Writable.Error));
+    const Row = Writable.Row;
+
+    let Answers = {};
+    try {
+      Answers = JSON.parse(Row.Data || '{}');
+    } catch (e) {
+      return res.send(Fail('Өгөгдлийн бүтэц буруу байна'));
+    }
+
+    const Dictionary = await Models.TenderFormField.findAll({
+      where: { FormCode: Row.FormCode, IsActive: true },
+      attributes: ['FieldCode', 'LabelMn', 'ParentField', 'ParentValue', 'IsRequired'],
+      raw: true,
+    });
+    const ByCode = new Map(Dictionary.map((f) => [f.FieldCode, f]));
+    const Missing = Dictionary.filter(
+      (f) => f.IsRequired && IsVisible(f, Answers, ByCode) && IsEmpty(Answers[f.FieldCode])
     );
-    if (!count) return res.send(Fail('Record not found'));
+    if (Missing.length) {
+      return res.send(
+        Fail(
+          'Заавал бөглөх талбар бөглөгдөөгүй байна (' +
+            Missing.length +
+            '): ' +
+            Missing.slice(0, 5)
+              .map((f) => f.LabelMn)
+              .join(', ') +
+            (Missing.length > 5 ? '…' : '')
+        )
+      );
+    }
+
+    await Row.update({ Status: 1, UpdateDate: new Date(), UpdateUserId: LogedUser.Id || null });
+    await Audit(
+      LogedUser,
+      Id,
+      'Confirm',
+      'Tender form ' + Row.FormCode + ' completed and locked',
+      'Маягт ' + Row.FormCode + ' дуусгаж түгжигдлээ'
+    );
     return res.send({ Success: true, Message: 'Баталгаажлаа', Data: { Id } });
   } catch (ex) {
     console.error('[TenderForm/Confirm]', ex);
@@ -544,33 +730,31 @@ async function Confirm(req, res) {
 async function Delete(req, res) {
   try {
     const { Id } = req.body;
-    if (!Id) return res.send(Fail('Id is required'));
+    if (!Id) return res.send(Fail('Бүртгэлийн дугаар шаардлагатай'));
     const LogedUser = req.LogedUser || {};
 
-    const Row = await Models.TenderFormData.findOne({ where: { Id }, raw: true });
-    if (!Row) return res.send(Fail('Record not found'));
-
-    if (Row.rec_status === 2) {
+    const Existing = await Models.TenderFormData.findOne({
+      where: { Id },
+      attributes: ['Id', 'rec_status'],
+      raw: true,
+    });
+    if (!Existing) return res.send(Fail('Бүртгэл олдсонгүй'));
+    if (Existing.rec_status === 2) {
       return res.send({ Success: true, Message: 'Аль хэдийн устгагдсан байна', Data: { Id } });
     }
-    if (Row.Status === 1) {
-      return res.send(Fail('Баталгаажсан бүртгэлийг устгах боломжгүй'));
-    }
 
-    await Models.TenderFormData.update(
-      { rec_status: 2, UpdateDate: new Date(), UpdateUserId: LogedUser.Id || null },
-      { where: { Id } }
-    );
+    const Writable = await LoadWritable(Id, LogedUser);
+    if (Writable.Locked) return res.send(Fail('Баталгаажсан бүртгэлийг устгах боломжгүй'));
+    if (Writable.Error) return res.send(Fail(Writable.Error));
+    const Row = Writable.Row;
 
-    console.log(
-      '[TenderForm/Delete] form=' +
-        Row.FormCode +
-        ' id=' +
-        Id +
-        ' patient=' +
-        Row.PatRegNo +
-        ' by user=' +
-        (LogedUser.Id || '?')
+    await Row.update({ rec_status: 2, UpdateDate: new Date(), UpdateUserId: LogedUser.Id || null });
+    await Audit(
+      LogedUser,
+      Id,
+      'Delete',
+      'Tender form ' + Row.FormCode + ' record retracted (rec_status 2)',
+      'Маягт ' + Row.FormCode + ' бүртгэлийг устгалаа'
     );
 
     return res.send({ Success: true, Message: 'Устгалаа', Data: { Id } });

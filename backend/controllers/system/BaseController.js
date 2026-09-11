@@ -16,6 +16,7 @@ const ImageHelper = require('../../helper/ImageHelper');
 const ChatIdentity = require('../../helper/ChatIdentity');
 const ChatHelper = require('../../helper/ChatHelper');
 const PatientScope = require('../../helper/PatientScope');
+const AdviceScopeHelper = require('../../helper/AdviceScopeHelper');
 
 // routes
 router.post('/getData', getData);
@@ -419,6 +420,24 @@ async function MayDownload({ FileInfo, LogedUser }) {
   const LinkedObjectId = Stored.LinkedObjectId;
   if (!LinkedObjectName || !LinkedObjectId) return null;
 
+  /*
+   * Тасалбар attachments follow the rule for READING the ticket, not the rule
+   * for attaching to it. MayAttachTo is author-or-admin, which is right for a
+   * write and wrong for a read: the feed is a consult board where doctors open
+   * each other's tickets to look at the films on them, so the attach rule would
+   * have 403'd every colleague. AdviceScopeHelper owns that rule, patients
+   * included, so it returns here rather than falling through to the generic
+   * patient check below.
+   */
+  if (LinkedObjectName === 'Advice' || LinkedObjectName === 'AdviceComment') {
+    const MayRead = await AdviceScopeHelper.MayReadAdviceAttachment({
+      LinkedObjectName,
+      LinkedObjectId,
+      LogedUser,
+    });
+    return MayRead ? Stored : null;
+  }
+
   // Same rule that governs attaching a file to this record.
   const Allowed = await MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser });
   if (!Allowed) return null;
@@ -715,8 +734,11 @@ async function downloadFile(req, res) {
         res.set('Content-Type', downloadFile.ContentType);
         return res.download(downloadFile.Path);
       } else {
+        // The row exists but the bytes do not - the usual cause is a database
+        // restored onto a host that never received ALLFILE_DIR. Say it in
+        // Mongolian: this text is what the doctor reads in the alert.
         return res.status(404).send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('File not found'))
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Файл серверт олдсонгүй'))
         );
       }
     } else {

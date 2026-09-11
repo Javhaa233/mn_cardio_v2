@@ -213,7 +213,9 @@ class TenderFormAllTable extends BaseList {
           Close={TryClose}
           Title={Title}
           MaxWidth="md"
-          ShowSave={true}
+          // A confirmed record is locked (tender 3.1 L8599-8605): no footer
+          // Save. The form's own bar offers "new record from previous".
+          ShowSave={row.Status !== 1}
           Save={(stopLoading) => {
             if (FormRef.current && FormRef.current.Save) {
               FormRef.current.Save((ok) => {
@@ -423,7 +425,13 @@ class TenderFormAllTable extends BaseList {
               </GridToolbar>
 
               {!isLoading && (!Data || Data.length === 0) ? (
-                <BaseNoData Text="Бүртгэл олдсонгүй" />
+                // An empty result is information, not an error: neutral
+                // brand colours rather than BaseNoData's salmon default.
+                <BaseNoData
+                  Text="Бүртгэл олдсонгүй"
+                  BgColor={colors.brand.cyan}
+                  IconColor={colors.brand.cyanInk}
+                />
               ) : (
                 <BaseGrid
                   PK={"Id"}

@@ -8,6 +8,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const NotificationHelper = require('../../helper/NotificationHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const { BuildAdviceScope, GetLogedOrganization } = require('../../helper/AdviceScopeHelper');
 
 // routes
 router.post('/GetList', GetList);
@@ -766,79 +767,11 @@ const FEED_COMMENT_PHOTO_PERCENTAGE = 15;
 const DETAIL_PHOTO_LIMIT = 12;
 const DETAIL_PHOTO_PERCENTAGE = 30;
 
-/**
- * The visibility rule for a ticket, as one Sequelize `where`.
- *
- * This is the security boundary for the whole feed, so it is a pure function:
- * it takes the user and their organization and returns a fragment, with no IO
- * and no request object. GetFeed and GetStats both call it, which is what makes
- * the analytics rail's numbers reconcile with the feed rather than drift.
- *
- * It reproduces the union of the two existing endpoints - GetListCity OR
- * GetListSoum - because the feed is the one list that shows both:
- *
- *   admin                 -> level IN ('1','2','3')
- *   level 1, not city     -> level='1' AND addr_prov_city = org's
- *   level 1, city         -> level='1' AND addr_soum_dist = org's
- *   level 2, not city     -> level IN ('2','3') OR (level='1' AND prov match)
- *   level 2, city         -> level IN ('2','3') OR (level='1' AND soum match)
- *   level 3               -> level IN ('2','3')
- *   anything else         -> DENY
- *
- * That last line is a deliberate behaviour change. GetListCity adds no
- * predicate at all when the level is not 1, 2 or 3, so a null or malformed
- * organization level silently showed that user every ticket in the country.
- * Denying is the safe direction, and it was verified against live data first:
- * all 680 organizations carry a clean level, so no doctor loses access.
+/*
+ * BuildAdviceScope and GetLogedOrganization moved to
+ * helper/AdviceScopeHelper.js so /BaseObject/downloadFile can authorize an
+ * attachment with the very rule that decides who may see the ticket.
  */
-function BuildAdviceScope({ LogedUser, Organization }) {
-  const Base = { AppId: LogedUser.AppId, rec_status: { [Op.ne]: '2' } };
-
-  if (String(LogedUser.RoleId) === '1') {
-    return { ...Base, level: { [Op.in]: ['1', '2', '3'] } };
-  }
-
-  const Level = Organization ? Organization.level : null;
-  const IsCity =
-    Organization && Organization.DictProvinceCity
-      ? Organization.DictProvinceCity.is_city === 'y'
-      : false;
-
-  if (!Organization) return { ...Base, id_data: -1 };
-
-  const Geo = IsCity
-    ? { addr_soum_dist: Organization.addr_soum_dist }
-    : { addr_prov_city: Organization.addr_prov_city };
-
-  if (Level === '1') return { ...Base, level: '1', ...Geo };
-  if (Level === '3') return { ...Base, level: { [Op.in]: ['2', '3'] } };
-  if (Level === '2') {
-    return {
-      ...Base,
-      [Op.or]: [{ level: { [Op.in]: ['2', '3'] } }, { level: '1', ...Geo }],
-    };
-  }
-
-  return { ...Base, id_data: -1 };
-}
-
-/** The logged-in doctor's organization, with is_city resolved. */
-async function GetLogedOrganization(LogedUser) {
-  const Doctor = await Models.DoctorsProfile.findOne({
-    where: { id: LogedUser.Id },
-    raw: true,
-  });
-  if (!Doctor) return { Doctor: null, Organization: null };
-
-  let Organizations = await Models.Organization.findAllNew({
-    where: { Id: Doctor.OrganizationId },
-  });
-  Organizations = JSON.parse(JSON.stringify(Organizations));
-  return {
-    Doctor,
-    Organization: Organizations.length === 1 ? Organizations[0] : null,
-  };
-}
 
 /** Which tickets a tab shows. Drafts are the author's own business. */
 function BuildTabWhere(Filter, LogedUser) {
@@ -947,6 +880,36 @@ async function GetFeedPreviewComments(AdviceIds, Take) {
  * resizes. This is 4 queries flat, whatever the page size, and it goes through
  * the disk-cached thumbnailer.
  */
+/*
+ * The photo cap must not swallow the documents.
+ *
+ * The cap used to be applied to the combined attachment list, so a ticket with
+ * four attachments - three films and a PDF of the lab results - dropped the PDF
+ * from the card entirely, with nothing to click and no "+N" to hint at it. The
+ * limit exists to keep base64 thumbnails off the wire; a document carries no
+ * thumbnail at all, so capping it saves nothing.
+ *
+ * The extension list mirrors frontend mediaUtils.js IMAGE_EXTENSIONS - the two
+ * ends must agree on what a photo is or the grid and the chip row disagree.
+ */
+const IMAGE_ROW_EXT = [
+  'jpg',
+  'jpeg',
+  'png',
+  'gif',
+  'bmp',
+  'webp',
+  'svg',
+  'ico',
+  'tiff',
+  'tif',
+];
+const IsImageRow = (F) => IMAGE_ROW_EXT.includes(String((F && F.ext) || '').toLowerCase());
+const CapPhotos = (Files, PhotoLimit) =>
+  Files.filter(IsImageRow)
+    .slice(0, PhotoLimit)
+    .concat(Files.filter((F) => !IsImageRow(F)));
+
 async function AttachFeedMedia(Rows, Options) {
   // Defaulted so every existing caller - GetFeed - is byte-for-byte unchanged.
   const {
@@ -1049,13 +1012,12 @@ async function AttachFeedMedia(Rows, Options) {
         : [];
     }
 
-    const Photos = ByKey.get('Advice:' + Row.id_data) || [];
-    Row.FileTotal = Photos.length;
-    Row.Files = Photos.length
-      ? await BaseControllerHelper.GetFileSrcThumbnailCached(
-          Photos.slice(0, PhotoLimit),
-          PhotoPercentage
-        )
+    const Attachments = ByKey.get('Advice:' + Row.id_data) || [];
+    const Capped = CapPhotos(Attachments, PhotoLimit);
+    // The "+N" badge counts photos, because paging is what it offers.
+    Row.FileTotal = Attachments.filter(IsImageRow).length;
+    Row.Files = Capped.length
+      ? await BaseControllerHelper.GetFileSrcThumbnailCached(Capped, PhotoPercentage)
       : [];
 
     Row.CommentQty = CommentBy.get(String(Row.id_data)) || 0;
@@ -1075,10 +1037,10 @@ async function AttachFeedMedia(Rows, Options) {
         Date: C.Date,
         AuthorName: Author ? Author.Name : '',
         AvatarSrc: Author ? await AvatarFor(Author.ProfileId) : null,
-        FileTotal: CommentFiles.length,
+        FileTotal: CommentFiles.filter(IsImageRow).length,
         Files: CommentFiles.length
           ? await BaseControllerHelper.GetFileSrcThumbnailCached(
-              CommentFiles.slice(0, FEED_COMMENT_PHOTO_LIMIT),
+              CapPhotos(CommentFiles, FEED_COMMENT_PHOTO_LIMIT),
               FEED_COMMENT_PHOTO_PERCENTAGE
             )
           : [],

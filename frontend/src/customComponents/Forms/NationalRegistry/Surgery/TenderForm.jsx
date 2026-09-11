@@ -16,7 +16,6 @@ import BaseRadio from "customComponents/BaseEditControls/BaseRadio";
 import BaseCheckBox from "customComponents/BaseEditControls/BaseCheckBox";
 import BaseTextField from "customComponents/BaseEditControls/BaseTextField";
 import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
-import BaseSimpleDate from "customComponents/BaseEditControls/BaseSimpleDate";
 import BaseTableGrid from "customComponents/BaseEditControls/BaseTableGrid";
 
 // theme
@@ -76,8 +75,99 @@ const AUTOCALC = [
   },
 ];
 
+/**
+ * Scores and intervals the tender says are calculated, not typed. Each entry
+ * names its inputs and computes its target from the current answers; the
+ * target is shown read-only and saved with the record. Like AUTOCALC, it is
+ * keyed by field code, so a form without these codes never matches.
+ *
+ * - 2.2 CHADS2-VASc (tender L6768): points exactly as the form's own option
+ *   labels print them - "65-74 (+1)", "Эмэгтэй (+1)", "Тийм +2". Only a
+ *   complete set of answers gives a score: a partial sum would read as a low
+ *   risk that was never actually assessed.
+ * - 3.1 delays (L8594-8598, "should be automatically calculated (mn)"):
+ *   minutes between two date + time pairs. ECG-to-wire runs to primary PCI
+ *   start and ECG-to-TIV to fibrinolysis, the only matching events the form
+ *   records - both mappings are on the list to confirm with the clinical team.
+ */
+const YES_ONE = { o1: 1, o2: 0 };
+const CHADS2VASC = {
+  Nas: { o1: 0, o2: 1, o3: 2 },
+  Hvis2: { o1: 1, o2: 0 },
+  ZvrhniiArhagDutagdal: YES_ONE,
+  ArteriinGipertenzi: YES_ONE,
+  TarhinyHarvaltTIA: { o1: 2, o2: 0 },
+  ZahynSudasnyEmgeg: YES_ONE,
+  ChihriinShijin: YES_ONE,
+};
+
+/** "2026-09-11" + "14:05" (or "1405", "14.05") -> epoch ms, or null */
+const At = (date, time) => {
+  const m = ((time == null ? "" : time) + "")
+    .trim()
+    .match(/^(\d{1,2})\D?(\d{2})$/);
+  if (!date || !m) return null;
+  const ms = Date.parse(
+    (date + "").slice(0, 10) + "T" + m[1].padStart(2, "0") + ":" + m[2] + ":00",
+  );
+  return Number.isNaN(ms) ? null : ms;
+};
+
+/** whole minutes from one moment to a later one; null if either is missing */
+const Minutes = (from, to) =>
+  from === null || to === null || to < from
+    ? null
+    : Math.round((to - from) / 60000);
+
+const ECG = ["Date1stQualifyingECG", "Time1stQualifyingECG"];
+
+const DERIVED = [
+  {
+    Target: "CHADS2VAScOnoo",
+    Inputs: Object.keys(CHADS2VASC),
+    Compute: (v) => {
+      let sum = 0;
+      for (const code of Object.keys(CHADS2VASC)) {
+        const points = CHADS2VASC[code][v(code)];
+        if (points === undefined) return null;
+        sum += points;
+      }
+      return sum;
+    },
+  },
+  {
+    Target: "PainECG",
+    Inputs: ["DatePainBegining", "PainBeginingTime", ...ECG],
+    Compute: (v) =>
+      Minutes(
+        At(v("DatePainBegining"), v("PainBeginingTime")),
+        At(v(ECG[0]), v(ECG[1])),
+      ),
+  },
+  {
+    Target: "ECGWireTime",
+    Inputs: [...ECG, "DateOfPrimaryPCI", "TimeOfPrimaryPCIStart"],
+    Compute: (v) =>
+      Minutes(
+        At(v(ECG[0]), v(ECG[1])),
+        At(v("DateOfPrimaryPCI"), v("TimeOfPrimaryPCIStart")),
+      ),
+  },
+  {
+    Target: "ECGTIV",
+    Inputs: [...ECG, "IfYesDateFibrinolysis", "IfYesTimeOfFibrinolysis"],
+    Compute: (v) =>
+      Minutes(
+        At(v(ECG[0]), v(ECG[1])),
+        At(v("IfYesDateFibrinolysis"), v("IfYesTimeOfFibrinolysis")),
+      ),
+  },
+];
+
 const CALCULATED_FIELDS = new Set(
-  AUTOCALC.reduce((acc, m) => acc.concat([m.Bmi, m.Bsa]), []),
+  AUTOCALC.reduce((acc, m) => acc.concat([m.Bmi, m.Bsa]), []).concat(
+    DERIVED.map((d) => d.Target),
+  ),
 );
 
 /**
@@ -316,13 +406,21 @@ class TenderForm extends BaseCustomForm {
       );
     }
 
+    // kept for "new record from previous", which starts over without a reload
+    this._patientRow = PatientRow;
     this.setState({ isLoading: false }, () => {
       this.Prefill(PatientRow);
       // An unsaved draft outranks the duplicate offer: it is this doctor's own
       // work from a session that did not finish, and it is about to be lost.
+      // Declining the draft moves on to the offer; a restored draft is not
+      // then overwritten by the previous record.
       const draft = this.ReadDraft();
-      if (draft) this.AskRestoreDraft(draft);
-      else if (Previous) this.AskDuplicate(Previous);
+      if (draft) {
+        this.AskRestoreDraft(
+          draft,
+          Previous ? () => this.AskDuplicate(Previous) : null,
+        );
+      } else if (Previous) this.AskDuplicate(Previous);
     });
   };
 
@@ -402,7 +500,7 @@ class TenderForm extends BaseCustomForm {
     }
   };
 
-  AskRestoreDraft = (draft) => {
+  AskRestoreDraft = (draft, onDecline) => {
     const when = (draft.At || "").replace("T", " ").slice(0, 16);
     const count = Object.keys(draft.Data).length;
     this.setState({
@@ -424,7 +522,7 @@ class TenderForm extends BaseCustomForm {
         },
         () => {
           this.ClearDraft();
-          this.setState({ Alert: null });
+          this.setState({ Alert: null }, () => onDecline && onDecline());
         },
       ),
     });
@@ -460,19 +558,56 @@ class TenderForm extends BaseCustomForm {
     this.setState({ EditObject: { ...this.state.EditObject, ...Next } });
   };
 
+  /**
+   * The DERIVED scores and intervals whose inputs include `Field` - or all of
+   * them when Field is undefined. Only a value that actually changed is
+   * written, so opening a record does not report unsaved changes.
+   */
+  RecalculateDerived = (Field) => {
+    const Next = {};
+    DERIVED.forEach((d) => {
+      if (Field !== undefined && d.Inputs.indexOf(Field) < 0) return;
+      if (!this.FieldByName(d.Target)) return;
+      const value = d.Compute((code) => this.ValueOf(code));
+      const current = this.ValueOf(d.Target);
+      const same =
+        value === null ? this.IsEmpty(current) : value + "" === current + "";
+      if (!same) Next[d.Target] = value;
+    });
+    if (Object.keys(Next).length === 0) return;
+    Object.keys(Next).forEach((k) => {
+      this.ModifyObject[k] = Next[k];
+    });
+    this.setState({ EditObject: { ...this.state.EditObject, ...Next } });
+  };
+
+  /** every calculated value, from what is on screen now */
+  RecalculateAll = () => {
+    AUTOCALC.forEach((m) => {
+      if (this.FieldByName(m.Height)) this.Recalculate(m.Height);
+    });
+    this.RecalculateDerived();
+  };
+
   /** "duplicate the previous record?" - required by tender appendix 3.1 */
   AskDuplicate = (Previous) => {
     if (!Previous || !Previous.Answers) return;
-    const when = Previous.PreviousDate || "";
+    const when = (Previous.PreviousDate || "").slice(0, 10);
+    const where = Previous.OrganizationName
+      ? ", " + Previous.OrganizationName
+      : "";
     this.setState({
       Alert: Helper.BaseCrudHelper.ShowConfirm(
         i18n.t("Өмнөх мэдээллийг хуулах уу?") +
           " (" +
           when +
+          where +
           " — " +
           Previous.FieldCount +
           " " +
           i18n.t("талбар") +
+          "; " +
+          i18n.t("огноо, цаг хуулагдахгүй") +
           ")",
         () => this.ApplyDuplicate(Previous),
         () => this.setState({ Alert: null }),
@@ -486,12 +621,23 @@ class TenderForm extends BaseCustomForm {
    */
   ApplyDuplicate = (Previous) => {
     if (!Previous || !Previous.Answers) return;
-    this.ModifyObject = { ...this.ModifyObject, ...Previous.Answers };
-    this.setState({
-      EditObject: { ...this.state.EditObject, ...Previous.Answers },
-      Alert: null,
-      Duplicated: true,
+    // What is already on screen - the identity filled from the patient
+    // record - wins over the copy.
+    const Copied = {};
+    Object.keys(Previous.Answers).forEach((k) => {
+      if (this.IsEmpty(this.ValueOf(k))) Copied[k] = Previous.Answers[k];
     });
+    this.ModifyObject = { ...this.ModifyObject, ...Copied };
+    this.setState(
+      {
+        EditObject: { ...this.state.EditObject, ...Copied },
+        Alert: null,
+        Duplicated: true,
+      },
+      // The copy carries the old episode's scores and delays but not the
+      // dates they came from; recompute from what is on screen now.
+      () => this.RecalculateAll(),
+    );
   };
 
   /**
@@ -526,8 +672,10 @@ class TenderForm extends BaseCustomForm {
     }, 1000);
 
     // Height or weight: recalculate BMI/BSA now. This setState re-renders, so
-    // it also covers the progress counters.
+    // it also covers the progress counters. Then any score or interval that
+    // reads this field.
     this.Recalculate(Field);
+    this.RecalculateDerived(Field);
 
     // A field the doctor has just filled is no longer flagged as missing, and
     // a prefilled value they have edited is now their own change.
@@ -550,6 +698,7 @@ class TenderForm extends BaseCustomForm {
 
   componentWillUnmount() {
     this._unmounted = true;
+    if (this._observer) this._observer.disconnect();
     if (this._progressTimer) clearTimeout(this._progressTimer);
     // Flush rather than drop: closing the dialog is exactly the case the draft
     // exists for.
@@ -592,12 +741,44 @@ class TenderForm extends BaseCustomForm {
     return EditObject ? EditObject[Name] : undefined;
   };
 
-  /** a field is hidden until its parent has the value that reveals it */
-  IsVisible = (Field) => {
+  /**
+   * A field is hidden until its parent has the value that reveals it.
+   *
+   * ParentValue is a small expression: 'o2' (equals), 'a|b' (any of),
+   * '!o1' (answered and not o1). The negated form is what lets 3.1's
+   * "Coronary angiography only" skip the whole Angioplasty section by data
+   * alone. The server's copy of this rule is backend/helper/
+   * TenderFormVisibility.js - print and Confirm use it - so change both or
+   * neither.
+   */
+  IsVisible = (Field, Depth = 0) => {
     if (!Field.ParentField) return true;
     const parent = this.ValueOf(Field.ParentField);
     if (parent === undefined || parent === null || parent === "") return false;
-    return parent + "" === Field.ParentValue + "";
+    const rule = Field.ParentValue == null ? "" : Field.ParentValue + "";
+    const negate = rule.startsWith("!");
+    const wanted = (negate ? rule.slice(1) : rule)
+      .split("|")
+      .map((s) => s.trim());
+    const hit = wanted.includes(parent + "");
+    if (negate ? hit : !hit) return false;
+    // Transitive: a field whose parent is itself hidden is hidden, even while
+    // the parent still holds an old answer. That is how a whole block (the
+    // angioplasty session, the ST+ register) hides by giving only its top rows
+    // a parent.
+    const up = Depth < 10 ? this.FieldByName(Field.ParentField) : null;
+    return up ? this.IsVisible(up, Depth + 1) : true;
+  };
+
+  /** a field descriptor by code, cached per loaded dictionary */
+  FieldByName = (Name) => {
+    if (!this._byName || this._byNameFor !== this.state.Fields) {
+      this._byNameFor = this.state.Fields;
+      this._byName = new Map(
+        (this.state.Fields || []).flat().map((f) => [f.Name, f]),
+      );
+    }
+    return this._byName.get(Name);
   };
 
   IsEmpty = (v) =>
@@ -620,6 +801,13 @@ class TenderForm extends BaseCustomForm {
         (f) =>
           f.Required && this.IsVisible(f) && this.IsEmpty(this.ValueOf(f.Name)),
       );
+
+  /** answers sitting behind a question that now hides them */
+  HiddenWithValues = () =>
+    (this.state.Fields || [])
+      .flat()
+      .filter((f) => !this.IsVisible(f) && !this.IsEmpty(this.ValueOf(f.Name)))
+      .map((f) => f.Name);
 
   /**
    * Required-field check, run from Save.
@@ -672,7 +860,7 @@ class TenderForm extends BaseCustomForm {
     if (!PatientRegNo) {
       this.setState({
         Alert: Helper.BaseCrudHelper.ShowAlert(
-          "Иргэний мэдээлэл олдсонгүй",
+          i18n.t("Иргэний мэдээлэл олдсонгүй"),
           false,
           () => this.setState({ Alert: null }),
         ),
@@ -686,10 +874,18 @@ class TenderForm extends BaseCustomForm {
       return;
     }
 
+    // Answers to questions that are now hidden - an "if yes ..." after its
+    // parent was changed to no - are cleared rather than kept. Doing it at
+    // save time rather than on every click means flipping the parent back
+    // before saving brings the answers back.
+    this.HiddenWithValues().forEach((Name) => {
+      this.ModifyObject[Name] = null;
+    });
+
     if (Object.keys(this.ModifyObject).length === 0) {
       this.setState({
         Alert: Helper.BaseCrudHelper.ShowAlert(
-          "Өөрчлөлт хийгдээгүй байна",
+          i18n.t("Өөрчлөлт хийгдээгүй байна"),
           false,
           () => this.setState({ Alert: null }),
         ),
@@ -739,7 +935,7 @@ class TenderForm extends BaseCustomForm {
           this.setState({
             Saving: false,
             Alert: Helper.BaseCrudHelper.ShowAlert(
-              (resData && resData.Message) || "Хадгалахад алдаа гарлаа",
+              (resData && resData.Message) || i18n.t("Хадгалахад алдаа гарлаа"),
               false,
               () => this.setState({ Alert: null }),
             ),
@@ -748,6 +944,84 @@ class TenderForm extends BaseCustomForm {
         }
       },
     );
+  };
+
+  /**
+   * "Дуусгаж хадгалах" - tender 3.1 "COMPLETE AND SAVE?" (L8599-8605): save,
+   * check, and lock. "Registry is completed, saved and cannot be edited." There
+   * is no unlock; a repeat procedure is a new record, offered a copy of this
+   * one. The server enforces the same rules, so this is convenience, not the
+   * lock itself.
+   */
+  CompleteAndSave = () => {
+    this.setState({
+      Alert: Helper.BaseCrudHelper.ShowConfirm(
+        i18n.t("Бүртгэлийг дуусгах уу? Дуусгасны дараа засах боломжгүй."),
+        () => {
+          this.setState({ Alert: null }, () => {
+            if (this.BlockOnMissingRequired()) return;
+            const pending =
+              Object.keys(this.ModifyObject).length > 0 ||
+              this.HiddenWithValues().length > 0;
+            if (pending || !this.state.DataId) {
+              this.Save((ok) => ok && this.ConfirmRecord());
+            } else {
+              this.ConfirmRecord();
+            }
+          });
+        },
+        () => this.setState({ Alert: null }),
+      ),
+    });
+  };
+
+  ConfirmRecord = async () => {
+    const { DataId } = this.state;
+    if (!DataId) return;
+    await Helper.BaseCrudHelper.CallService(
+      "/TenderForm/Confirm",
+      { Id: DataId },
+      (resData) => {
+        const ok = !!(resData && resData.Success);
+        this.setState({
+          EditObject: ok
+            ? { ...this.state.EditObject, Status: 1 }
+            : this.state.EditObject,
+          Alert: Helper.BaseCrudHelper.ShowAlert(
+            (resData && resData.Message) ||
+              i18n.t("Баталгаажуулахад алдаа гарлаа"),
+            ok,
+            () => this.setState({ Alert: null }),
+          ),
+        });
+        if (ok && this.props.OnConfirmed) this.props.OnConfirmed(DataId);
+      },
+    );
+  };
+
+  /**
+   * From a locked record, start the patient's next one: a fresh, unsaved
+   * instance with the identity prefilled, then the offer to copy the latest
+   * record across (dates and times excluded by the server).
+   */
+  StartNewFromPrevious = () => {
+    const { FormNo, PatientRegNo } = this.props;
+    if (!PatientRegNo) return;
+    this.ModifyObject = {};
+    this._prefilled = new Set();
+    this._invalid = new Set();
+    this.setState({ DataId: null, EditObject: {}, Duplicated: false }, () => {
+      this.Prefill(this._patientRow);
+      Helper.BaseCrudHelper.CallService(
+        "/TenderForm/GetPrevious",
+        { FormCode: FormNo, PatRegNo: PatientRegNo },
+        (resData) => {
+          if (resData && resData.Success && resData.Data) {
+            this.AskDuplicate(resData.Data);
+          }
+        },
+      );
+    });
   };
 
   RenderControl = (Field, Opts) => {
@@ -779,7 +1053,11 @@ class TenderForm extends BaseCustomForm {
         control = <BaseTextArea key={key} {...common} FullWidth={true} />;
         break;
       case "Date":
-        control = <BaseSimpleDate key={key} {...common} />;
+        // A native date input through BaseTextField (Config.Type "Date" is
+        // passed through as the input type). BaseSimpleDate rendered no label
+        // and showed TODAY in an empty field - a date nobody entered, on a
+        // clinical record - so it is not used here.
+        control = <BaseTextField key={key} {...common} FullWidth={true} />;
         break;
       case "Number":
         control = (
@@ -911,11 +1189,48 @@ class TenderForm extends BaseCustomForm {
     });
   };
 
+  /**
+   * Track which section header is in the top part of the viewport, so the
+   * rail can mark where the doctor is. One observer for all headers; observing
+   * an element twice is a no-op, so the ref callback can call this on every
+   * render.
+   */
+  ObserveSection = (el, key) => {
+    if (!el || typeof IntersectionObserver === "undefined") return;
+    if (!this._observer) {
+      // The observer only says THAT something moved; which section is
+      // current is decided from every header's position. Reading only the
+      // changed entries lagged a section behind on fast scrolls.
+      this._observer = new IntersectionObserver(
+        () => {
+          if (this._unmounted) return;
+          const line = window.innerHeight * 0.3;
+          let current = null;
+          let first = null;
+          Object.keys(this._sectionEls || {}).forEach((k) => {
+            const node = this._sectionEls[k];
+            if (!node || !node.isConnected) return;
+            const top = node.getBoundingClientRect().top;
+            if (top <= line && (!current || top > current.top)) {
+              current = { k, top };
+            }
+            if (!first || top < first.top) first = { k, top };
+          });
+          const k = (current || first || {}).k;
+          if (k && k !== this.state.InView) this.setState({ InView: k });
+        },
+        { rootMargin: "0px 0px -70% 0px", threshold: [0, 1] },
+      );
+    }
+    el.setAttribute("data-section", key);
+    this._observer.observe(el);
+  };
+
   CustomRender = () => {
     const t = (k) => i18n.t(k);
     const { Fields, Sections, LoadError } = this.state;
 
-    if (LoadError) return <BaseNoData Text={LoadError} />;
+    if (LoadError) return <BaseNoData Text={t(LoadError)} />;
 
     const all = (Fields || []).flat();
     if (all.length === 0) {
@@ -925,7 +1240,9 @@ class TenderForm extends BaseCustomForm {
       // than showing a blank panel that reads as broken.
       return (
         <div style={{ padding: "12px 4px" }}>
-          <BaseNoData Text="Энэ маягтын талбарууд хараахан тодорхойлогдоогүй байна" />
+          <BaseNoData
+            Text={t("Энэ маягтын талбарууд хараахан тодорхойлогдоогүй байна")}
+          />
           <div
             style={{
               fontSize: 13,
@@ -954,13 +1271,11 @@ class TenderForm extends BaseCustomForm {
     const open = this.OpenSections();
     const allOpen = groups.every((s) => open.has(s.Code || "default"));
 
-    // The sections that have anything to show, in order.
-    //
-    // Deliberately no answered/total or completion state. These forms are not
-    // meant to be filled end to end - a doctor records the one or two things
-    // they have and saves - so a progress figure would report every record as
-    // unfinished forever, which is noise rather than information. The rail
-    // exists to find a section, nothing else.
+    // The sections that have anything to show, in order, each with a neutral
+    // fill state for the rail: empty, partial or filled. Deliberately no
+    // percentage and no warning colour - these forms are filled a section at a
+    // time, and a record with three sections answered is not "73% wrong". The
+    // dot answers "where have I been?", which is what a rail is for.
     const stats = groups
       .map((section) => {
         const key = section.Code || "default";
@@ -970,7 +1285,18 @@ class TenderForm extends BaseCustomForm {
             this.IsVisible(f),
         );
         if (visible.length === 0) return null;
-        return { section, key, visible };
+        // Calculated values are not the doctor's answers and do not count.
+        const typed = visible.filter((f) => !CALCULATED_FIELDS.has(f.Name));
+        const answered = typed.filter(
+          (f) => !this.IsEmpty(this.ValueOf(f.Name)),
+        ).length;
+        const fill =
+          answered === 0
+            ? "empty"
+            : answered >= typed.length
+              ? "filled"
+              : "partial";
+        return { section, key, visible, answered, total: typed.length, fill };
       })
       .filter(Boolean);
 
@@ -1015,12 +1341,13 @@ class TenderForm extends BaseCustomForm {
           flexDirection: { xs: "column", md: "row" },
         }}
       >
-        {/* Section rail — a way to find a section, and nothing more.
+        {/* Section rail — find a section, see where you are and where you
+            have been.
 
-            No completion figures, no progress bars, no status colours. These
-            forms are not filled end to end: a doctor records the one or two
-            things they have and saves. A progress indicator would mark every
-            record incomplete forever, which tells nobody anything.
+            The section on screen carries the bar; each row carries a neutral
+            dot (empty / partial / filled). No percentages, no progress bar, no
+            warning colour: these forms are not filled end to end, and a record
+            is not "incomplete" because a section did not apply.
 
             Sticky and independently scrollable, so the list stays put while the
             form scrolls beside it. */}
@@ -1141,17 +1468,37 @@ class TenderForm extends BaseCustomForm {
 
             {NavItems.map((s) => {
               const isOpen = open.has(s.key);
+              // The section on screen now - from the observer; falls back to
+              // the first open one before anything has scrolled.
+              const here = (this.state.InView || stats[0].key) === s.key;
               const label = s.section.Label
                 ? t(s.section.Label)
                 : t("Талбарууд");
               const index = stats.indexOf(s) + 1;
+              const fillLabel =
+                s.fill === "filled"
+                  ? t("Бөглөсөн")
+                  : s.fill === "partial"
+                    ? t("Хэсэгчлэн бөглөсөн")
+                    : t("Бөглөөгүй");
+              const ink = colors.text.sectionHeading;
 
               return (
                 <button
                   key={s.key}
                   type="button"
                   onClick={() => this.ScrollToSection(s.key)}
-                  title={label}
+                  title={
+                    label +
+                    " — " +
+                    fillLabel +
+                    " (" +
+                    s.answered +
+                    "/" +
+                    s.total +
+                    ")"
+                  }
+                  aria-current={here ? "location" : undefined}
                   style={{
                     display: "flex",
                     alignItems: "baseline",
@@ -1163,12 +1510,11 @@ class TenderForm extends BaseCustomForm {
                     cursor: "pointer",
                     borderRadius: 3,
                     border: "1px solid transparent",
-                    background: isOpen
-                      ? colors.background.infoTint
-                      : "transparent",
-                    boxShadow: isOpen
-                      ? "inset 2px 0 0 0 " + colors.text.sectionHeading
-                      : "none",
+                    background:
+                      here || isOpen
+                        ? colors.background.infoTint
+                        : "transparent",
+                    boxShadow: here ? "inset 3px 0 0 0 " + ink : "none",
                     font: "inherit",
                     justifyContent: NavOpen ? "flex-start" : "center",
                   }}
@@ -1185,6 +1531,28 @@ class TenderForm extends BaseCustomForm {
                   >
                     {index}
                   </span>
+                  <span
+                    aria-hidden="true"
+                    style={{
+                      flex: "0 0 auto",
+                      alignSelf: "center",
+                      width: 8,
+                      height: 8,
+                      borderRadius: "50%",
+                      boxSizing: "border-box",
+                      border:
+                        "1.5px solid " +
+                        (s.fill === "empty" ? colors.border.default : ink),
+                      background:
+                        s.fill === "filled"
+                          ? ink
+                          : s.fill === "partial"
+                            ? "linear-gradient(90deg, " +
+                              ink +
+                              " 50%, transparent 50%)"
+                            : "transparent",
+                    }}
+                  />
                   {NavOpen ? (
                     <span
                       style={{
@@ -1192,8 +1560,8 @@ class TenderForm extends BaseCustomForm {
                         minWidth: 0,
                         fontSize: 12,
                         lineHeight: 1.35,
-                        fontWeight: isOpen ? 600 : 400,
-                        color: isOpen
+                        fontWeight: here ? 600 : 400,
+                        color: here
                           ? colors.text.sectionHeading
                           : colors.text.strong,
                         overflow: "hidden",
@@ -1253,6 +1621,7 @@ class TenderForm extends BaseCustomForm {
                   <div
                     ref={(el) => {
                       this._sectionEls[key] = el;
+                      this.ObserveSection(el, key);
                     }}
                     role="button"
                     tabIndex={0}
@@ -1287,7 +1656,24 @@ class TenderForm extends BaseCustomForm {
 
                   {isOpen ? (
                     <div style={{ marginTop: 8 }}>
-                      {this.RenderSectionBody(visible)}
+                      {Confirmed ? (
+                        // A locked record is read, not edited. A disabled
+                        // fieldset disables every control inside it natively,
+                        // whatever its type, while section headers stay usable.
+                        <fieldset
+                          disabled
+                          style={{
+                            border: 0,
+                            margin: 0,
+                            padding: 0,
+                            minWidth: 0,
+                          }}
+                        >
+                          {this.RenderSectionBody(visible)}
+                        </fieldset>
+                      ) : (
+                        this.RenderSectionBody(visible)
+                      )}
                     </div>
                   ) : null}
                 </GroupPanel>
@@ -1317,21 +1703,45 @@ class TenderForm extends BaseCustomForm {
             >
               <span style={{ fontSize: 12, color: colors.text.secondary }}>
                 {Confirmed
-                  ? t("Баталгаажсан")
+                  ? t("Баталгаажсан — засах боломжгүй")
                   : Unsaved > 0
                     ? t("Хадгалагдаагүй өөрчлөлт") + ": " + Unsaved
                     : t("Бүх өөрчлөлт хадгалагдсан")}
               </span>
 
-              <span style={{ marginLeft: "auto" }}>
-                <Button
-                  color="info"
-                  size="sm"
-                  disabled={this.state.Saving === true}
-                  onClick={() => this.Save()}
-                >
-                  {this.state.Saving ? t("Хадгалж байна...") : t("Хадгалах")}
-                </Button>
+              <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
+                {Confirmed ? (
+                  this.state.Config && this.state.Config.AllowDuplicate ? (
+                    <Button
+                      color="info"
+                      size="sm"
+                      onClick={() => this.StartNewFromPrevious()}
+                    >
+                      {t("Шинэ бүртгэл (өмнөхөөс хуулах)")}
+                    </Button>
+                  ) : null
+                ) : (
+                  <>
+                    <Button
+                      color="info"
+                      size="sm"
+                      disabled={this.state.Saving === true}
+                      onClick={() => this.Save()}
+                    >
+                      {this.state.Saving
+                        ? t("Хадгалж байна...")
+                        : t("Хадгалах")}
+                    </Button>
+                    <Button
+                      color="success"
+                      size="sm"
+                      disabled={this.state.Saving === true}
+                      onClick={() => this.CompleteAndSave()}
+                    >
+                      {t("Дуусгаж хадгалах")}
+                    </Button>
+                  </>
+                )}
               </span>
             </div>
           </GridItem>
