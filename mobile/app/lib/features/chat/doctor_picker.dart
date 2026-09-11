@@ -32,6 +32,9 @@ class DoctorPicker extends StatefulWidget {
     required this.onPick,
     this.multiple = false,
     this.selected = const <String>{},
+    this.initialProvince,
+    this.initialSoum,
+    this.initialSearch = '',
   });
 
   /// Мөр дээр дарахад. Олон сонголтын горимд сонголтыг сэлгэнэ.
@@ -41,6 +44,11 @@ class DoctorPicker extends StatefulWidget {
 
   /// Сонгогдсон хүмүүсийн [DirectoryPerson.key] — [multiple] үед тэмдэглэнэ.
   final Set<String> selected;
+
+  /// Эхний шүүлтүүр — нүүр хуудасны "Эмч хайх" картаас ирнэ.
+  final String? initialProvince;
+  final String? initialSoum;
+  final String initialSearch;
 
   @override
   State<DoctorPicker> createState() => _DoctorPickerState();
@@ -76,6 +84,9 @@ class _DoctorPickerState extends State<DoctorPicker> {
   void initState() {
     super.initState();
     _scroll.addListener(_onScroll);
+    _province = widget.initialProvince;
+    _soum = widget.initialProvince == null ? null : widget.initialSoum;
+    _search.text = widget.initialSearch;
     // initState дотор setState дуудах боломжгүй — эхний фреймийн дараа.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -102,7 +113,26 @@ class _DoctorPickerState extends State<DoctorPicker> {
         '${filters.soums.length} soums',
       );
       if (!mounted) return;
-      setState(() => _filters = filters);
+      // Картаас ирсэн аймаг/сум жагсаалтад байхгүй бол (өгөгдөл хооронд нь
+      // өөрчлөгдсөн) dropdown "exactly one item" гэж унахаас сэргийлж
+      // цэвэрлээд дахин хайна.
+      final province = _province;
+      final soum = _soum;
+      final provinceGone = province != null &&
+          !filters.provinces.any((DirectoryPlace p) => p.name == province);
+      final soumGone = !provinceGone &&
+          province != null &&
+          soum != null &&
+          !filters.soumsOf(province).any((DirectoryPlace s) => s.name == soum);
+      setState(() {
+        _filters = filters;
+        if (provinceGone) {
+          _province = null;
+          _soum = null;
+        }
+        if (soumGone) _soum = null;
+      });
+      if (provinceGone || soumGone) unawaited(_reload());
     } catch (e) {
       // Шүүлтүүргүйгээр хайлт ажиллана, гэхдээ алдааг чимээгүй залгихгүй: мөр
       // яагаад харагдахгүй байгааг олох цорын ганц сэжүүр нь энэ.
