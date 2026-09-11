@@ -31,7 +31,9 @@ class ChatMember {
     this.imageSrc,
     this.roleId,
     this.organizationName,
+    this.profession,
     this.isMe = false,
+    this.isActive = true,
   });
 
   final String userType;
@@ -40,17 +42,29 @@ class ChatMember {
   final String? imageSrc;
   final int? roleId;
   final String? organizationName;
+  final String? profession;
   final bool isMe;
 
-  factory ChatMember.fromJson(Map<String, dynamic> json) => ChatMember(
-        userType: J.strOr(json, <String>['UserType'], fallback: 'S'),
-        userId: J.intOf(json, <String>['UserId']) ?? 0,
-        name: J.strOr(json, <String>['Name']),
-        imageSrc: J.str(json, <String>['ImageSrc']),
-        roleId: J.intOf(json, <String>['RoleId']),
-        organizationName: J.str(json, <String>['OrganizationName']),
-        isMe: J.boolOf(json, <String>['IsMe']),
-      );
+  /// `GetChatRoomUsers` хасагдсан гишүүдийг ч буцаадаг (`IsActive = '0'`).
+  final bool isActive;
+
+  String get key => '$userType-$userId';
+
+  factory ChatMember.fromJson(Map<String, dynamic> json) {
+    // `GetChatRoomList`-ийн гишүүдэд `IsActive` байхгүй — тэд бүгд идэвхтэй.
+    final active = json['IsActive'];
+    return ChatMember(
+      userType: J.strOr(json, <String>['UserType'], fallback: 'S'),
+      userId: J.intOf(json, <String>['UserId']) ?? 0,
+      name: J.strOr(json, <String>['Name']),
+      imageSrc: J.str(json, <String>['ImageSrc']),
+      roleId: J.intOf(json, <String>['RoleId']),
+      organizationName: J.str(json, <String>['OrganizationName']),
+      profession: J.str(json, <String>['profession']),
+      isMe: J.boolOf(json, <String>['IsMe']),
+      isActive: active == null || active == true || '$active' == '1',
+    );
+  }
 }
 
 /// Сүүлийн мессежийн товч.
@@ -317,6 +331,7 @@ class DirectoryPerson {
     this.position,
     this.organizationName,
     this.provCityName,
+    this.soumDistName,
     this.imageSrc,
   });
 
@@ -327,12 +342,21 @@ class DirectoryPerson {
   final String? position;
   final String? organizationName;
   final String? provCityName;
+  final String? soumDistName;
   final String? imageSrc;
+
+  /// Хүнийг ялгах түлхүүр — эмч, үйлчлүүлэгчийн ID өөр хүснэгтээс ирдэг тул
+  /// дугаар дангаараа давхцаж болно.
+  String get key => '$userType-$userId';
 
   String get subtitle {
     final parts = <String>[
       if ((profession ?? '').trim().isNotEmpty) profession!.trim(),
       if ((organizationName ?? '').trim().isNotEmpty) organizationName!.trim(),
+      // Вебийн `DoctorPicker`-тэй ижил дараалал: мэргэжил · байгууллага · сум ·
+      // аймаг. Шүүлтүүрээр хайсан хүн тэр газрыг мөрөн дээрээ харах ёстой.
+      if ((soumDistName ?? '').trim().isNotEmpty) soumDistName!.trim(),
+      if ((provCityName ?? '').trim().isNotEmpty) provCityName!.trim(),
     ];
     return parts.join(' · ');
   }
@@ -346,6 +370,64 @@ class DirectoryPerson {
         position: J.str(json, <String>['position']),
         organizationName: J.str(json, <String>['OrganizationName']),
         provCityName: J.str(json, <String>['ProvCityName']),
+        soumDistName: J.str(json, <String>['SoumDistName']),
         imageSrc: J.str(json, <String>['ImageSrc']),
       );
+}
+
+/// Лавлахын нэг хуудас — `SearchUsers`-ийн `Data` ба `Option.Total`.
+class DirectoryPage {
+  const DirectoryPage({required this.people, required this.total});
+
+  final List<DirectoryPerson> people;
+  final int total;
+}
+
+/// Аймаг эсвэл сум, доторх эмчийн тоотой нь — `GetDirectoryFilters`.
+class DirectoryPlace {
+  const DirectoryPlace({
+    required this.name,
+    required this.count,
+    this.provinceName,
+  });
+
+  final String name;
+  final int count;
+
+  /// Зөвхөн сумд. Сумын нэр аймаг хооронд давхцдаг тул аль аймгийнх болохыг
+  /// хадгална.
+  final String? provinceName;
+
+  /// Вебийнх шиг: "Улаанбаатар (646)".
+  String get label => '$name ($count)';
+
+  factory DirectoryPlace.fromJson(Map<String, dynamic> json) => DirectoryPlace(
+        name: J.strOr(json, <String>['Name'], fallback: ''),
+        count: J.intOf(json, <String>['Count']) ?? 0,
+        provinceName: J.str(json, <String>['ProvinceName']),
+      );
+}
+
+/// Лавлахын шүүлтүүрийн жагсаалтууд.
+///
+/// Эмч байгаа газруудаас л бүтдэг (22 аймаг, 342 сумыг бүгдийг биш), тиймээс
+/// сонголт бүр дор хаяж нэг эмч рүү хөтөлнө.
+class DirectoryFilters {
+  const DirectoryFilters({required this.provinces, required this.soums});
+
+  static const DirectoryFilters empty = DirectoryFilters(
+    provinces: <DirectoryPlace>[],
+    soums: <DirectoryPlace>[],
+  );
+
+  final List<DirectoryPlace> provinces;
+  final List<DirectoryPlace> soums;
+
+  /// Үйлчлүүлэгчид сервер хоосон жагсаалт буцаадаг — тэдний лавлах нь өөрийн
+  /// эмчилгээний баг тул улсын хэмжээний шүүлтүүр утгагүй.
+  bool get isEmpty => provinces.isEmpty;
+
+  List<DirectoryPlace> soumsOf(String province) => soums
+      .where((DirectoryPlace s) => s.provinceName == province)
+      .toList(growable: false);
 }

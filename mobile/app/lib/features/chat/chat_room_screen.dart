@@ -12,6 +12,7 @@ import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/state_views.dart';
 import 'chat_composer.dart';
 import 'chat_controller.dart';
+import 'chat_members_screen.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
 import 'chat_socket.dart';
@@ -71,8 +72,26 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
     if (remaining < 400) _controller.loadOlder();
   }
 
+  void _openMembers(ChatRoom room) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(builder: (_) => ChatMembersScreen(room: room)),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Жагсаалтаас хамгийн сүүлийн төлөв — гишүүн нэмэгдэж, хасагдахад
+    // толгой дахь тоо шинэчлэгдэнэ. `select` тул зөвхөн энэ өрөө өөрчлөгдөхөд
+    // л дахин зурна.
+    final room = context.select<ChatRoomsController, ChatRoom>(
+      (ChatRoomsController c) {
+        for (final ChatRoom r in c.rooms) {
+          if (r.chatRoomId == widget.room.chatRoomId) return r;
+        }
+        return widget.room;
+      },
+    );
+
     return ChangeNotifierProvider<ChatConversationController>.value(
       value: _controller,
       child: Scaffold(
@@ -80,10 +99,23 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
           title: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Text(widget.room.displayName),
+              Text(room.displayName),
+              // Вебийнх шиг: бүлгийн нэрний доор гишүүдийн тоо.
+              if (room.isGroup)
+                Text(
+                  '${room.members.length} гишүүн',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
               const _ConnectionSubtitle(),
             ],
           ),
+          actions: <Widget>[
+            IconButton(
+              tooltip: 'Гишүүд',
+              icon: const Icon(Icons.group_outlined),
+              onPressed: () => _openMembers(room),
+            ),
+          ],
         ),
         body: Column(
           children: <Widget>[

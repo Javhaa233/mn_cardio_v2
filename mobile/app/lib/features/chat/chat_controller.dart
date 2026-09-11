@@ -93,18 +93,26 @@ class ChatRoomsController extends ChangeNotifier {
     _emit(AsyncState<List<ChatRoom>>.ready(next));
   }
 
-  /// Эмчтэй шинэ яриа эхлүүлэх. Өрөөний дугаарыг буцаана.
-  Future<int?> startChat(DirectoryPerson person) async {
-    try {
-      final roomId = await _repo.startChat(
-        userType: person.userType,
-        userId: person.userId,
-      );
-      if (roomId != 0) await load(refresh: true);
-      return roomId == 0 ? null : roomId;
-    } on ApiException {
-      return null;
-    }
+  /// Эмчтэй 1:1 яриа эхлүүлэх. Давхар дуудахад шинэ өрөө үүсгэхгүй.
+  ///
+  /// Алдааг залгихгүй: серверийн мессежийг ("Хандах эрхгүй байна" гэх мэт)
+  /// дэлгэц харуулна. Өмнө нь `null` буцааж, дарсан ч юу ч болохгүй байв.
+  Future<int> startChat(DirectoryPerson person) async {
+    final roomId = await _repo.startChat(
+      userType: person.userType,
+      userId: person.userId,
+    );
+    if (roomId == 0) throw ApiException('Чат үүсгэж чадсангүй.');
+    await load(refresh: true);
+    return roomId;
+  }
+
+  /// Бүлгийн чат үүсгэх — зөвхөн эмч (серверийн бодлого).
+  Future<int> createGroup(String name, List<DirectoryPerson> members) async {
+    final roomId = await _repo.createGroupRoom(name: name, members: members);
+    if (roomId == 0) throw ApiException('Бүлэг үүсгэж чадсангүй.');
+    await load(refresh: true);
+    return roomId;
   }
 
   void _emit(AsyncState<List<ChatRoom>> next) {
