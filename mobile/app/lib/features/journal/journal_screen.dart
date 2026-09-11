@@ -55,6 +55,10 @@ class _JournalScreenState extends State<JournalScreen>
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
+        // Доод цэсний табууд IndexedStack дотор нэг route-д хамт амьдардаг.
+        // Анхдагч hero tag-тай хоёр FAB тэнд мөргөлдөж, шилжилт бүрт
+        // "multiple heroes share the same tag" алдаа шиднэ.
+        heroTag: null,
         onPressed: _openForm,
         icon: const Icon(Icons.add_rounded),
         label: const Text('Нэмэх'),

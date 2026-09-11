@@ -37,6 +37,10 @@ class _DoctorMonitoringScreenState extends State<DoctorMonitoringScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('Миний хяналт')),
       floatingActionButton: FloatingActionButton.extended(
+        // Доод цэсний табууд IndexedStack дотор нэг route-д хамт амьдардаг.
+        // Анхдагч hero tag-тай хоёр FAB тэнд мөргөлдөж, шилжилт бүрт
+        // "multiple heroes share the same tag" алдаа шиднэ.
+        heroTag: null,
         onPressed: _addPatient,
         icon: const Icon(Icons.person_add_alt_rounded),
         label: const Text('Хяналтад авах'),
