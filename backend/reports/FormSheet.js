@@ -117,9 +117,16 @@ function FindChecklistFamily(Fields, Forced) {
   const Minimum = Forced === 'checklist' ? 1 : 3;
   if (Candidates.length < Minimum) return null;
 
+  // An option is its CODE and its LABEL together. Codes alone are not enough:
+  // the generated tender forms number every option set o1, o2, o3..., so on 3.1
+  // a Y/N/? question counted as a subset of "Non-smoker / current smoker /
+  // former smoker / ?" and printed under those headings. Two option sets belong
+  // together only when their shared codes also mean the same thing.
   const Families = [];
   Candidates.forEach((Field) => {
-    const Values = (Field.Data || []).map((o) => o.Value + '');
+    const Values = (Field.Data || []).map(
+      (o) => o.Value + ' | ' + String(o.Label == null ? '' : o.Label).trim().toLowerCase()
+    );
     const Family = Families.find(
       (fam) => IsSubset(Values, fam.Values) || IsSubset(fam.Values, Values)
     );

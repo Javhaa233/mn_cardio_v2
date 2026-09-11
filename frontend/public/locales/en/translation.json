@@ -1695,5 +1695,6 @@
   "Энэ маягтын талбарууд хараахан тодорхойлогдоогүй байна": "This form's fields have not been defined yet",
   "Бөглөсөн": "Filled",
   "Хэсэгчлэн бөглөсөн": "Partly filled",
-  "Бөглөөгүй": "Not filled"
+  "Бөглөөгүй": "Not filled",
+  "Шинэ бүртгэл": "New record"
 }

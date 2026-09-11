@@ -749,10 +749,16 @@ export default function BaseGrid(props) {
     // Helper to add actions column
     const addActionsColumn = () => {
       if (Array.isArray(RowActions) && RowActions.length > 0) {
+        // Without a configured width, size the column to its buttons: a fixed
+        // 80px fitted two, and the tender-form lists carry four (edit, print,
+        // lock, delete), so edit and delete were cut off.
         const actionsConfig =
           widths && widths[widthIndex]
             ? widths[widthIndex]
-            : { width: 80, align: "center" };
+            : {
+                width: Math.max(80, RowActions.length * 36 + 16),
+                align: "center",
+              };
         if (widths) widthIndex++;
 
         cols.push({

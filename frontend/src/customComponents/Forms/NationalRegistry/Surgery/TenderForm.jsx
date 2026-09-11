@@ -1012,6 +1012,8 @@ class TenderForm extends BaseCustomForm {
     this._invalid = new Set();
     this.setState({ DataId: null, EditObject: {}, Duplicated: false }, () => {
       this.Prefill(this._patientRow);
+      // only repeatable procedures (AllowDuplicate, 3.1) offer the copy
+      if (!(this.state.Config && this.state.Config.AllowDuplicate)) return;
       Helper.BaseCrudHelper.CallService(
         "/TenderForm/GetPrevious",
         { FormCode: FormNo, PatRegNo: PatientRegNo },
@@ -1711,15 +1713,18 @@ class TenderForm extends BaseCustomForm {
 
               <span style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
                 {Confirmed ? (
-                  this.state.Config && this.state.Config.AllowDuplicate ? (
-                    <Button
-                      color="info"
-                      size="sm"
-                      onClick={() => this.StartNewFromPrevious()}
-                    >
-                      {t("Шинэ бүртгэл (өмнөхөөс хуулах)")}
-                    </Button>
-                  ) : null
+                  // Every form: a locked record is never a dead end. A
+                  // repeat operation (a second 1.1 or 1.2) starts a new
+                  // record; only 3.1 also offers to copy the previous one.
+                  <Button
+                    color="info"
+                    size="sm"
+                    onClick={() => this.StartNewFromPrevious()}
+                  >
+                    {this.state.Config && this.state.Config.AllowDuplicate
+                      ? t("Шинэ бүртгэл (өмнөхөөс хуулах)")
+                      : t("Шинэ бүртгэл")}
+                  </Button>
                 ) : (
                   <>
                     <Button
