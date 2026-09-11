@@ -14,6 +14,8 @@ const c = require('./controller');
  *   30 Миний зөвлөгөө      -> /advice
  *   31 Миний тайлан        -> /reports/summary
  *   32 Үйлчлүүлэгчийн модуль харах -> /patients
+ *   2.3 Эмчээс асуух асуулт, answered by the doctor
+ *                          -> /monitoring/:patientId/questions
  *
  * Same conventions as api/patient, because the client inherits them:
  *   - real HTTP verbs and real status codes, not POST-for-everything
@@ -48,6 +50,8 @@ router.get('/monitoring', gate, c.listMonitoring);
 router.post('/monitoring', gate, c.addMonitoring);
 router.delete('/monitoring/:patientId', gate, c.removeMonitoring);
 router.get('/monitoring/:patientId/journal', gate, c.getMonitoringJournal);
+router.get('/monitoring/:patientId/questions', gate, c.listPatientQuestions);
+router.post('/monitoring/:patientId/questions', gate, c.replyPatientQuestion);
 
 // 30 Миний зөвлөгөө
 router.get('/advice', gate, c.listAdvice);

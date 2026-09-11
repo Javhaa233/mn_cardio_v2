@@ -130,7 +130,8 @@ exports.createJournal = async (req, res) => {
       inr: inr || null,
       comment: comment || null,
       date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 'A',
+      // int NOT NULL; 9 is the live value every other writer uses (2 = deleted).
+      rec_status: 9,
     });
 
     return ok(res, { id_data: created.id_data });
@@ -230,7 +231,7 @@ exports.createQuestion = async (req, res) => {
       comment,
       is_doctor: '0',
       date_creation: ObjectHelper.getDateYMDHMS(),
-      rec_status: 'A',
+      rec_status: 9,
     });
 
     return ok(res, { id_data: created.id_data });

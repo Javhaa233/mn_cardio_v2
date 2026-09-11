@@ -483,6 +483,99 @@ exports.getMonitoringJournal = async (req, res) => {
   }
 };
 
+/* ------------------------- 2.3 patient questions, from the doctor's side */
+
+const IsMonitored = (D, PatientId) =>
+  Models.PatientMonitoringDoctor.findOne({
+    where: { patient_id: PatientId, user_id: D.UserId, is_active: '1' },
+    attributes: ['id_data'],
+    raw: true,
+  });
+
+/**
+ * The question thread of a patient this doctor monitors. The web answers the
+ * same VisitComments rows through MonitorQuestion.jsx; this is the mobile
+ * doctor's way in. Scoped like getMonitoringJournal, and shaped exactly like
+ * the patient's own GET /api/patient/questions so the client reuses one model.
+ */
+exports.listPatientQuestions = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.patientId);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+    if (!(await IsMonitored(D, PatientId))) {
+      return fail(res, 'NOT_MONITORED', 'Таны хяналтад байхгүй байна', 403);
+    }
+
+    const { limit, offset } = readPaging(req);
+    const { rows, count } = await Models.VisitComments.findAndCountAll({
+      where: { patient_id: PatientId, rec_status: { [Op.ne]: 2 } },
+      attributes: ['id_data', 'comment', 'is_doctor', 'date_creation'],
+      include: [
+        {
+          model: Models.DoctorsProfile,
+          as: 'DoctorsProfile',
+          attributes: ['id_data', 'firstname', 'lastname'],
+          required: false,
+        },
+      ],
+      order: [['id_data', 'DESC']],
+      limit,
+      offset,
+      subQuery: false,
+    });
+
+    const data = rows.map((r) => {
+      const row = r.toJSON();
+      return {
+        id_data: row.id_data,
+        comment: row.comment,
+        is_doctor: row.is_doctor,
+        date_creation: row.date_creation,
+        doctor_name: row.DoctorsProfile
+          ? [row.DoctorsProfile.lastname, row.DoctorsProfile.firstname].filter(Boolean).join(' ')
+          : null,
+      };
+    });
+
+    return ok(res, data, { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listPatientQuestions');
+  }
+};
+
+/**
+ * A doctor's answer. The same columns the web writes (MonitorQuestion.jsx),
+ * with the author taken from the token rather than the body.
+ */
+exports.replyPatientQuestion = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.patientId);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const comment = String(req.body.comment || '').trim();
+    if (!comment) return fail(res, 'COMMENT_REQUIRED', 'Хариултаа бичнэ үү');
+
+    if (!(await IsMonitored(D, PatientId))) {
+      return fail(res, 'NOT_MONITORED', 'Таны хяналтад байхгүй байна', 403);
+    }
+
+    const created = await Models.VisitComments.create({
+      user_id: D.UserId,
+      patient_id: PatientId,
+      comment,
+      is_doctor: 1,
+      date_creation: ObjectHelper.getDateYMDHMS(),
+      rec_status: 9,
+    });
+
+    return ok(res, { id_data: created.id_data });
+  } catch (ex) {
+    return serverError(res, ex, 'replyPatientQuestion');
+  }
+};
+
 /* ------------------------------------- 30 Миний зөвлөгөө (my advice) */
 
 /**

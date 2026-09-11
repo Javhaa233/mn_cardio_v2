@@ -9,14 +9,18 @@ import BaseNoData from "customComponents/BaseNoData";
 import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
 
 import Helper from "helper";
+import { useChatContext } from "customComponents/Chat/ChatContext";
 
 export default function MonitorQuestion(props) {
   const { t } = useTranslation();
-  const { Patient, PatientId = null } = props;
+  const { Patient, PatientId = null, onChatOpened = null } = props;
 
   const [Loading, setLoading] = useState(false);
   const [Comments, setComments] = useState([]);
   const [CommentBody, setCommentBody] = useState("");
+  const [Alert, setAlert] = useState(null);
+  // Null when rendered in a layout with no chat dock.
+  const chat = useChatContext();
 
   const listRef = useRef(null);
 
@@ -75,6 +79,45 @@ export default function MonitorQuestion(props) {
     );
   };
 
+  /**
+   * Open a direct chat with this patient. Until this button, a doctor-patient
+   * room could only ever be opened by the patient. StartChat is idempotent - it
+   * returns the existing room or makes one - and staff may reach any patient
+   * (ChatController.CanReach), so the realistic failure is a missing patient.
+   */
+  const StartChat = () => {
+    if (!PatientId) return;
+    const Target = { UserId: PatientId, UserType: "P" };
+
+    if (chat) {
+      chat.StartChat(Target, (ok, _roomId, message) => {
+        if (!ok) {
+          setAlert(
+            Helper.BaseCrudHelper.ShowAlert(
+              message || t("Алдаа гарлаа"),
+              false,
+              () => setAlert(null),
+            ),
+          );
+          return;
+        }
+        if (onChatOpened) onChatOpened();
+      });
+      return;
+    }
+
+    // No dock in this layout - still create the room, and say so.
+    Helper.ChatHelper.StartChat(Target, (resData) => {
+      setAlert(
+        Helper.BaseCrudHelper.ShowAlert(
+          (resData && resData.Message) || t("Алдаа гарлаа"),
+          !!(resData && resData.Success),
+          () => setAlert(null),
+        ),
+      );
+    });
+  };
+
   const MessageBubble = ({ isDoctor, text, author, date }) => (
     <ListItem
       disableGutters
@@ -117,6 +160,18 @@ export default function MonitorQuestion(props) {
 
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      {Alert}
+      <Box sx={{ display: "flex", justifyContent: "flex-end", pb: 1 }}>
+        <Button
+          color="info"
+          size="sm"
+          onClick={StartChat}
+          disabled={!PatientId}
+          style={{ boxShadow: "none" }}
+        >
+          {t("Чатаар бичих")}
+        </Button>
+      </Box>
       {/* Chat Body */}
       <Box
         ref={listRef}
