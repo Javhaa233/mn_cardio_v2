@@ -76,16 +76,30 @@ have to change shape. Both paths re-read the user, so a deactivated account stop
 rotating `JWT_PASS` and logging everyone out. A real implementation needs a table, and
 therefore DDL — see §3. `LogOut` remains a stub until then.
 
-### 2.3 Patients cannot read notifications at all
+### 2.3 Patients cannot read notifications at all — **fixed 2026-09-14**
 
-Tracker row 48. `Notification` is absent from `PatientScope.SCOPE_BY_OBJECT`, so every
-patient request is denied `ObjectNotAllowedForPatient` — even though `/Notification` **is** in
-`PATIENT_ALLOWED_PREFIXES`, so the prefix is open and every row is refused. There is also no
-mark-read route despite `Seen` / `SeenDate` columns existing, and the only producer of
-notifications in the entire backend is the Advice flow.
+`GET /api/patient/notifications`, an unread count, mark-one-read and mark-all-read all exist,
+plus push registration on both surfaces. Two bugs were causing this, and the second is worth
+knowing before touching `NotificationHelper`:
 
-Needs: a scope entry, a `GetMyNotifications` + `MarkRead` pair, and producers for the events
-patients actually care about.
+- the guard read `Data.ToUserId`, the **staff** recipient, so anything addressed to a patient
+  fell through and returned undefined without a log line;
+- it wrote through `BaseControllerHelper.BaseCreate`, whose first act is
+  `PatientScope.ApplyPatientOwnership`. During a **patient's** session that refused the write
+  outright. Adding a `SCOPE_BY_OBJECT` entry does not fix it — that function assigns
+  `Data[ToPatientId]` from the session, so a notification a patient's action generates *for a
+  doctor* would be re-addressed to the patient. Producers now use
+  `Models.Notification.create` directly; the scope entry is **read-side only**.
+
+The recipient column is `ToPatientId` holding `Patient.id_data`, **not** `ToPatientUserId`:
+`Users.Id` and `PatientUsers.Id` collide, and the ДАН path produces no `PatientUsers` row at
+all, so that column would be permanently null for the login method the tender is moving to.
+
+Measured, not assumed: `Seen` holds `'1'` or NULL, and nothing in this repo writes it — the
+nightly `EXEC spUpdateNotification` does. The API exposes it as a boolean.
+
+Producers wired: a doctor answering a question, and an e-visit slot being confirmed. More
+events can be added by calling `NotificationHelper.NotifyPatient`.
 
 ### 2.4 No media delivery path — blocks the 39 videos
 

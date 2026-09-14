@@ -429,6 +429,64 @@ Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 the file layer serves `POST` + `Content-Disposition: attachment`, which no video player can
 stream. That endpoint has to be built.
 
+### 2.8 Мэдэгдэл — notifications
+
+**New 2026-09-14.** Patients were previously denied every notification row.
+
+```
+GET  /api/patient/notifications              ?limit &offset &unread=1
+GET  /api/patient/notifications/unread-count
+POST /api/patient/notifications/:id/read
+POST /api/patient/notifications/read-all
+```
+
+```json
+{ "Id": 137960, "NotesMn": "Эмч таны асуултад хариулсан байна",
+  "Notes": "Doctor replied to your question", "Action": "ReplyQuestion",
+  "LinkObjectName": "VisitComments", "LinkObjectId": 138,
+  "Url": null, "Seen": false, "SeenDate": null, "CreateDate": "..." }
+```
+
+`NotesMn` is what you show the patient; `Notes` is an English developer label and is not for
+display. `Seen` is a **boolean** here even though the column underneath is a string — the app
+never has to know that. `LinkObjectName` + `LinkObjectId` are the deep link: route
+`VisitComments` to the questions thread, `RemoteVisit` to the e-visit, `Advice` to the advice
+item.
+
+Marking a notification you do not own returns `404`, the same as one that does not exist.
+
+**Producers wired today:** a doctor answering a question (`ReplyQuestion`), and an e-visit
+slot being confirmed (`EvisitScheduled`). More will follow; branch on `Action` and fall back
+to showing `NotesMn` for anything you do not recognise.
+
+### 2.9 Push registration
+
+```
+POST /api/patient/devices             { "token": "...", "platform": "android|ios|web",
+                                        "device_id": "...", "app_version": "...", "locale": "mn" }
+POST /api/patient/devices/unregister  { "token": "..." }
+GET  /api/patient/devices
+```
+
+The doctor app has the identical three under `/api/doctor/devices`.
+
+> **This works right now, with no Firebase project and no Apple key.** With nothing
+> configured the server runs a log driver that records what it would have sent and reports
+> success — so build and test your whole registration and logout flow today. Nothing about
+> your client changes when ЗСҮТ supply credentials; a device simply starts buzzing.
+
+> **Register on every launch, not only on first install.** FCM and APNs both rotate tokens.
+> Re-sending a token you already registered is an upsert, not a duplicate — and if the token
+> is known under a different account it is **moved** to yours, which is what stops a shared
+> device from delivering the previous user's clinical notifications to you.
+
+**Unregister on logout**, passing the token. It is `POST .../unregister` rather than `DELETE
+/devices/:token` on purpose: an FCM token runs ~163 characters and contains `:` and `-`,
+which is fragile in a path segment and ends up in access logs.
+
+`GET /devices` never returns the token itself, deliberately — a push token lets its holder
+send a notification that appears to come from MnCardio.
+
 ---
 
 ## 4. `/api/doctor/*` — the doctor module
