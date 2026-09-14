@@ -654,7 +654,10 @@ exports.listExercises = async (req, res) => {
     const data = rows.map((r) =>
       Object.assign({}, r, {
         CategoryLabel: labels.get(String(r.CategoryCode)) || null,
-        media: MediaRef.Parse(r.MediaRef),
+        // Describe, not Parse: for a file-hosted video this fills in the
+        // streaming route so the client never constructs a path. A url:
+        // entry keeps its own address and an asset: entry stays null.
+        media: MediaRef.Describe(r.MediaRef, '/api/Media/exercise/' + r.Id),
       })
     );
 

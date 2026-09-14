@@ -70,19 +70,19 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 |---|---|---|---|---|
 | `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:46` |  |
 | `POST` | `/api/Test/RegexTest` | public | `TestController.js:47` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:39` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:40` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:41` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:42` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:43` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:44` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:45` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:46` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:47` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:48` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:49` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:50` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:51` | The same export as tab-separated text. |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:34` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:35` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:36` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:37` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:38` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:39` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:40` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:41` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:42` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:43` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:44` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:45` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:46` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
@@ -542,8 +542,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:430` |
-| `GET` | `/health` | public | `server.js:434` |
+| `GET` | `/` | public | `server.js:449` |
+| `GET` | `/health` | public | `server.js:453` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
@@ -587,6 +587,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `controllers/system/BaseControllerNew.js` | 10 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
 | `controllers/system/BaseCustomController.js` | 0 | Маршрутгүй туслах файл. |
 | `controllers/system/ExportExcelOld.js` | 0 | Маршрутгүй туслах файл. |
+| `controllers/system/MediaController.js` | 2 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
 
 ---
 

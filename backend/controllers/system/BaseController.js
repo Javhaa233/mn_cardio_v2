@@ -11,13 +11,8 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const BaseHelper = require('../../helper/BaseHelper');
 const ImageHelper = require('../../helper/ImageHelper');
-const Flags = require('../../helper/FeatureFlags');
-// Chat attachments ride this generic upload endpoint rather than getting a
-// table of their own; MayAttachTo needs both to authorize them.
-const ChatIdentity = require('../../helper/ChatIdentity');
-const ChatHelper = require('../../helper/ChatHelper');
-const PatientScope = require('../../helper/PatientScope');
-const AdviceScopeHelper = require('../../helper/AdviceScopeHelper');
+// Flags, ChatIdentity, ChatHelper, PatientScope and AdviceScopeHelper moved to
+// helper/FileAccessHelper.js with the two functions that used them.
 const { CheckContact } = require('../../helper/ContactValidation');
 
 // Email/phone rules for the account objects that pass through this generic
@@ -311,6 +306,30 @@ const MAX_UPLOAD_CEILING = MAX_UPLOAD_BYTES_CHAT;
 const UploadCapFor = (LinkedObjectName) =>
   LinkedObjectName === 'ChatMessages' ? MAX_UPLOAD_BYTES_CHAT : MAX_UPLOAD_BYTES;
 
+/**
+ * Video, allowed for the rehabilitation catalogue and NOWHERE ELSE.
+ *
+ * ALLOWED_UPLOAD_EXT below is shared by all eight models this endpoint serves,
+ * and its own comment says widening it widens uploads app-wide - which is why
+ * this is per-object, the same way UploadCapFor makes the size cap per-object,
+ * rather than six more entries on the global list.
+ *
+ * NOTE: MAX_UPLOAD_CEILING is deliberately NOT raised for this. formidable
+ * fixes maxFileSize before LinkedObjectInfo has been parsed, so a bigger
+ * ceiling would mean EVERY upload is read that far before the per-object cap
+ * can reject it - a denial-of-service regression against the current 10 MB
+ * default, in exchange for videos this endpoint will probably never carry.
+ * The 39 exercise videos are far more likely to arrive by URL or bundled in
+ * the app (helper/MediaRef.js), and if they do come through here, 50 MB of
+ * short instructional clip is enough.
+ */
+const ALLOWED_UPLOAD_EXT_VIDEO = ['mp4', 'm4v', 'mov', 'webm'];
+
+const AllowedExtFor = (LinkedObjectName) =>
+  LinkedObjectName === 'RehabExercise'
+    ? ALLOWED_UPLOAD_EXT.concat(ALLOWED_UPLOAD_EXT_VIDEO)
+    : ALLOWED_UPLOAD_EXT;
+
 // Extensions this endpoint will store. Everything else is rejected outright.
 // There was no check at all before, so a .exe renamed .jpg was stored and
 // served straight back to the next viewer.
@@ -345,185 +364,11 @@ const ALLOWED_UPLOAD_EXT = [
   'webm',
 ];
 
-/**
- * May this user attach to / replace the files of this object?
- *
- * The endpoint is generic and shared by 8 models, so this deliberately gates
- * only what it can check with certainty and leaves everything else at the
- * previous behaviour. Widening it is a separate, per-model decision - silently
- * denying an existing clinical file flow would be worse than the hole it closes.
- */
-async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser }) {
-  // ABOVE the admin short-circuit on purpose: an administrator is not a chat
-  // participant, and must not be able to plant a file on someone else's
-  // conversation. This is also the specific closure of the `return true`
-  // fallthrough at the bottom of this function for chat - without it,
-  // LinkedObjectName 'ChatMessages' would have been permitted with no check at
-  // all.
-  if (LinkedObjectName === 'ChatMessages') {
-    const Message = await Models.ChatMessages.findByPk(LinkedObjectId, {
-      attributes: ['Id', 'ChatRoomId', 'UserId', 'UserType', 'Status'],
-      raw: true,
-    });
-    if (!Message) return false;
-
-    const Me = ChatIdentity.Me(LogedUser);
-    if (!Me) return false;
-
-    // Author only.
-    if (!ChatIdentity.Same(Me, { UserType: Message.UserType, UserId: Message.UserId })) {
-      return false;
-    }
-    // Files may only be bolted onto a message that is still pending delivery -
-    // never onto one recipients have already seen.
-    if (Message.Status !== 'P') return false;
-
-    // ...and you must still be in the room.
-    return !!(await ChatHelper.IsMember(Me, Message.ChatRoomId));
-  }
-
-  if (String(LogedUser.RoleId) === '1') return true;
-
-  if (LinkedObjectName === 'Advice') {
-    const Advice = await Models.Advice.findOne({
-      where: { id_data: LinkedObjectId },
-      attributes: ['id_data', 'id'],
-      raw: true,
-    });
-    // Unknown id: refuse rather than let it create orphan File rows.
-    if (!Advice) return false;
-    return String(Advice.id) === String(LogedUser.Id);
-  }
-
-  if (LinkedObjectName === 'AdviceComment') {
-    const Comment = await Models.AdviceComment.findOne({
-      where: { id_data: LinkedObjectId },
-      attributes: ['id_data', 'id'],
-      raw: true,
-    });
-    if (!Comment) return false;
-    return String(Comment.id) === String(LogedUser.Id);
-  }
-
-  // THE PERMISSIVE DEFAULT, and the last real gap in this file.
-  //
-  // Everything not named above is allowed for staff. Patients are still covered
-  // downstream - MayDownload applies PatientScope separately - so the exposure
-  // is staff-to-staff across the clinical models this endpoint serves.
-  //
-  // It is NOT closed yet, on purpose. This endpoint is shared by eight models,
-  // those models are not enumerated anywhere in the code, and they do not share
-  // an ownership column, so there is no generic check to apply. Guessing an
-  // allowlist here would silently deny an existing clinical attachment flow,
-  // which this function's own header correctly calls the worse outcome.
-  //
-  // So: measure first. FILE_ATTACH_STRICT defaults to 'warn', which logs every
-  // object name that reaches this line and denies nothing. After a period of
-  // real traffic the log names the objects actually in use, the allowlist can
-  // be written from evidence rather than guesswork, and 'enforce' becomes safe.
-  if (Flags.FileAttachStrict !== 'off') {
-    // console.error so it survives the production console.log override.
-    console.error(
-      '[MayAttachTo] permissive default hit - object=' +
-        String(LinkedObjectName) +
-        ' id=' +
-        String(LinkedObjectId) +
-        ' user=' +
-        String(LogedUser.Id) +
-        ' role=' +
-        String(LogedUser.RoleId) +
-        (Flags.FileAttachStrict === 'enforce' ? ' -> DENIED' : ' -> allowed (warn mode)')
-    );
-  }
-
-  if (Flags.FileAttachStrict === 'enforce') return false;
-
-  return true;
-}
-
-/**
- * Whether LogedUser may read the file the client is asking for.
- *
- * downloadFile used to pass the client-supplied FileInfo straight to
- * BaseDownloadFile, which only resolves a path on disk. Nothing tied the
- * handle back to a record, so any authenticated session could name any
- * generated_name and fetch it - proven by a patient token downloading a file
- * attached to a doctor's record.
- *
- * So: resolve the handle to its File row first, then authorize the record it
- * hangs off. Returns the stored row (never the client's copy) or null.
- */
-async function MayDownload({ FileInfo, LogedUser }) {
-  if (!FileInfo || !FileInfo.generated_name) return null;
-
-  const Stored = await Models.File.findOne({
-    where: { generated_name: FileInfo.generated_name },
-    attributes: [
-      'id_data',
-      'LinkedObjectName',
-      'LinkedObjectId',
-      'FieldName',
-      'ext',
-      'generated_name',
-      'original_name',
-      'rec_status',
-    ],
-    raw: true,
-  });
-
-  // No row, or soft-deleted: the handle is not a live attachment.
-  if (!Stored || String(Stored.rec_status) === '2') return null;
-
-  const LinkedObjectName = Stored.LinkedObjectName;
-  const LinkedObjectId = Stored.LinkedObjectId;
-  if (!LinkedObjectName || !LinkedObjectId) return null;
-
-  /*
-   * Асуумж attachments follow the rule for READING the ticket, not the rule
-   * for attaching to it. MayAttachTo is author-or-admin, which is right for a
-   * write and wrong for a read: the feed is a consult board where doctors open
-   * each other's tickets to look at the films on them, so the attach rule would
-   * have 403'd every colleague. AdviceScopeHelper owns that rule, patients
-   * included, so it returns here rather than falling through to the generic
-   * patient check below.
-   */
-  if (LinkedObjectName === 'Advice' || LinkedObjectName === 'AdviceComment') {
-    const MayRead = await AdviceScopeHelper.MayReadAdviceAttachment({
-      LinkedObjectName,
-      LinkedObjectId,
-      LogedUser,
-    });
-    return MayRead ? Stored : null;
-  }
-
-  // Same rule that governs attaching a file to this record.
-  const Allowed = await MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser });
-  if (!Allowed) return null;
-
-  // MayAttachTo ends in `return true` for object types it does not name, which
-  // is the right default for staff but not for patients - it is what let a
-  // patient token through to a doctor's attachment. Patients get the explicit
-  // scope check as well.
-  if (PatientScope.IsPatient(LogedUser)) {
-    const scope = PatientScope.SCOPE_BY_OBJECT[LinkedObjectName];
-    if (!scope) return null;
-
-    const Owner = LogedUser[scope.From];
-    if (Owner === undefined || Owner === null || Owner === '') return null;
-
-    const ModelConfig = await BaseControllerHelper.GetConfigData(LinkedObjectName);
-    if (!ModelConfig || !ModelConfig.Model) return null;
-
-    const Row = await ModelConfig.Model.findOne({
-      where: { [ModelConfig.PK]: LinkedObjectId },
-      attributes: [ModelConfig.PK, scope.Field],
-      raw: true,
-    });
-    if (!Row || String(Row[scope.Field]) !== String(Owner)) return null;
-  }
-
-  return Stored;
-}
+// MayAttachTo and MayDownload moved to helper/FileAccessHelper.js on
+// 2026-09-14, unchanged. MediaController streams the same files and must ask
+// the same question; a second copy of an authorization rule is how the two
+// drift until one is wrong. Same reason AdviceScopeHelper and CareTeam exist.
+const { MayAttachTo, MayDownload } = require('../../helper/FileAccessHelper');
 
 async function uploadFile(req, res) {
   try {
@@ -605,7 +450,7 @@ async function uploadFile(req, res) {
                     const FileNameOriginal = NewFile.originalFilename || NewFile.name;
                     const FileType = ImageHelper.getType(FileNameOriginal);
 
-                    if (ALLOWED_UPLOAD_EXT.indexOf(String(FileType).toLowerCase()) === -1) {
+                    if (AllowedExtFor(LinkedObjectName).indexOf(String(FileType).toLowerCase()) === -1) {
                       console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
                       Rejected.push({
                         Name: FileNameOriginal,

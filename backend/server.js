@@ -121,6 +121,7 @@ const controllers = {
     BaseController: require('./controllers/system/BaseController'),
     CustomDataApiController: require('./controllers/system/CustomDataApiController'),
     TestController: require('./controllers/system/TestController'),
+    MediaController: require('./controllers/system/MediaController'),
   },
   auth: {
     UserController: require('./controllers/auth/UserController'),
@@ -418,6 +419,24 @@ console.log('✓ Registered route: /api/doctor (protected, staff only)');
 // handlers verify strictly for themselves.
 app.use('/api/auth', require('./api/auth'));
 console.log('✓ Registered route: /api/auth (self-authenticating)');
+
+/*
+ * Streaming media. Mounted HERE rather than in routeGroups.protected, and the
+ * reason is the envelope, not the routing.
+ *
+ * The legacy table answers an auth failure with HTTP 200 and
+ * { Success:false, AuthError:true } - by design, and the web client depends on
+ * it. A VIDEO PLAYER does not: it would receive 200, read Content-Type
+ * application/json, and try to decode a JSON error as video. Measured, not
+ * assumed - an unauthenticated GET through the legacy gate returns exactly that.
+ *
+ * VerifyTokenJson turns the same failure into a real 401, which a player
+ * handles. No PATIENT_ALLOWED_PREFIXES entry is needed either: that list only
+ * governs the legacy table, and every route here resolves its file through
+ * FileAccessHelper.MayDownload, which applies the patient scope itself.
+ */
+app.use('/api/Media', require('./helper/VerifyTokenJson'), controllers.system.MediaController);
+console.log('✓ Registered route: /api/Media (streaming, json envelope)');
 
 registerRoutes(routeGroups.public);
 registerRoutes(routeGroups.protected, true);
