@@ -436,6 +436,18 @@ console.log('✓ Registered route: /api/auth (self-authenticating)');
  * FileAccessHelper.MayDownload, which applies the patient scope itself.
  */
 app.use('/api/Media', require('./helper/VerifyTokenJson'), controllers.system.MediaController);
+
+/*
+ * FHIR R4 read-only projection (tracker 19, 20). Its own mount because the
+ * response envelope is FHIR's - resources and OperationOutcome - and must not
+ * be wrapped in either of this system's two house envelopes.
+ *
+ * Gated inside api/fhir/index.js and behind FEATURE_FHIR_EXPORT, default off:
+ * the scope of FHIR compliance is still an open customer decision, and turning
+ * it on publishes an interface somebody will integrate against.
+ */
+app.use('/api/fhir', require('./api/fhir'));
+console.log('✓ Registered route: /api/fhir (read-only projection)');
 console.log('✓ Registered route: /api/Media (streaming, json envelope)');
 
 registerRoutes(routeGroups.public);

@@ -562,6 +562,7 @@ const PATIENT_ALLOWED_DICOS = [
   'rehab_phase',
   'patient_reminder_type',
   'patient_reminder_freq',
+  'consent_purpose',
 ];
 
 exports.listOptions = async (req, res) => {

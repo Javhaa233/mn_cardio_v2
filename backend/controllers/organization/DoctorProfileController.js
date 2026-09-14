@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 
-const { Models } = require('../../config/DB');
+const { Models, Op } = require('../../config/DB');
 
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const ObjectHelper = require('../../helper/ObjectHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const { PasswordRegex } = require('../../helper/PasswordPolicy');
 const { CheckContact } = require('../../helper/ContactValidation');
@@ -16,6 +17,12 @@ router.post('/GetDoctorsProfileInfo', GetDoctorsProfileInfo);
 router.post('/CustomCreate', CustomCreate);
 router.post('/CustomUpdate', CustomUpdate);
 router.post('/ChangePassword', ChangePassword);
+
+// Practice licence codes (tracker 13). Without these nothing could SET a code,
+// so enabling enforcement would lock everybody out with no way back in.
+router.post('/SetLicense', SetLicense);
+router.post('/GetLicenseStatus', GetLicenseStatus);
+router.post('/ClearLicense', ClearLicense);
 
 async function GetName(ObjectName, Id) {
   var Name = null;
@@ -376,5 +383,244 @@ async function ChangePassword(req, res) {
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
   }
 }
+
+//#region Practice licence codes (tracker 13)
+
+/*
+ * WITHOUT THESE THE LICENCE FEATURE IS UNUSABLE. helper/LicenceGate.js can
+ * refuse a login for a missing code, and until now nothing anywhere could
+ * SET one - so enabling enforcement would have locked everybody out with no
+ * way back in. That is the gap these three close.
+ *
+ * Legacy PascalCase envelope, because the consumer is the web admin panel, not
+ * the mobile app (CLAUDE.md §5).
+ *
+ * Where the codes come from is still a customer question (BLOCKERS item 4): an
+ * ЭМХТ registry lookup, or administrator entry. These implement administrator
+ * entry and stamp LicenseSource 'admin', so a later ЭМХТ sync writes 'emkht'
+ * into the same column and needs no schema change.
+ */
+
+const LICENCE_ADMIN_ROLES = ['1', '6'];
+
+function MayAdministerLicences(LogedUser) {
+  return !!LogedUser && LICENCE_ADMIN_ROLES.includes(String(LogedUser.RoleId));
+}
+
+/**
+ * Record or replace a doctor's practice licence code.
+ *
+ * Role 1 may set anybody's. Role 6 is scoped to its own organisation - a
+ * settings account at one hospital has no business licensing another's staff.
+ */
+async function SetLicense(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!MayAdministerLicences(LogedUser)) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+    }
+
+    const { DoctorId, LicenseCode, LicenseIssuedDate, LicenseExpireDate } = req.body;
+    if (!DoctorId || !LicenseCode || !String(LicenseCode).trim()) {
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмч болон зөвшөөрлийн кодыг заана уу'))
+      );
+    }
+
+    const Code = String(LicenseCode).trim();
+    if (Code.length > 50) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Код хэт урт байна')));
+    }
+
+    const Doctor = await Models.DoctorsProfile.findOne({
+      where: { id_data: DoctorId },
+      attributes: ['id_data', 'id', 'OrganizationId', 'lastname', 'firstname'],
+      raw: true,
+    });
+    if (!Doctor) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмч олдсонгүй')));
+    }
+
+    if (String(LogedUser.RoleId) === '6') {
+      const MyOrg = LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : null;
+      if (!MyOrg || String(Doctor.OrganizationId) !== String(MyOrg)) {
+        return res.send(
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Өөр байгууллагын эмч байна'))
+        );
+      }
+    }
+
+    /*
+     * Warn on a duplicate rather than refusing. Whether a practice licence is
+     * unique per person is NOT confirmed - the unique index in
+     * add_doctor_licence_code.sql is deliberately commented out for that
+     * reason. Refusing here would encode an assumption the customer has not
+     * made; recording it lets the duplicate show up in the report instead.
+     */
+    const Clash = await Models.DoctorsProfile.findOne({
+      where: { LicenseCode: Code, id_data: { [Op.ne]: DoctorId } },
+      attributes: ['id_data'],
+      raw: true,
+    });
+    if (Clash) {
+      console.error(
+        '[DoctorProfile/SetLicense] duplicate licence code on doctors ' +
+          DoctorId + ' and ' + Clash.id_data + ' - uniqueness is unconfirmed, allowing'
+      );
+    }
+
+    await Models.DoctorsProfile.update(
+      {
+        LicenseCode: Code,
+        LicenseIssuedDate: LicenseIssuedDate || null,
+        LicenseExpireDate: LicenseExpireDate || null,
+        LicenseVerifiedDate: ObjectHelper.getDateYMDHMS(),
+        LicenseVerifiedUserId: LogedUser.Id,
+        LicenseSource: 'admin',
+      },
+      { where: { id_data: DoctorId } }
+    );
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'DoctorsProfile',
+      LinkObjectId: DoctorId,
+      Action: 'SetLicense',
+      LogedUser,
+      Notes: 'Set practice licence code',
+      NotesMn: 'Мэргэжлийн зөвшөөрлийн код бүртгэлээ',
+    });
+
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        Message: 'Successfully saved',
+        Data: {
+          DoctorId,
+          LicenseCode: Code,
+          LicenseVerifiedDate: ObjectHelper.getDateYMDHMS(),
+          DuplicateWarning: !!Clash,
+        },
+      })
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+/**
+ * Who has a code and who does not.
+ *
+ * This is the operational form of the query at the bottom of
+ * add_doctor_licence_code.sql, and it exists so the answer stays current: the
+ * whole decision about whether enforcement is safe rests on that count, and a
+ * number from a fortnight ago is not the number.
+ */
+async function GetLicenseStatus(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!MayAdministerLicences(LogedUser)) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+    }
+
+    const where = { rec_status: { [Op.ne]: 2 } };
+
+    // Role 1 may look at any organisation, or all of them. Role 6 is pinned to
+    // its own regardless of what it asks for.
+    if (String(LogedUser.RoleId) === '6') {
+      where.OrganizationId = LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : -1;
+    } else if (req.body.OrganizationId) {
+      where.OrganizationId = req.body.OrganizationId;
+    }
+
+    const rows = await Models.DoctorsProfile.findAll({
+      where,
+      attributes: ['id_data', 'lastname', 'firstname', 'OrganizationId', 'LicenseCode', 'LicenseExpireDate'],
+      include: [
+        { model: Models.Organization, as: 'Organization', attributes: ['Id', 'Name'], required: false },
+      ],
+      order: [['lastname', 'ASC']],
+    });
+
+    const data = rows.map((r) => {
+      const row = r.toJSON();
+      const Code = row.LicenseCode ? String(row.LicenseCode).trim() : '';
+      return {
+        DoctorId: row.id_data,
+        FullName: [row.lastname, row.firstname].filter(Boolean).join(' '),
+        OrganizationName: row.Organization ? row.Organization.Name : null,
+        LicenseCode: Code || null,
+        LicenseExpireDate: row.LicenseExpireDate,
+        HasLicense: !!Code,
+      };
+    });
+
+    const WithCode = data.filter((d) => d.HasLicense).length;
+
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        Message: '',
+        Data: {
+          Total: data.length,
+          WithCode,
+          WithoutCode: data.length - WithCode,
+          Rows: data,
+        },
+      })
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+/**
+ * Remove a code - a licence withdrawn or entered in error.
+ *
+ * Role 1 only, and a Reason is required. Clearing a licence can stop somebody
+ * working once enforcement is on, so it should be deliberate and explicable
+ * afterwards.
+ */
+async function ClearLicense(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!LogedUser || String(LogedUser.RoleId) !== '1') {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+    }
+
+    const { DoctorId, Reason } = req.body;
+    if (!DoctorId || !Reason || !String(Reason).trim()) {
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмч болон шалтгааныг заана уу'))
+      );
+    }
+
+    await Models.DoctorsProfile.update(
+      {
+        LicenseCode: null,
+        LicenseVerifiedDate: ObjectHelper.getDateYMDHMS(),
+        LicenseVerifiedUserId: LogedUser.Id,
+      },
+      { where: { id_data: DoctorId } }
+    );
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'DoctorsProfile',
+      LinkObjectId: DoctorId,
+      Action: 'ClearLicense',
+      LogedUser,
+      Notes: 'Cleared practice licence code: ' + String(Reason).slice(0, 200),
+      NotesMn: 'Мэргэжлийн зөвшөөрлийн кодыг хаслаа',
+    });
+
+    return res.send(JSON.stringify({ Success: true, Message: 'Successfully saved', Data: null }));
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+//#endregion
 
 module.exports = router;

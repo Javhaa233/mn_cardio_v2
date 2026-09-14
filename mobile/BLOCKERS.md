@@ -55,10 +55,14 @@ are scheduled 2026-09-24 onwards; enrolment should start now.
 
 ### 3. Push notification credentials
 
-Firebase project (FCM) for Android and an APNs key for iOS, again owned by ЗСҮТ. Blocks
-tracker row 48 and, indirectly, every reminder feature — without push, a backgrounded app
-receives nothing. There is no push implementation in the backend at all, so this is both a
-credential request and development work.
+Firebase project (FCM) for Android and an APNs key for iOS, owned by ЗСҮТ. Blocks tracker
+row 48 and, indirectly, every reminder feature — without push, a backgrounded app receives
+nothing.
+
+**Updated 2026-09-14: this is now a CREDENTIAL REQUEST ONLY.** The implementation is
+complete — FCM v1 and APNs, registration on both surfaces, dead-token deactivation — and is
+fully testable today on a log driver that records what it would have sent. Supplying the keys
+is the entire remaining step; no development waits on it.
 
 ### 4. Source of the professional practice licence code
 
@@ -72,7 +76,37 @@ things are needed and none exists:
   what the migration is for them
 - confirmation that the code is per-person and stable
 
-`DoctorsProfile` has no licence column today, so this also needs DDL.
+**Updated 2026-09-14.** The columns, the gate and the admin endpoints now exist, so this is
+purely a policy question. It defaults to `off`, and here is why that matters: the verification
+query reports **3,298 active doctors across 660 organizations, every one without a code**.
+Enforcing today locks the entire national user base out of a clinical system.
+
+`warn` mode is available and is the recommended next step — it lets everybody in, records who
+lacked a code, and answers the second bullet above from real logins rather than a table scan.
+
+### 5a. ICD coding has never been captured — new, and it changes item 5
+
+Measured on `MnCardio_test` 2026-09-14, across **450,604 `Visit` rows**:
+
+| Column | Rows with a value |
+|---|---|
+| `icd10` | **0** |
+| `exam_type_icd` | **0** |
+| `cause_icd10` | **0** |
+| `procedure_icd9` | **0** |
+| `main_diagnosis` (free text) | 18,326 (4%) |
+
+The columns exist and have always existed. **Not one of them has ever been populated.**
+
+So "дагаж мөрдөх ICD" is not a standards-adoption task and cannot be delivered as one: there
+is no coded data to expose, map or export. Whatever is agreed under item 5 below has to start
+with somebody entering ICD codes at the point of care — a clinical workflow change, training,
+and probably a UI change, not an integration.
+
+A read-only FHIR R4 projection now exists (`/api/fhir`, behind `FEATURE_FHIR_EXPORT`, default
+off). It returns `Condition` resources carrying `code.text` and **no** `coding`, which is
+FHIR's own way of saying "a diagnosis was recorded and it is not coded" — the honest current
+state of the data.
 
 ### 5. Scope decision on the coding standards
 
@@ -90,9 +124,21 @@ and 20 with an acceptance criterion that can actually be tested.
 
 `dico` seed values, as DB rows in `OptionTypes` plus a `DicoType` row (`CLAUDE.md §4`):
 
-- `remotevisit_status` — requested / scheduled / completed / cancelled, wording to be approved
-- rehabilitation exercise categories
-- notification types the patient may configure (medication, exercise, follow-up)
+**Updated 2026-09-14: all of these are now DRAFTED and seeded to `MnCardio_test` only**, each
+script carrying a `MnCardio_test`-only guard so unapproved wording cannot reach production.
+What is needed is approval of the Mongolian, not the values — and approval is an `UPDATE` to a
+label, never a code change or an app release, because every list is served through
+`GET /api/patient/options/:dico`.
+
+- `remotevisit_status` — requested / scheduled / completed / cancelled
+- `rehab_category`, `rehab_risk`, `rehab_phase`
+- `patient_reminder_type`, `patient_reminder_freq`
+- `consent_purpose` — **read this one most carefully.** A consent purpose is a legal category,
+  not just wording: getting the list wrong means asking people to agree to the wrong things.
+  Note there is deliberately no purpose covering treatment itself.
+
+Still genuinely missing: `confidentiality_level`, which cannot be drafted at all until the
+access-rights matrix (item 8 above) names the levels.
 
 ### 7. Credential rotation
 

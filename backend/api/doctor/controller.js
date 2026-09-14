@@ -7,6 +7,7 @@ const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const NotificationHelper = require('../../helper/NotificationHelper');
+const PushHelper = require('../../helper/PushHelper');
 
 /**
  * Handlers for /api/doctor/*.
@@ -1554,5 +1555,77 @@ exports.createPatientAssessment = async (req, res) => {
     return ok(res, { Id: created.Id, PatRegNo, AssessmentDate: AssessmentDate || Now });
   } catch (ex) {
     return serverError(res, ex, 'createPatientAssessment');
+  }
+};
+
+/* ------------------------------------------------- push registration (staff) */
+
+/**
+ * The doctor side of push registration.
+ *
+ * Identical in shape to the patient's, and identical for a reason: one client
+ * team writes both apps, and a registration flow that differs between them by
+ * a field name is a bug waiting to happen. The ONLY difference is the identity
+ * pair - UserType 'S' with Users.Id, rather than 'P' with Patient.id_data -
+ * and that comes from the token either way.
+ *
+ * mobile/API.md promised these before they existed. Written 2026-09-14 to make
+ * the document true.
+ */
+exports.registerDevice = async (req, res) => {
+  try {
+    const { token, platform, device_id, app_version, locale } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const P = String(platform || '').toLowerCase();
+    if (!['android', 'ios', 'web'].includes(P)) {
+      return fail(res, 'INVALID_PLATFORM', 'platform нь android, ios, web байна');
+    }
+
+    const result = await PushHelper.Register({
+      UserType: 'S',
+      UserId: req.Doctor.UserId,
+      Token: token,
+      Platform: P,
+      DeviceId: device_id,
+      AppVersion: app_version,
+      Locale: locale,
+    });
+
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+    return ok(res, { Id: result.Id, moved: result.moved });
+  } catch (ex) {
+    return serverError(res, ex, 'registerDevice');
+  }
+};
+
+/** POST, not DELETE /:token - see the patient equivalent for why. */
+exports.unregisterDevice = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const result = await PushHelper.Unregister({
+      UserType: 'S',
+      UserId: req.Doctor.UserId,
+      Token: token,
+    });
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+    return ok(res, { deactivated: result.deactivated });
+  } catch (ex) {
+    return serverError(res, ex, 'unregisterDevice');
+  }
+};
+
+exports.listDevices = async (req, res) => {
+  try {
+    const rows = await PushHelper.List({ UserType: 'S', UserId: req.Doctor.UserId });
+    return ok(res, rows, { total: rows.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listDevices');
   }
 };

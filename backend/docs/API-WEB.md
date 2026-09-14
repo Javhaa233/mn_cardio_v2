@@ -35,13 +35,13 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 25 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 253 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 256 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 70 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 76 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **350** |
+| **Нийт** |  |  | **359** |
 
-api-layer задаргаа: `/api/patient` 35 · `/api/doctor` 23 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 35 · `/api/doctor` 26 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -116,7 +116,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.3. Байгууллага, эмч, баг, зөвлөгөө (асуумж), хяналтын самбар — `controllers/organization/`
 
-Угтвар: `/api/DoctorsTeam`, `/api/Advice`, `/api/DoctorProfile`, `/api/Organization`, `/api/Dashboard` · 37 endpoint.
+Угтвар: `/api/DoctorsTeam`, `/api/Advice`, `/api/DoctorProfile`, `/api/Organization`, `/api/Dashboard` · 40 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -145,12 +145,15 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/Advice/GetTicket` | token | `AdviceController.js:24` | One ticket, enriched exactly the way a feed card is. |
 | `POST` | `/api/Advice/GetStats` | token | `AdviceController.js:25` |  |
 | `POST` | `/api/Advice/CustomSaveAndPublish` | token | `AdviceController.js:26` | Create a ticket and publish it in one action. |
-| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:13` |  |
-| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:14` |  |
-| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:15` |  |
-| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:16` |  |
-| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:17` |  |
-| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:18` | Password shinechleh |
+| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:14` |  |
+| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:15` |  |
+| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:16` |  |
+| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:17` |  |
+| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:18` |  |
+| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:19` | Password shinechleh |
+| `POST` | `/api/DoctorProfile/SetLicense` | token | `DoctorProfileController.js:23` | Practice licence codes (tracker 13). |
+| `POST` | `/api/DoctorProfile/GetLicenseStatus` | token | `DoctorProfileController.js:24` | Who has a code and who does not. |
+| `POST` | `/api/DoctorProfile/ClearLicense` | token | `DoctorProfileController.js:25` | Remove a code - a licence withdrawn or entered in error. |
 | `POST` | `/api/Organization/CustomSave` | token | `OrganizationController.js:10` |  |
 | `GET` | `/api/Organization/GetOne/:id` | token | `OrganizationController.js:11` |  |
 | `POST` | `/api/Organization/MergePreview` | token | `OrganizationController.js:12` |  |
@@ -526,6 +529,9 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:82` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
 | `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:84` | The assessment history, newest first |
 | `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:86` | Record an assessment. |
+| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:90` | Push registration, identical in shape to the patient app's. |
+| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:91` | POST, not DELETE /:token - see the patient equivalent for why. |
+| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:92` |  |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 | `POST` | `/api/auth/logout` | self-authenticating | `api/auth/index.js:21` | End this session. |
@@ -554,8 +560,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:449` |
-| `GET` | `/health` | public | `server.js:453` |
+| `GET` | `/` | public | `server.js:461` |
+| `GET` | `/health` | public | `server.js:465` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
@@ -603,4 +609,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 350._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 359._

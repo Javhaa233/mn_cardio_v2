@@ -85,4 +85,10 @@ router.get('/patients/:id/rehab/assessment', gate, c.listPatientAssessments);
 // Record an assessment. Nothing is scored - the methodology is a ЗСҮТ deliverable
 router.post('/patients/:id/rehab/assessment', gate, c.createPatientAssessment);
 
+// Push registration, identical in shape to the patient app's. Works today on
+// the log driver, with no FCM or APNs keys
+router.post('/devices', gate, c.registerDevice);
+router.post('/devices/unregister', gate, c.unregisterDevice);
+router.get('/devices', gate, c.listDevices);
+
 module.exports = router;

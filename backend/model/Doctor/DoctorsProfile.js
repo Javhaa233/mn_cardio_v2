@@ -15,6 +15,30 @@ DoctorsProfile.init(
     user_mod: { type: Sequelize.STRING },
     date_modif: { type: Sequelize.DATE },
     rec_status: { type: Sequelize.INTEGER },
+
+    /*
+     * Practice licence (tracker 13), added by
+     * scripts/add_doctor_licence_code.sql.
+     *
+     * DECLARED HERE BECAUSE SEQUELIZE SILENTLY DISCARDS WHAT IT DOES NOT KNOW.
+     * The columns existed in the database and SetLicense reported success, but
+     * update() dropped every one of them - the code was never written, the
+     * report never moved, and nothing errored. An undeclared column on a write
+     * fails silently; an undeclared column on a read is what makes Sequelize
+     * throw "Invalid column name". Only one of those tells you.
+     *
+     * LicenseSource is 'admin' for a code typed in by an administrator and
+     * 'emkht' for one fetched from the national registry - which of those it
+     * will be is still a customer question (BLOCKERS item 4), and recording it
+     * means a later sync needs no schema change.
+     */
+    LicenseCode: { type: Sequelize.STRING },
+    LicenseIssuedDate: { type: Sequelize.DATE },
+    LicenseExpireDate: { type: Sequelize.DATE },
+    LicenseVerifiedDate: { type: Sequelize.DATE },
+    LicenseVerifiedUserId: { type: Sequelize.INTEGER },
+    LicenseSource: { type: Sequelize.STRING },
+
     professional_degrees: { type: Sequelize.STRING },
     experiences: { type: Sequelize.STRING },
     province_city: { type: Sequelize.STRING },
