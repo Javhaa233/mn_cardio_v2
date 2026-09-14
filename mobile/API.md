@@ -519,6 +519,46 @@ which is fragile in a path segment and ends up in access logs.
 `GET /devices` never returns the token itself, deliberately — a push token lets its holder
 send a notification that appears to come from MnCardio.
 
+### 2.10 Сануулга — reminders
+
+**New 2026-09-14.** Medication, exercise and follow-up reminders the patient sets themselves.
+
+```
+GET    /api/patient/reminders          ?limit &offset &type &include_inactive=1
+POST   /api/patient/reminders          { title*, times_of_day*, reminder_type, frequency,
+                                         body, days_of_week, start_date, end_date }
+PATCH  /api/patient/reminders/:id      partial — send only what changed
+DELETE /api/patient/reminders/:id      soft: stops firing, keeps the history
+```
+
+```json
+{ "Id": 12, "Title": "Эм уух цаг", "ReminderType": "medication",
+  "ReminderTypeLabel": "Эм уух сануулга", "Frequency": "daily",
+  "FrequencyLabel": "Өдөр бүр", "TimesOfDay": "08:00,20:00",
+  "DaysOfWeek": null, "StartDate": null, "EndDate": null, "IsActive": true }
+```
+
+> **`times_of_day` must be zero-padded 24-hour `HH:mm`.** `"8:00"` is rejected with `400
+> INVALID_TIME`, on purpose: the dispatcher compares it as a string against the current local
+> minute, so `"8:00"` would never match `"08:00"` and the reminder would simply never fire —
+> silently, with nothing in any log. Send an array or a CSV; duplicates are removed and the
+> result is sorted. Maximum six a day.
+
+`days_of_week` is `1`–`7` with **1 = Monday**, as an array or CSV; `null` means every day.
+`frequency` defaults to `daily`; `once` fires on its `start_date` and then deactivates itself.
+
+**Times are local wall-clock, and that is deliberate.** `"08:00"` means eight in the morning
+where the patient is, on every day it applies — not a fixed instant. The server runs UTC and
+converts to Asia/Ulaanbaatar itself, so do **not** send a UTC time or an offset.
+
+A reminder arrives as an ordinary notification (§2.8) with `Action: "Reminder"`, plus a push
+if a device is registered. It is delivered **exactly once per occurrence** even across a
+server restart, so you never need to de-duplicate on the client.
+
+Types and frequencies come from `GET /api/patient/options/patient_reminder_type` and
+`.../patient_reminder_freq` — the wording is drafted and not yet approved, so read it from
+there rather than hardcoding it.
+
 ---
 
 ## 4. `/api/doctor/*` — the doctor module

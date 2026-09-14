@@ -235,10 +235,22 @@ Verified by repo-wide search. None of these has any implementation:
 
 biometric login (client-side, but nothing server-side supports the flow) · doctor licence-code
 login · 3-failed-attempt notification · access notification · consent capture ·
-confidentiality classification · **ДАН digital signature** · patient-configurable reminders
-(medication / exercise / follow-up) · **push notifications — no FCM, APNs or web-push anywhere** ·
+confidentiality classification · **ДАН digital signature** ·
 **ICD, FHIR/HL7, SNOMED CT, LOINC**, named in tender §1.4 and phase 3 and present nowhere in
 the backend.
+
+**Closed since this list was written (2026-09-14):**
+
+- ~~patient-configurable reminders~~ — `/api/patient/reminders`, fired every minute by
+  `services/ReminderDispatcher.js`. The server runs **UTC** while Mongolia is UTC+8, so the
+  dispatcher converts to Asia/Ulaanbaatar explicitly; reading the host clock would have
+  fired every 08:00 medication reminder at 16:00 local. Delivered exactly once per
+  occurrence, guaranteed by a unique `(ReminderId, DueAt)` index the dispatcher claims
+  before sending.
+- ~~push notifications~~ — FCM v1 and APNs, no SDK, and **fully testable with no
+  credentials** via the log driver. What is still missing is the Firebase project and the
+  Apple key, which are ЗСҮТ's to supply (BLOCKERS items 2 and 3).
+
 
 Push deserves emphasis: without it, a backgrounded app receives nothing, which silently
 guts reminders, chat alerts and advice notifications — four tracker rows that will otherwise
