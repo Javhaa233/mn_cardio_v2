@@ -90,6 +90,14 @@ router.delete('/reminders/:id', gate, c.deleteReminder);
 // needs IX_UserActionHistory_PatientId to be affordable
 router.get('/access-log', gate, c.listAccessLog);
 
+// Зөвшөөрөл (tracker 23) - consent for non-treatment use of personal data.
+// PatientConsent is APPEND-ONLY: withdrawing writes a new row, never an update,
+// because proving what was agreed and when it stopped is the point
+router.get('/consents', gate, c.listConsents);
+router.get('/consents/:purposeCode/document', gate, c.getConsentDocument);
+router.post('/consents', gate, c.grantConsent);
+router.delete('/consents/:purposeCode', gate, c.withdrawConsent);
+
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
 // Live on MnCardio_test: the tables exist and the catalogue holds 39 rows. They
 // are PLACEHOLDERS - the real exercise names are clinical content ЗСҮТ enter

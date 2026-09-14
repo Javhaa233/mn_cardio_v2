@@ -7,6 +7,7 @@ const MediaRef = require('../../helper/MediaRef');
 const PushHelper = require('../../helper/PushHelper');
 const Flags = require('../../helper/FeatureFlags');
 const SchemaProbe = require('../../helper/SchemaProbe');
+const Consent = require('../../helper/Consent');
 
 /**
  * Handlers for /api/patient/*.
@@ -1317,5 +1318,196 @@ exports.listAccessLog = async (req, res) => {
     return ok(res, data, { total: count, limit, offset });
   } catch (ex) {
     return serverError(res, ex, 'listAccessLog');
+  }
+};
+
+/* ------------------------------------------ Зөвшөөрөл (consent, tracker 23) */
+
+/**
+ * What this patient has agreed to, and what they have not been asked yet.
+ *
+ * Returns a row per ACTIVE consent document rather than per stored consent, so
+ * a purpose the patient has never been asked about still appears - with
+ * Granted: null. An app that only listed stored rows could never prompt anybody.
+ */
+exports.listConsents = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const [docs, states] = await Promise.all([
+      Models.ConsentDocument.findAll({
+        where: { IsActive: true },
+        attributes: ['Id', 'PurposeCode', 'Version', 'TitleMn', 'EffectiveFrom'],
+        order: [['PurposeCode', 'ASC'], ['EffectiveFrom', 'DESC'], ['Id', 'DESC']],
+        raw: true,
+      }),
+      Consent.CurrentStates(req.Patient.PatRegNo),
+    ]);
+
+    const byPurpose = new Map();
+    docs.forEach((d) => {
+      if (!byPurpose.has(d.PurposeCode)) byPurpose.set(d.PurposeCode, d);
+    });
+    const stateBy = new Map(states.map((s) => [s.PurposeCode, s]));
+
+    const items = [...byPurpose.values()].map((d) => {
+      const s = stateBy.get(d.PurposeCode) || null;
+      return {
+        PurposeCode: d.PurposeCode,
+        TitleMn: d.TitleMn,
+        Version: d.Version,
+        DocumentId: d.Id,
+        // null = never asked. Distinct from false = withdrawn, which the app
+        // must render differently or it will re-prompt somebody who refused.
+        Granted: s ? !!s.Granted : null,
+        GrantedDate: s && s.Granted ? s.GrantedDate : null,
+        WithdrawnDate: s && !s.Granted ? s.GrantedDate : null,
+        // True when they agreed to an older version and a newer one is live.
+        Superseded: !!(s && s.Granted && s.ConsentDocumentId && s.ConsentDocumentId !== d.Id),
+      };
+    });
+
+    return ok(res, { items }, { total: items.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listConsents');
+  }
+};
+
+/** The full text to display before asking. */
+exports.getConsentDocument = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const doc = await Consent.ActiveDocument(String(req.params.purposeCode || ''));
+    if (!doc) return fail(res, 'CONSENT_DOC_NOT_FOUND', 'Зөвшөөрлийн текст олдсонгүй', 404);
+
+    return ok(res, {
+      Id: doc.Id,
+      PurposeCode: doc.PurposeCode,
+      Version: doc.Version,
+      TitleMn: doc.TitleMn,
+      BodyMn: doc.BodyMn,
+      EffectiveFrom: doc.EffectiveFrom,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'getConsentDocument');
+  }
+};
+
+/**
+ * Grant consent.
+ *
+ * documentId is REQUIRED and checked against the currently active document.
+ * That is the point of recording it: consent has to be to a specific text, and
+ * accepting a stale documentId would record agreement to wording the patient
+ * never saw. If the text changed while they were reading it, they are asked
+ * again rather than silently bound to the new version.
+ */
+exports.grantConsent = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const { purposeCode, documentId } = req.body || {};
+    if (!purposeCode) return fail(res, 'PURPOSE_REQUIRED', 'Зорилгыг заана уу');
+
+    const doc = await Consent.ActiveDocument(String(purposeCode));
+    if (!doc) return fail(res, 'CONSENT_DOC_NOT_FOUND', 'Зөвшөөрлийн текст олдсонгүй', 400);
+    if (documentId && String(documentId) !== String(doc.Id)) {
+      return fail(
+        res,
+        'CONSENT_DOC_SUPERSEDED',
+        'Зөвшөөрлийн текст шинэчлэгдсэн байна. Дахин уншина уу.',
+        409
+      );
+    }
+
+    const states = await Consent.CurrentStates(req.Patient.PatRegNo);
+    const current = states.find((s) => s.PurposeCode === String(purposeCode));
+    if (current && current.Granted && String(current.ConsentDocumentId) === String(doc.Id)) {
+      return fail(res, 'CONSENT_ALREADY_GRANTED', 'Аль хэдийн зөвшөөрсөн байна', 409);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    // A NEW ROW, always. Never an update - see the model header.
+    const created = await Models.PatientConsent.create({
+      PatRegNo: req.Patient.PatRegNo,
+      PatientId: req.Patient.PatientId,
+      PatientUserId: req.Patient.PatientUserId || null,
+      ConsentDocumentId: doc.Id,
+      PurposeCode: String(purposeCode),
+      Granted: true,
+      GrantedDate: Now,
+      Channel: 'mobile',
+      IpAddress: String(req.ip || '').slice(0, 45),
+      CreateDate: Now,
+      CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+    });
+
+    Consent.Invalidate(req.Patient.PatRegNo);
+
+    return ok(res, {
+      Id: created.Id,
+      PurposeCode: String(purposeCode),
+      Granted: true,
+      GrantedDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'grantConsent');
+  }
+};
+
+/**
+ * Withdraw consent.
+ *
+ * Writes a NEW row with Granted = 0. The granting row stays exactly as it was,
+ * because proving what somebody agreed to and when they stopped agreeing is the
+ * entire purpose of this table.
+ */
+exports.withdrawConsent = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const purposeCode = String(req.params.purposeCode || '');
+    if (!purposeCode) return fail(res, 'PURPOSE_REQUIRED', 'Зорилгыг заана уу');
+
+    const states = await Consent.CurrentStates(req.Patient.PatRegNo);
+    const current = states.find((s) => s.PurposeCode === purposeCode);
+    if (!current || !current.Granted) {
+      return fail(res, 'CONSENT_NOT_GRANTED', 'Зөвшөөрөл өгөөгүй байна', 409);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.PatientConsent.create({
+      PatRegNo: req.Patient.PatRegNo,
+      PatientId: req.Patient.PatientId,
+      PatientUserId: req.Patient.PatientUserId || null,
+      ConsentDocumentId: current.ConsentDocumentId || null,
+      PurposeCode: purposeCode,
+      Granted: false,
+      GrantedDate: Now,
+      Channel: 'mobile',
+      IpAddress: String(req.ip || '').slice(0, 45),
+      CreateDate: Now,
+      CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+    });
+
+    Consent.Invalidate(req.Patient.PatRegNo);
+
+    return ok(res, {
+      Id: created.Id,
+      PurposeCode: purposeCode,
+      Granted: false,
+      WithdrawnDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'withdrawConsent');
   }
 };

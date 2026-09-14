@@ -14,6 +14,7 @@ const { CheckContact } = require('../../helper/ContactValidation');
 const Flags = require('../../helper/FeatureFlags');
 const LoginGuard = require('../../helper/LoginGuard');
 const SessionStore = require('../../helper/SessionStore');
+const LicenceGate = require('../../helper/LicenceGate');
 
 // routes
 router.post('/Login', Login);
@@ -436,6 +437,45 @@ async function Login(req, res) {
         }
 
         userData.Doctor = JSON.parse(JSON.stringify(Doctor));
+      }
+
+      /*
+       * Licence gate (tracker 13). Checked AFTER the password, deliberately:
+       * "your licence is not registered" told to somebody who does not know the
+       * password would confirm that the account exists.
+       *
+       * Off by default. MEASURED 2026-09-14: all 3,298 active doctors across
+       * 660 organizations currently have no licence code, so enforce mode today
+       * would lock out the entire national user base. See helper/LicenceGate.js.
+       */
+      const Licence = await LicenceGate.CheckLicence(userData);
+      if (!Licence.Allowed) {
+        await LoginGuard.RecordFailure({
+          UserType: 'staff',
+          UserName,
+          UserId: userData.Id,
+          Reason: 'NO_LICENSE',
+          Req: req,
+        });
+        return res.send({
+          Success: false,
+          Message: LicenceGate.RefusedMessage(),
+          Data: { token: null, LogedUser: null },
+        });
+      }
+
+      // warn mode: allowed, but recorded and reported. This is what produces
+      // the "who is actually affected" answer from real logins.
+      if (Licence.Reason && Licence.Reason !== 'exempt' && Licence.Reason !== 'CHECK_FAILED') {
+        userData.LicenseWarning = LicenceGate.WarningFor(Licence);
+        BaseControllerHelper.CreateUserActionHistory({
+          LinkObjectName: 'DoctorsProfile',
+          LinkObjectId: userData.Id,
+          Action: 'LoginNoLicense',
+          LogedUser: userData,
+          Notes: 'Login without a practice licence code',
+          NotesMn: 'Зөвшөөрлийн кодгүй нэвтэрлээ',
+        });
       }
 
       // The password was right and the account is usable: end the episode, so
