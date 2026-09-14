@@ -265,6 +265,19 @@ the backend.
 - ~~push notifications~~ — FCM v1 and APNs, no SDK, and **fully testable with no
   credentials** via the log driver. What is still missing is the Firebase project and the
   Apple key, which are ЗСҮТ's to supply (BLOCKERS items 2 and 3).
+- ~~doctor licence-code login~~ — built, defaulting to `off`. See §6: enforcing today would
+  lock out all 3,298 doctors.
+- ~~consent capture~~ — `/api/patient/consents`, append-only. The legal wording is a
+  `ConsentDocument` row, so ЗСҮТ supplying it is an INSERT, not a deployment.
+- ~~confidentiality classification~~ — column, break-glass table and a `warn` mode that logs
+  what *would* be hidden. **Enforcement is still blocked** on the access-rights matrix
+  (BLOCKERS item 8) — five unknowns, each changing code rather than configuration.
+- ~~3-failed-attempt notification~~ — `helper/LoginGuard.js`, now with persistence.
+- ~~access notification~~ — the **write** half is done (`GET /api/patient/access-log`). The
+  notify half waits on what "notify on every access" means (BLOCKERS item 15).
+
+**Still genuinely absent:** biometric login (client-side), ДАН digital signature, and
+ICD/FHIR/SNOMED/LOINC.
 
 
 Push deserves emphasis: without it, a backgrounded app receives nothing, which silently
@@ -301,7 +314,7 @@ not ours to do quietly. Both predate this audit.
 | Row | Task | Recorded | Found |
 |---|---|---|---|
 | 12 | Нэвтрэлт, эрхийн удирдлага | `Дууссан` 100% | Per-user permission control is numeric `RoleId` comparison. The RBAC tables (`Roles`, `Permissions`, `RoleToPermission`, `UserToRole`) exist but are **not enforced**. |
-| 13 | Мэргэжлийн зөвшөөрлийн код | `Дууссан` 100%, criterion "Зөвшөөрлийн кодгүй эмч нэвтрэхгүй" | **`DoctorsProfile` has no licence field**, and the login path has no such check. The only `License` in the codebase is free text on `UserRequests` (`model/BaseModel/UserRequests.js:19`), never consulted at login. |
+| 13 | Мэргэжлийн зөвшөөрлийн код | `Дууссан` 100%, criterion "Зөвшөөрлийн кодгүй эмч нэвтрэхгүй" | **Built 2026-09-14**, but the status is still wrong as recorded. `DoctorsProfile` now has the columns and `helper/LicenceGate.js` enforces at login — **defaulting to `off`**. The verification query reports **3,298 active doctors across 660 organizations, every one without a code**, so `enforce` today locks out the entire national user base. The criterion is not met until ЗСҮТ decide how codes are issued and what happens to existing doctors (BLOCKERS item 4). |
 
 Row 13 in particular is a hard tender requirement with an explicit acceptance criterion. It
 will fail UAT as recorded.
