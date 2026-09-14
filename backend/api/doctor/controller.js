@@ -2,6 +2,10 @@ const { Models, Op } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const AccessAudit = require('../../helper/AccessAudit');
+const CareTeam = require('../../helper/CareTeam');
+const DicoLabels = require('../../helper/DicoLabels');
+const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
+const MediaRef = require('../../helper/MediaRef');
 
 /**
  * Handlers for /api/doctor/*.
@@ -873,5 +877,652 @@ exports.getPatient = async (req, res) => {
     });
   } catch (ex) {
     return serverError(res, ex, 'getPatient');
+  }
+};
+
+/* ------------------------------------------------- 2.6 Цахим үзлэг (triage) */
+
+/**
+ * Same row shape the patient sees, plus the patient's own card.
+ *
+ * MeetingUrl only on a scheduled visit - see the note on the patient side. It
+ * is a bearer credential for a clinical conversation, not a record field.
+ */
+const shapeDoctorEvisit = (row, statusLabels) => {
+  const r = row.toJSON ? row.toJSON() : row;
+  const Doctor = r.Doctor || null;
+  const Patient = r.Patient || null;
+
+  return {
+    Id: r.Id,
+    Comment: r.Comment,
+    RequestedDate: r.RequestedDate,
+    ScheduledDate: r.ScheduledDate,
+    Status: r.Status,
+    StatusLabel: statusLabels ? statusLabels.get(String(r.Status)) || null : null,
+    DoctorId: r.DoctorId,
+    DoctorName: Doctor ? [Doctor.lastname, Doctor.firstname].filter(Boolean).join(' ') : null,
+    MeetingUrl: r.Status === RemoteVisitFlow.STATUS.SCHEDULED ? r.MeetingUrl || null : null,
+    CreateDate: r.CreateDate,
+    UpdateDate: r.UpdateDate,
+    Patient: Patient
+      ? {
+          id_data: Patient.id_data,
+          p_registration: Patient.p_registration,
+          p_lastname: Patient.p_lastname,
+          p_firstname: Patient.p_firstname,
+          p_birthday: Patient.p_birthday,
+          p_telephone: Patient.p_telephone,
+        }
+      : null,
+  };
+};
+
+const EVISIT_DOCTOR_INCLUDE = {
+  model: Models.DoctorsProfile,
+  as: 'Doctor',
+  attributes: ['id_data', 'lastname', 'firstname'],
+  required: false,
+};
+
+/**
+ * The triage queue.
+ *
+ * SCOPE IS THE DESIGN DECISION HERE, AND IT NEEDS A CUSTOMER ANSWER.
+ * RemoteVisit has no OrganizationId, and Patient has no organisation column
+ * either, so the OrganizationIds() scope used elsewhere on this surface simply
+ * does not apply. That leaves two honest options, and they are very different:
+ *
+ *   a nationwide unassigned pool would put every patient's name and complaint
+ *   text in front of every doctor in the country;
+ *
+ *   care-team scoping reuses a reviewed primitive (helper/CareTeam.js) and is
+ *   far narrower - but it means a request from a patient with no care team and
+ *   no monitoring doctor is visible to NOBODY except an admin.
+ *
+ * The second is chosen because it cannot leak, and the gap it leaves is visible
+ * rather than silent. But "who triages a request from an unattached patient?"
+ * is a real product question, raised in mobile/BLOCKERS.md rather than answered
+ * here.
+ */
+exports.listDoctorEvisits = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const { limit, offset } = readPaging(req);
+    const scope = String(req.query.scope || 'mine');
+
+    const where = Object.assign({}, readDateRange(req, 'RequestedDate'));
+
+    const { status } = req.query;
+    if (status) {
+      const wanted = String(status)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => RemoteVisitFlow.IsStatus(s));
+      if (!wanted.length) return fail(res, 'INVALID_STATUS', 'Төлөв буруу байна');
+      where.Status = { [Op.in]: wanted };
+    } else {
+      // Default to what still needs doing. A triage queue full of completed
+      // visits is not a queue.
+      where.Status = { [Op.in]: RemoteVisitFlow.OPEN };
+    }
+
+    if (scope === 'mine') {
+      if (!D.DoctorId) {
+        return fail(res, 'DOCTOR_PROFILE_NOT_RESOLVED', 'Эмчийн мэдээлэл олдсонгүй', 403);
+      }
+      where.DoctorId = D.DoctorId;
+    } else if (scope === 'unassigned') {
+      where.DoctorId = null;
+      if (!D.IsAdmin) {
+        const PatientIds = await CareTeam.GetCareTeamPatientIds(D.UserId);
+        // An empty care team must match nothing, not everything. Op.in with an
+        // empty array is the correct empty set.
+        where.PatientId = { [Op.in]: PatientIds };
+      }
+    } else if (scope === 'all') {
+      if (!D.IsAdmin) return fail(res, 'ROLE_NOT_ALLOWED', 'Хандах эрхгүй байна', 403);
+    } else {
+      return fail(res, 'INVALID_SCOPE', 'scope нь mine, unassigned, all байна');
+    }
+
+    const { rows, count } = await Models.RemoteVisit.findAndCountAll({
+      where,
+      include: [EVISIT_DOCTOR_INCLUDE, PATIENT_INCLUDE],
+      // Oldest first: triage order, not list order. Whoever has waited longest
+      // is who to deal with next.
+      order: [
+        ['RequestedDate', 'ASC'],
+        ['Id', 'ASC'],
+      ],
+      limit,
+      offset,
+    });
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, rows.map((r) => shapeDoctorEvisit(r, labels)), {
+      total: count,
+      limit,
+      offset,
+      scope,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'listDoctorEvisits');
+  }
+};
+
+/**
+ * Load one request and decide whether this doctor may act on it.
+ *
+ * Returns null for "no" rather than throwing, and every caller turns that into
+ * a 404 - NOT a 403. A 403 would confirm the id exists, which makes this an
+ * oracle for enumerating other patients' requests. getVisit above takes the
+ * same posture for the same reason.
+ */
+async function LoadEvisitFor(D, Id) {
+  const row = await Models.RemoteVisit.findOne({
+    where: { Id },
+    include: [EVISIT_DOCTOR_INCLUDE, PATIENT_INCLUDE],
+  });
+  if (!row) return null;
+
+  if (D.IsAdmin) return row;
+  if (D.DoctorId && String(row.DoctorId) === String(D.DoctorId)) return row;
+
+  // Not assigned to me: allowed only if this is my patient.
+  const May = await CareTeam.CanAccessPatient(D, row.PatientId);
+  return May ? row : null;
+}
+
+exports.getDoctorEvisit = async (req, res) => {
+  try {
+    const Id = toInt(req.params.id);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const row = await LoadEvisitFor(req.Doctor, Id);
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: row.PatientId,
+      ObjectName: 'RemoteVisit',
+      ObjectId: Id,
+      Action: 'ViewEvisit',
+    });
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, shapeDoctorEvisit(row, labels));
+  } catch (ex) {
+    return serverError(res, ex, 'getDoctorEvisit');
+  }
+};
+
+/** One PatientHistory row per doctor-side transition, mirroring WriteMonitoringAudit. */
+async function WriteEvisitAudit(req, PatientId, Id, NotesMn) {
+  await BaseControllerHelper.BaseCreate({
+    ObjectName: 'PatientHistory',
+    Data: {
+      PatientId,
+      UserId: req.Doctor.UserId,
+      DoctorId: req.Doctor.DoctorId,
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: Id,
+      NotesMn,
+      Date: ObjectHelper.getDateYMDHMS(),
+    },
+    LogedUser: req.LogedUser,
+  });
+}
+
+/** https only - a join link carries a clinical conversation. */
+const HTTPS_ONLY = new RegExp('^https://', 'i');
+
+/**
+ * Confirm a slot, or move one.
+ *
+ * DoctorId comes from the token and never from the body. That is the rule the
+ * whole surface rests on - no endpoint accepts an identifier for who it is
+ * acting as. Reassigning a request to a DIFFERENT doctor is therefore something
+ * this API structurally cannot do; that is done from the web through
+ * /BaseObject, which is why RemoteVisitConfig carries the field.
+ */
+exports.scheduleEvisit = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const Id = toInt(req.params.id);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    // A null DoctorId on the degraded token path would silently write an
+    // unassigned "assignment", so refuse rather than record a lie.
+    if (!D.DoctorId) {
+      return fail(res, 'DOCTOR_PROFILE_NOT_RESOLVED', 'Эмчийн мэдээлэл олдсонгүй', 403);
+    }
+
+    const { ScheduledDate, MeetingUrl } = req.body || {};
+    if (!ScheduledDate) return fail(res, 'DATE_REQUIRED', 'Товлох огноог оруулна уу');
+
+    const When = new Date(ScheduledDate);
+    if (isNaN(When.getTime())) return fail(res, 'INVALID_DATE', 'Огноо буруу байна');
+    if (When.getTime() < Date.now()) {
+      return fail(res, 'DATE_IN_PAST', 'Өнгөрсөн огноо товлох боломжгүй');
+    }
+
+    if (MeetingUrl) {
+      const U = String(MeetingUrl);
+      if (U.length > 500) return fail(res, 'INVALID_URL', 'Холбоос хэт урт байна');
+      if (!HTTPS_ONLY.test(U)) {
+        return fail(res, 'INVALID_URL', 'Холбоос https:// байх ёстой');
+      }
+    }
+
+    const row = await LoadEvisitFor(D, Id);
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.SCHEDULED)) {
+      return fail(res, 'INVALID_TRANSITION', 'Энэ хүсэлтийн төлөв өөрчлөгдөх боломжгүй', 409);
+    }
+
+    // Rescheduling someone else's booked visit must be theirs or an admin's.
+    // Picking up an UNASSIGNED request is open to any doctor with access -
+    // that is what triage is.
+    if (
+      row.Status === RemoteVisitFlow.STATUS.SCHEDULED &&
+      row.DoctorId &&
+      String(row.DoctorId) !== String(D.DoctorId) &&
+      !D.IsAdmin
+    ) {
+      return fail(res, 'NOT_ASSIGNED', 'Энэ үзлэг өөр эмчид хуваарилагдсан байна', 403);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    await Models.RemoteVisit.update(
+      {
+        Status: RemoteVisitFlow.STATUS.SCHEDULED,
+        ScheduledDate,
+        DoctorId: D.DoctorId,
+        MeetingUrl: MeetingUrl || row.MeetingUrl || null,
+        UpdateDate: Now,
+      },
+      { where: { Id } }
+    );
+
+    await WriteEvisitAudit(req, row.PatientId, Id, 'Цахим үзлэгийн цаг товлолоо');
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id,
+      Status: RemoteVisitFlow.STATUS.SCHEDULED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.SCHEDULED) || null,
+      ScheduledDate,
+      DoctorId: D.DoctorId,
+      MeetingUrl: MeetingUrl || row.MeetingUrl || null,
+      UpdateDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'scheduleEvisit');
+  }
+};
+
+/**
+ * The examination happened.
+ *
+ * THE DOCTOR'S NOTE DOES NOT GO INTO RemoteVisit.Comment. That column holds the
+ * patient's own complaint, in their words, and overwriting it destroys the
+ * record of why they asked. The clinical record of an examination belongs in
+ * Visit through the legacy controller - this surface deliberately does not
+ * carry clinical writes (see the charter at the top of api/doctor/index.js).
+ * What is recorded here is that the visit reached its end state, plus an audit
+ * row carrying the note.
+ */
+exports.completeEvisit = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const Id = toInt(req.params.id);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const row = await LoadEvisitFor(D, Id);
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.COMPLETED)) {
+      return fail(res, 'INVALID_TRANSITION', 'Энэ үзлэгийг дуусгах боломжгүй', 409);
+    }
+
+    if (row.DoctorId && String(row.DoctorId) !== String(D.DoctorId) && !D.IsAdmin) {
+      return fail(res, 'NOT_ASSIGNED', 'Энэ үзлэг өөр эмчид хуваарилагдсан байна', 403);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const { Comment } = req.body || {};
+
+    await Models.RemoteVisit.update(
+      {
+        Status: RemoteVisitFlow.STATUS.COMPLETED,
+        UpdateDate: Now,
+        // Assign on completion too: a request completed straight from
+        // 'requested' would otherwise carry no doctor at all.
+        DoctorId: row.DoctorId || D.DoctorId || null,
+      },
+      { where: { Id } }
+    );
+
+    await WriteEvisitAudit(
+      req,
+      row.PatientId,
+      Id,
+      Comment ? 'Цахим үзлэг хийгдлээ: ' + String(Comment).slice(0, 400) : 'Цахим үзлэг хийгдлээ'
+    );
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id,
+      Status: RemoteVisitFlow.STATUS.COMPLETED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.COMPLETED) || null,
+      UpdateDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'completeEvisit');
+  }
+};
+
+exports.cancelDoctorEvisit = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const Id = toInt(req.params.id);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const row = await LoadEvisitFor(D, Id);
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.CANCELLED)) {
+      return fail(res, 'INVALID_TRANSITION', 'Энэ хүсэлтийг цуцлах боломжгүй', 409);
+    }
+
+    if (row.DoctorId && String(row.DoctorId) !== String(D.DoctorId) && !D.IsAdmin) {
+      return fail(res, 'NOT_ASSIGNED', 'Энэ үзлэг өөр эмчид хуваарилагдсан байна', 403);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const { Reason } = req.body || {};
+
+    await Models.RemoteVisit.update(
+      { Status: RemoteVisitFlow.STATUS.CANCELLED, UpdateDate: Now },
+      { where: { Id } }
+    );
+
+    await WriteEvisitAudit(
+      req,
+      row.PatientId,
+      Id,
+      Reason
+        ? 'Цахим үзлэгийн хүсэлтийг цуцаллаа: ' + String(Reason).slice(0, 400)
+        : 'Цахим үзлэгийн хүсэлтийг цуцаллаа'
+    );
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id,
+      Status: RemoteVisitFlow.STATUS.CANCELLED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.CANCELLED) || null,
+      UpdateDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'cancelDoctorEvisit');
+  }
+};
+
+/* ------------------------------------- 2.7 Сэргээн засах, дасгал хөдөлгөөн */
+
+/**
+ * The exercise catalogue, same shape the patient app gets.
+ *
+ * Served to doctors from the same query rather than a parallel one, so the two
+ * apps can never disagree about what an exercise is called or which category it
+ * is in - which they would, eventually, if this were a second SELECT.
+ */
+exports.listRehabExercises = async (req, res) => {
+  try {
+    const rows = await Models.RehabExercise.findAll({
+      where: { IsActive: true },
+      attributes: [
+        'Id',
+        'Code',
+        'Name',
+        'Description',
+        'CategoryCode',
+        'DurationSec',
+        'OrderNo',
+        'MediaRef',
+      ],
+      order: [
+        ['OrderNo', 'ASC'],
+        ['Id', 'ASC'],
+      ],
+      raw: true,
+    });
+
+    const labels = await DicoLabels.GetLabelMap('rehab_category');
+    const data = rows.map((r) =>
+      Object.assign({}, r, {
+        CategoryLabel: labels.get(String(r.CategoryCode)) || null,
+        media: MediaRef.Parse(r.MediaRef),
+      })
+    );
+
+    return ok(res, data, { total: data.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listRehabExercises');
+  }
+};
+
+/**
+ * Resolve a patient id to the register number the rehab tables key on.
+ *
+ * PatRegNo is NEVER accepted from the body. It is derived here from the :id in
+ * the path, which is itself gated by CareTeam.CanAccessPatient - otherwise a
+ * caller could write a row against any register number they could guess, which
+ * is the whole class of bug this surface exists to avoid.
+ */
+async function ResolvePatRegNo(PatientId) {
+  const P = await Models.Patient.findByPk(PatientId, {
+    attributes: ['id_data', 'p_registration'],
+    raw: true,
+  });
+  if (!P) return { Patient: null, PatRegNo: null };
+  return { Patient: P, PatRegNo: P.p_registration || null };
+}
+
+/**
+ * Everything rehabilitation knows about one patient: the latest assessment,
+ * what they have completed, and their vitals series.
+ *
+ * The mirror of getMonitoringJournal, and shaped the same way - rows plus a
+ * ready-to-plot series - so the doctor app charts vitals with the same code the
+ * patient app uses.
+ */
+exports.getPatientRehab = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    // p_registration is nullable, and it is the only key these tables have.
+    // Answering 409 says "this patient cannot carry rehab data" rather than
+    // silently returning an empty record that looks like "no exercise yet".
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId,
+      ObjectName: 'RehabProgress',
+      Action: 'ViewRehab',
+    });
+
+    const [assessment, progress, vitals] = await Promise.all([
+      Models.RehabAssessment.findOne({
+        where: { PatRegNo },
+        order: [['AssessmentDate', 'DESC'], ['Id', 'DESC']],
+        raw: true,
+      }),
+      Models.RehabProgress.findAll({
+        where: Object.assign({ PatRegNo }, readDateRange(req, 'CompletedAt')),
+        attributes: ['Id', 'ExerciseId', 'CompletedAt', 'DurationSec', 'Notes'],
+        order: [['CompletedAt', 'DESC']],
+        limit: 365,
+        raw: true,
+      }),
+      Models.RehabVitalSign.findAll({
+        where: Object.assign({ PatRegNo }, readDateRange(req, 'MeasuredAt')),
+        attributes: ['Id', 'MeasuredAt', 'Phase', 'Pulse', 'BloodPressure', 'Borg', 'Notes'],
+        order: [['MeasuredAt', 'ASC']],
+        limit: 365,
+        raw: true,
+      }),
+    ]);
+
+    const [riskLabels, phaseLabels] = await Promise.all([
+      DicoLabels.GetLabelMap('rehab_risk'),
+      DicoLabels.GetLabelMap('rehab_phase'),
+    ]);
+
+    return ok(res, {
+      assessment: assessment
+        ? Object.assign({}, assessment, {
+            RiskLevelLabel: riskLabels.get(String(assessment.RiskLevel)) || null,
+          })
+        : null,
+      progress,
+      vitals: {
+        rows: vitals.map((v) =>
+          Object.assign({}, v, { PhaseLabel: phaseLabels.get(String(v.Phase)) || null })
+        ),
+        labels: vitals.map((v) => v.MeasuredAt),
+        series: {
+          pulse: vitals.map((v) => v.Pulse),
+          borg: vitals.map((v) => v.Borg),
+        },
+      },
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'getPatientRehab');
+  }
+};
+
+exports.listPatientAssessments = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    const { limit, offset } = readPaging(req);
+    const { rows, count } = await Models.RehabAssessment.findAndCountAll({
+      where: { PatRegNo },
+      order: [['AssessmentDate', 'DESC'], ['Id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    const riskLabels = await DicoLabels.GetLabelMap('rehab_risk');
+    return ok(
+      res,
+      rows.map((r) =>
+        Object.assign({}, r, { RiskLevelLabel: riskLabels.get(String(r.RiskLevel)) || null })
+      ),
+      { total: count, limit, offset }
+    );
+  } catch (ex) {
+    return serverError(res, ex, 'listPatientAssessments');
+  }
+};
+
+/**
+ * Record a rehabilitation assessment.
+ *
+ * This is the gap it closes: /api/patient/rehab/assessment could only ever
+ * READ, and nothing anywhere could write the row it read, so the patient's
+ * assessment screen was permanently empty.
+ *
+ * NOTHING IS SCORED HERE. RiskLevel is stored exactly as chosen and
+ * ToleranceScore exactly as entered - the same posture /api/patient/risk takes,
+ * because the methodology is a ЗСҮТ deliverable (tracker 38) and inventing one
+ * would put a number in front of a clinician that nobody has approved.
+ */
+exports.createPatientAssessment = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    // A WRITE, so it is gated - unlike the nationwide reads beside it on this
+    // surface, which are deliberately open for cross-hospital consults.
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    const { AssessmentDate, RiskLevel, ToleranceScore, ToleranceUnit, Notes } = req.body || {};
+
+    // Validated against the dictionary when it has been seeded, and accepted
+    // as-is when it has not - the same fail-soft rule DicoLabels follows, so
+    // this endpoint works identically on a database without the dico.
+    if (RiskLevel) {
+      const riskLabels = await DicoLabels.GetLabelMap('rehab_risk');
+      if (riskLabels.size && !riskLabels.has(String(RiskLevel))) {
+        return fail(res, 'INVALID_RISK_LEVEL', 'Эрсдэлийн түвшин буруу байна');
+      }
+    }
+
+    if (ToleranceScore !== undefined && ToleranceScore !== null && ToleranceScore !== '') {
+      if (isNaN(Number(ToleranceScore))) {
+        return fail(res, 'INVALID_SCORE', 'Оноо тоо байх ёстой');
+      }
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.RehabAssessment.create({
+      PatRegNo,
+      AssessmentDate: AssessmentDate || Now,
+      RiskLevel: RiskLevel || null,
+      ToleranceScore:
+        ToleranceScore === undefined || ToleranceScore === '' ? null : Number(ToleranceScore),
+      ToleranceUnit: ToleranceUnit || null,
+      Notes: Notes || null,
+      CreateDate: Now,
+      CreateUserId: D.UserId,
+    });
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'RehabAssessment',
+      LinkObjectId: created.Id,
+      Action: 'Create',
+      LogedUser: req.LogedUser,
+      PatientId,
+      NotesMn: 'Сэргээн засахын үнэлгээ бүртгэлээ',
+      Notes: 'Recorded rehabilitation assessment',
+    });
+
+    return ok(res, { Id: created.Id, PatRegNo, AssessmentDate: AssessmentDate || Now });
+  } catch (ex) {
+    return serverError(res, ex, 'createPatientAssessment');
   }
 };

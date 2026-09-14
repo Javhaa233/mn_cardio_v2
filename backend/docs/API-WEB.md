@@ -26,22 +26,22 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 - **Шинэ давхарга `/api/base`, `/api/report`:** жижиг үсгийн `{ success, message, data }`
   бүтэц, бодит HTTP арга (GET / POST / PUT / DELETE).
 - **HTTP арга:** legacy давхаргын бараг бүх маршрут **`POST`** — унших үйлдэл ч гэсэн;
-  параметрийг JSON биед (body) дамжуулна. POST биш legacy маршрут ердөө 5: `GET /api/Test/print`, `GET /api/Test/printNew`, `PUT /api/Test/uploadFile`, `GET /api/Test/ApiSendMail`, `GET /api/Organization/GetOne/:id`.
+  параметрийг JSON биед (body) дамжуулна. POST биш legacy маршрут ердөө 1: `GET /api/Organization/GetOne/:id`.
 - **Иргэний токен (`RoleId 4`):** хамгаалагдсан угтваруудаас зөвхөн `/api/BaseObject`, `/api/PatientMonitoring`, `/api/RemoteVisit`, `/api/CVDMonitoringPatient`, `/api/Notification`, `/api/RiskScores`, `/api/Chat`-аар нэвтэрнэ. Бусад дээр `{ Success: false, Message: 'Хандах эрхгүй байна' }` буцна.
 
 ## 2. Тоон үзүүлэлт
 
 | Бүлэг | Тайлбар | Угтвар | Endpoint |
 |---|---|---|---|
-| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 29 |
+| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 25 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 250 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 253 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 39 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 51 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **320** |
+| **Нийт** |  |  | **331** |
 
-api-layer задаргаа: `/api/patient` 16 · `/api/doctor` 14 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 19 · `/api/doctor` 23 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -64,29 +64,25 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.1. Систем ба ерөнхий CRUD — `controllers/system/`
 
-Угтвар: `/api/Test`, `/api/BaseObject`, `/api/CustomDataApi` · 20 endpoint.
+Угтвар: `/api/Test`, `/api/BaseObject`, `/api/CustomDataApi` · 16 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `GET` | `/api/Test/print` | public | `TestController.js:17` | Renders the АМ-1Б template with no data - a layout smoke test. |
-| `GET` | `/api/Test/printNew` | public | `TestController.js:18` |  |
-| `PUT` | `/api/Test/uploadFile` | public | `TestController.js:19` |  |
-| `GET` | `/api/Test/ApiSendMail` | public | `TestController.js:20` |  |
-| `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:21` |  |
-| `POST` | `/api/Test/RegexTest` | public | `TestController.js:22` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:38` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:39` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:40` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:41` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:42` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:43` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:44` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:45` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:46` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:47` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:48` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:49` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:50` | The same export as tab-separated text. |
+| `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:46` |  |
+| `POST` | `/api/Test/RegexTest` | public | `TestController.js:47` |  |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:39` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:40` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:41` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:42` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:43` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:44` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:45` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:46` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:47` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:48` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:49` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:50` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:51` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
@@ -95,28 +91,28 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/User/Login` | public | `UserController.js:16` |  |
-| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:22` |  |
-| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:23` |  |
-| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:24` |  |
-| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:25` |  |
-| `POST` | `/api/User/ResetPassword` | public | `UserController.js:26` | Martsan password sergeeh |
-| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:27` | Password shinechleh |
-| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:28` |  |
-| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:29` |  |
-| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:30` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
+| `POST` | `/api/User/Login` | public | `UserController.js:18` |  |
+| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:19` |  |
+| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:20` |  |
+| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:21` |  |
+| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:22` |  |
+| `POST` | `/api/User/ResetPassword` | public | `UserController.js:23` | Martsan password sergeeh |
+| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:24` | Password shinechleh |
+| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:25` |  |
+| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:26` |  |
+| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:27` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
 | `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:45` |  |
 | `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:46` |  |
 | `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:47` |  |
 | `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:48` |  |
 | `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:49` |  |
-| `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:15` |  |
-| `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:16` |  |
-| `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:17` |  |
-| `POST` | `/api/PatientUser/Save` | token (route-level) | `PatientUserController.js:18` |  |
-| `POST` | `/api/PatientUser/ForgotPassword` | public | `PatientUserController.js:19` | TRANSITIONAL - patients will move to DAN (national digital identity) with no password at all; see… |
-| `POST` | `/api/PatientUser/ResetPassword` | public | `PatientUserController.js:20` |  |
-| `POST` | `/api/PatientUser/ChangePassword` | token (route-level) | `PatientUserController.js:21` |  |
+| `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:17` |  |
+| `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:18` |  |
+| `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:19` |  |
+| `POST` | `/api/PatientUser/Save` | token (route-level) | `PatientUserController.js:20` |  |
+| `POST` | `/api/PatientUser/ForgotPassword` | public | `PatientUserController.js:21` | TRANSITIONAL - patients will move to DAN (national digital identity) with no password at all; see… |
+| `POST` | `/api/PatientUser/ResetPassword` | public | `PatientUserController.js:22` |  |
+| `POST` | `/api/PatientUser/ChangePassword` | token (route-level) | `PatientUserController.js:23` |  |
 
 ### 4.3. Байгууллага, эмч, баг, зөвлөгөө (асуумж), хяналтын самбар — `controllers/organization/`
 
@@ -217,22 +213,22 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/Chat/GetChatRoomList` | token + patient allowed | `ChatController.js:50` |  |
-| `POST` | `/api/Chat/GetMessages` | token + patient allowed | `ChatController.js:51` | Room-scoped, membership-checked, and the predicate is written here rather than taken from the… |
-| `POST` | `/api/Chat/SendMessage` | token + patient allowed | `ChatController.js:52` | The authoritative write path. |
-| `POST` | `/api/Chat/CommitMessage` | token + patient allowed | `ChatController.js:53` | Promote a pending attachment message to sent, and only then fan it out. |
-| `POST` | `/api/Chat/MarkRead` | token + patient allowed | `ChatController.js:54` |  |
-| `POST` | `/api/Chat/GetUnreadCount` | token + patient allowed | `ChatController.js:55` |  |
-| `POST` | `/api/Chat/AddChatRoom` | token + patient allowed | `ChatController.js:56` | Idempotent. |
-| `POST` | `/api/Chat/StartChat` | token + patient allowed | `ChatController.js:57` | Idempotent. |
-| `POST` | `/api/Chat/CheckChatRoom` | token + patient allowed | `ChatController.js:58` |  |
-| `POST` | `/api/Chat/CreateGroupRoom` | token + patient allowed | `ChatController.js:59` | Groups are doctors-only, and must be created as groups. |
-| `POST` | `/api/Chat/GetChatRoomUsers` | token + patient allowed | `ChatController.js:60` |  |
-| `POST` | `/api/Chat/AddUserToChatRoom` | token + patient allowed | `ChatController.js:61` |  |
-| `POST` | `/api/Chat/RemoveUserFromChatRoom` | token + patient allowed | `ChatController.js:62` |  |
-| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:63` | The people you can start a chat with. |
-| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:64` | The aimag / soum lists for the directory's filters. |
-| `POST` | `/api/Chat/DownloadAttachment` | token + patient allowed | `ChatController.js:65` | Membership-checked download. |
+| `POST` | `/api/Chat/GetChatRoomList` | token + patient allowed | `ChatController.js:51` |  |
+| `POST` | `/api/Chat/GetMessages` | token + patient allowed | `ChatController.js:52` | Room-scoped, membership-checked, and the predicate is written here rather than taken from the… |
+| `POST` | `/api/Chat/SendMessage` | token + patient allowed | `ChatController.js:53` | The authoritative write path. |
+| `POST` | `/api/Chat/CommitMessage` | token + patient allowed | `ChatController.js:54` | Promote a pending attachment message to sent, and only then fan it out. |
+| `POST` | `/api/Chat/MarkRead` | token + patient allowed | `ChatController.js:55` |  |
+| `POST` | `/api/Chat/GetUnreadCount` | token + patient allowed | `ChatController.js:56` |  |
+| `POST` | `/api/Chat/AddChatRoom` | token + patient allowed | `ChatController.js:57` | Idempotent. |
+| `POST` | `/api/Chat/StartChat` | token + patient allowed | `ChatController.js:58` | Idempotent. |
+| `POST` | `/api/Chat/CheckChatRoom` | token + patient allowed | `ChatController.js:59` |  |
+| `POST` | `/api/Chat/CreateGroupRoom` | token + patient allowed | `ChatController.js:60` | Groups are doctors-only, and must be created as groups. |
+| `POST` | `/api/Chat/GetChatRoomUsers` | token + patient allowed | `ChatController.js:61` |  |
+| `POST` | `/api/Chat/AddUserToChatRoom` | token + patient allowed | `ChatController.js:62` |  |
+| `POST` | `/api/Chat/RemoveUserFromChatRoom` | token + patient allowed | `ChatController.js:63` |  |
+| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:64` | The people you can start a chat with. |
+| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:65` | The aimag / soum lists for the directory's filters. |
+| `POST` | `/api/Chat/DownloadAttachment` | token + patient allowed | `ChatController.js:66` | Membership-checked download. |
 | `POST` | `/api/Notification/GetListData` | token + patient allowed | `NotificationController.js:7` |  |
 
 ### 4.6. Гадаад интеграц (ХУР, ЭМД) — `controllers/integrations/`
@@ -247,12 +243,15 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.7. Тайлан — `controllers/reporting/`
 
-Угтвар: `/api/Report` · 2 endpoint.
+Угтвар: `/api/Report` · 5 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/Report/GetReport` | token | `ReportController.js:9` |  |
-| `POST` | `/api/Report/GetProvinceData` | token | `ReportController.js:10` |  |
+| `POST` | `/api/Report/GetReport` | token | `ReportController.js:12` |  |
+| `POST` | `/api/Report/GetProvinceData` | token | `ReportController.js:13` |  |
+| `POST` | `/api/Report/GetDoctorExamReport` | token | `ReportController.js:14` |  |
+| `POST` | `/api/Report/DoctorExamReportExcel` | token | `ReportController.js:15` |  |
+| `POST` | `/api/Report/DoctorExamReportText` | token | `ReportController.js:16` |  |
 
 ### 4.8. Зүрхний дутагдал — `controllers/heart-failure/`
 
@@ -477,14 +476,17 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/patient/questions` | token (RoleId 4 only) | `api/patient/index.js:46` |  |
 | `GET` | `/api/patient/advice` | token (RoleId 4 only) | `api/patient/index.js:49` | 2.4 Эмчийн зөвлөгөө |
 | `GET` | `/api/patient/risk` | token (RoleId 4 only) | `api/patient/index.js:52` | 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology |
-| `GET` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:55` | 2.6 Цахим үзлэг |
+| `GET` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:55` | 2.6 Цахим үзлэг - request, appointment and the state of both |
 | `POST` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:56` |  |
-| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:61` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
-| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:62` | What this patient has completed, so the catalogue can show progress. |
-| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:63` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
-| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:64` | Tracker #51: vital signs around a session. |
-| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:65` |  |
-| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:66` | Tracker #50: the latest risk / exercise-tolerance assessment. |
+| `GET` | `/api/patient/evisits/:id` | token (RoleId 4 only) | `api/patient/index.js:58` | One request, with its assigned doctor and - only once scheduled - its join link |
+| `POST` | `/api/patient/evisits/:id/cancel` | token (RoleId 4 only) | `api/patient/index.js:60` | Withdraw a request. |
+| `GET` | `/api/patient/options/:dico` | token (RoleId 4 only) | `api/patient/index.js:64` | Option lists for the dropdowns above, served from the OptionTypes dictionary so unapproved wording… |
+| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:69` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
+| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:70` | What this patient has completed, so the catalogue can show progress. |
+| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:71` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
+| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:72` | Tracker #51: vital signs around a session. |
+| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:73` |  |
+| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:74` | Tracker #50: the latest risk / exercise-tolerance assessment. |
 | `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:42` |  |
 | `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:45` | 28 Миний үзлэгүүд |
 | `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:46` | One examination in full. |
@@ -499,6 +501,15 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:61` | 31 Миний тайлан |
 | `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:64` | 32 Read access to the patient side |
 | `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:65` | A patient card: profile, recent examinations, journal series, monitoring state. |
+| `GET` | `/api/doctor/evisits` | token (staff only) | `api/doctor/index.js:69` | 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request Queue of requests… |
+| `GET` | `/api/doctor/evisits/:id` | token (staff only) | `api/doctor/index.js:71` | One request with the patient's card and their latest reading |
+| `POST` | `/api/doctor/evisits/:id/schedule` | token (staff only) | `api/doctor/index.js:73` | Confirm or move a slot, and assign it to the calling doctor |
+| `POST` | `/api/doctor/evisits/:id/complete` | token (staff only) | `api/doctor/index.js:75` | Mark the examination done. |
+| `POST` | `/api/doctor/evisits/:id/cancel` | token (staff only) | `api/doctor/index.js:77` | Refuse or withdraw a request |
+| `GET` | `/api/doctor/rehab/exercises` | token (staff only) | `api/doctor/index.js:80` | 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets |
+| `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:82` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
+| `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:84` | The assessment history, newest first |
+| `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:86` | Record an assessment. |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 
@@ -524,26 +535,35 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:393` |
-| `GET` | `/health` | public | `server.js:397` |
+| `GET` | `/` | public | `server.js:430` |
+| `GET` | `/health` | public | `server.js:434` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
-> **Аюулгүй байдлын тэмдэглэл.** Дараах угтварууд `Auth.verifyToken`-оос гадуур холбогдсон:
+> **2026-09-14-нд зассан.** Энэ хэсэг өмнө нь `/api/base/*`, `/api/report/*` хоёрыг
+> токенгүй хүсэлтэд хариулдаг гэж бичдэг байсан. Одоо тийм биш:
 >
-> - `/api/base/*` — 6 endpoint, токенгүй хүсэлтэд хариулдаг
->   (`server.js` дахь `app.use('/api', require('./api'))`).
-> - `/api/Test/*` — 6 endpoint, `routeGroups.public`-д
->   (`controllers/system/TestController.js`): `GET /api/Test/print`, `GET /api/Test/printNew`, `PUT /api/Test/uploadFile`, `GET /api/Test/ApiSendMail`, `POST /api/Test/CheckRegisterRegex`, `POST /api/Test/RegexTest`.
-> - `/api/report/*` — 1 endpoint, мөн токен шалгалтгүйгээр холбогдсон.
->   Гэхдээ Express холбох замыг том жижиг үсэг ялгахгүйгээр тааруулдаг тул өмнө бүртгэгдсэн
->   хамгаалагдсан `/api/Report` угтвар түрүүлж барьж, токенгүй хүсэлтэд
->   `AuthError` хариу (HTTP 200) буцаадаг. Энэ нь санаатай хамгаалалт биш — бүртгэлийн
->   дарааллын дагавар бөгөөд тэр угтварыг өөрчилбөл алга болно.
+> - `/api/base/*` — 6 endpoint. `api/index.js` дотор
+>   `[VerifyTokenJson, DenyPatient]`-ээр хамгаалагдсан. Токенгүй бол 401,
+>   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use('/api', ...)` дээр биш,
+>   дэд router дээр тавьсан нь санаатай: mount түвшинд тавьбал энэ давхаргын үйлчилдэггүй
+>   бүх зам 404-ийн оронд 401 болж, хүсэлт бүр дээр хэрэглэгч уншина.
+> - `/api/report/*` — 1 endpoint, мөн адил хамгаалагдсан.
+> - `/api/Test/*` — 2 endpoint үлдсэн, `routeGroups.public`-д
+>   (`controllers/system/TestController.js`): `POST /api/Test/CheckRegisterRegex`, `POST /api/Test/RegexTest`.
+>   Токенгүй 1 ГБ файл байршуулдаг байсан `PUT /api/Test/uploadFile`, хатуу бичсэн хаяг руу
+>   мэйл илгээдэг `ApiSendMail`, хариу буцаадаггүй `printNew`, нэвтрэлтгүй Puppeteer
+>   зураглал хийдэг `print` дөрвийг устгасан. Үлдсэн хоёр нь зөвхөн тэмдэгт мөр шалгадаг
+>   бөгөөд бүртгэлийн дэлгэц нэвтрэхээс өмнө дуудаж болзошгүй тул нийтийн хэвээр.
 >
-> 2026-09-10-ны шийдвэрээр эдгээрийг кодын хувьд одоогийн байдлаар нь үлдээж, тендерт заасан
-> мэдээллийн аюулгүй байдлын аудитад шилжүүлсэн (ажлын жагсаалтын №136, №138). Энэ баримт
-> бичиг зөвхөн бодит байдлыг тэмдэглэнэ; код өөрчлөөгүй.
+> Түүнчлэн Express холбох замыг том жижиг үсэг ялгахгүйгээр тааруулдаг тул `/api/Report`
+> угтвар түрүүлж барьдаг. Энэ нь санаатай хамгаалалт биш — бүртгэлийн дарааллын дагавар
+> бөгөөд тэр угтварыг өөрчилбөл алга болно. Одоо давхар хамгаалалттай учраас эрсдэл биш,
+> гэхдээ мэдэж байх нь зүйтэй.
+>
+> Үлдсэн аюулгүй байдлын олдворууд (`helper/Auth.js`-ийн dev горим, хурдны хязгаарлалт,
+> Socket.IO-ийн процесс доторх тархалт) тендерт заасан мэдээллийн аюулгүй байдлын аудитад
+> хамаарна (ажлын жагсаалтын №136, №138).
 >
 > Нийтийн бүлгийн бусад угтвар — `/api/User`, `/api/UserRequest`, `/api/PatientUser`, `/api/XypService` — нэвтрэх, бүртгүүлэх, нууц үг сэргээх, ХУР-ын сервер хоорондын дуудлага зэрэг токен
 > авахаас өмнөх урсгалд зориулагдсан;
@@ -563,4 +583,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-11. Нийт endpoint: 320._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 331._

@@ -192,8 +192,16 @@ function parseRouterFile(abs) {
       re.lastIndex = pos;
       if (!found) skip(line, 'route() with no verb chained');
     } else if (verb === 'use') {
-      const req = args[1] && args[1].match(/^require\(\s*['"]([^'"]+)['"]\s*\)$/);
-      const target = req ? resolveRequire(abs, req[1]) : null;
+      // Scan EVERY argument after the path, not just the second. A gated mount
+      // reads Router.use('/base', gate, require('./base')) - the middleware
+      // sits between them - and matching only args[1] silently reported those
+      // prefixes as having zero endpoints, which is worse than an error
+      // because the generated document looked complete.
+      let target = null;
+      for (let i = 1; i < args.length && !target; i++) {
+        const req = args[i] && args[i].match(/^require\(\s*['"]([^'"]+)['"]\s*\)$/);
+        if (req) target = resolveRequire(abs, req[1]);
+      }
       if (sub !== null && target) mounts.push({ sub, target, line });
       else skip(line, 'router.use() that is not a sub-router mount');
     } else {
@@ -924,29 +932,40 @@ function render(model) {
   push(
     '## 9. Аюулгүй байдлын тэмдэглэл',
     '',
-    '> **Аюулгүй байдлын тэмдэглэл.** Дараах угтварууд `Auth.verifyToken`-оос гадуур холбогдсон:',
+    '> **2026-09-14-нд зассан.** Энэ хэсэг өмнө нь `/api/base/*`, `/api/report/*` хоёрыг',
+    '> токенгүй хүсэлтэд хариулдаг гэж бичдэг байсан. Одоо тийм биш:',
     '>',
-    `> - ${code('/api/base/*')} — ${baseRows.length} endpoint, токенгүй хүсэлтэд хариулдаг`,
-    '>   (`server.js` дахь `app.use(\'/api\', require(\'./api\'))`).',
-    `> - ${code('/api/Test/*')} — ${testRows.length} endpoint, ${code('routeGroups.public')}-д`,
+    `> - ${code('/api/base/*')} — ${baseRows.length} endpoint. ${code('api/index.js')} дотор`,
+    `>   ${code('[VerifyTokenJson, DenyPatient]')}-ээр хамгаалагдсан. Токенгүй бол 401,`,
+    '>   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use(\'/api\', ...)` дээр биш,',
+    '>   дэд router дээр тавьсан нь санаатай: mount түвшинд тавьбал энэ давхаргын үйлчилдэггүй',
+    '>   бүх зам 404-ийн оронд 401 болж, хүсэлт бүр дээр хэрэглэгч уншина.',
+    `> - ${code('/api/report/*')} — ${reportRows.length} endpoint, мөн адил хамгаалагдсан.`,
+    `> - ${code('/api/Test/*')} — ${testRows.length} endpoint үлдсэн, ${code('routeGroups.public')}-д`,
     '>   (`controllers/system/TestController.js`): ' +
-      testRows.map((r) => code(r.method + ' ' + r.path)).join(', ') +
+      (testRows.length
+        ? testRows.map((r) => code(r.method + ' ' + r.path)).join(', ')
+        : '—') +
       '.',
-    `> - ${code('/api/report/*')} — ${reportRows.length} endpoint, мөн токен шалгалтгүйгээр холбогдсон.`
+    '>   Токенгүй 1 ГБ файл байршуулдаг байсан `PUT /api/Test/uploadFile`, хатуу бичсэн хаяг руу',
+    '>   мэйл илгээдэг `ApiSendMail`, хариу буцаадаггүй `printNew`, нэвтрэлтгүй Puppeteer',
+    '>   зураглал хийдэг `print` дөрвийг устгасан. Үлдсэн хоёр нь зөвхөн тэмдэгт мөр шалгадаг',
+    '>   бөгөөд бүртгэлийн дэлгэц нэвтрэхээс өмнө дуудаж болзошгүй тул нийтийн хэвээр.'
   );
   if (shadowed.length) {
     push(
-      '>   Гэхдээ Express холбох замыг том жижиг үсэг ялгахгүйгээр тааруулдаг тул өмнө бүртгэгдсэн',
-      `>   хамгаалагдсан ${code(shadowed[0].shadow)} угтвар түрүүлж барьж, токенгүй хүсэлтэд`,
-      '>   `AuthError` хариу (HTTP 200) буцаадаг. Энэ нь санаатай хамгаалалт биш — бүртгэлийн',
-      '>   дарааллын дагавар бөгөөд тэр угтварыг өөрчилбөл алга болно.'
+      '>',
+      `> Түүнчлэн Express холбох замыг том жижиг үсэг ялгахгүйгээр тааруулдаг тул ${code(shadowed[0].shadow)}`,
+      '> угтвар түрүүлж барьдаг. Энэ нь санаатай хамгаалалт биш — бүртгэлийн дарааллын дагавар',
+      '> бөгөөд тэр угтварыг өөрчилбөл алга болно. Одоо давхар хамгаалалттай учраас эрсдэл биш,',
+      '> гэхдээ мэдэж байх нь зүйтэй.'
     );
   }
   push(
     '>',
-    '> 2026-09-10-ны шийдвэрээр эдгээрийг кодын хувьд одоогийн байдлаар нь үлдээж, тендерт заасан',
-    '> мэдээллийн аюулгүй байдлын аудитад шилжүүлсэн (ажлын жагсаалтын №136, №138). Энэ баримт',
-    '> бичиг зөвхөн бодит байдлыг тэмдэглэнэ; код өөрчлөөгүй.',
+    '> Үлдсэн аюулгүй байдлын олдворууд (`helper/Auth.js`-ийн dev горим, хурдны хязгаарлалт,',
+    '> Socket.IO-ийн процесс доторх тархалт) тендерт заасан мэдээллийн аюулгүй байдлын аудитад',
+    '> хамаарна (ажлын жагсаалтын №136, №138).',
     '>',
     '> Нийтийн бүлгийн бусад угтвар — ' +
       otherPublic.map(code).join(', ') +

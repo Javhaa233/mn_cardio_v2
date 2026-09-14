@@ -64,4 +64,25 @@ router.get('/reports/summary', gate, c.reportSummary);
 router.get('/patients', gate, c.searchPatients);
 router.get('/patients/:id', gate, c.getPatient);
 
+// 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request
+// Queue of requests: ?scope=mine|unassigned|all, ?status, ?from, ?to
+router.get('/evisits', gate, c.listDoctorEvisits);
+// One request with the patient's card and their latest reading
+router.get('/evisits/:id', gate, c.getDoctorEvisit);
+// Confirm or move a slot, and assign it to the calling doctor
+router.post('/evisits/:id/schedule', gate, c.scheduleEvisit);
+// Mark the examination done. The clinical note belongs in Visit, not here
+router.post('/evisits/:id/complete', gate, c.completeEvisit);
+// Refuse or withdraw a request
+router.post('/evisits/:id/cancel', gate, c.cancelDoctorEvisit);
+
+// 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets
+router.get('/rehab/exercises', gate, c.listRehabExercises);
+// Everything rehabilitation knows about one patient: assessment, progress, vitals
+router.get('/patients/:id/rehab', gate, c.getPatientRehab);
+// The assessment history, newest first
+router.get('/patients/:id/rehab/assessment', gate, c.listPatientAssessments);
+// Record an assessment. Nothing is scored - the methodology is a ЗСҮТ deliverable
+router.post('/patients/:id/rehab/assessment', gate, c.createPatientAssessment);
+
 module.exports = router;

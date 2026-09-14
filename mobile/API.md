@@ -284,17 +284,74 @@ patient is a clinical safety problem, not a rounding error.
 
 ### 2.6 Цахим үзлэг
 
-```
-GET  /api/patient/evisits    ?limit &offset
-POST /api/patient/evisits    { "Comment": "..." }
-```
-`data` → array of `Id, Comment, CreateDate`.
+**Rewritten 2026-09-14.** This was a complaint box; it is now the full flow — request,
+appointment, examination. Verified end to end against `MnCardio_test`.
 
-> **Two traps.** First, these field names are **PascalCase inside the lowercase envelope**,
-> because `RemoteVisit` is a newer-generation table — do not assume the envelope's casing
-> reaches the fields. Second, this is a complaint box, not a booking system: there is no
-> scheduling, no status, no doctor assignment and no video call anywhere in the backend. The
-> tender's full цахим үзлэг flow is unbuilt. See [READINESS.md](READINESS.md).
+```
+GET  /api/patient/evisits            ?limit &offset &status &from &to
+POST /api/patient/evisits            { "Comment": "..."*, "RequestedDate": "2026-09-20 10:00:00" }
+GET  /api/patient/evisits/:id
+POST /api/patient/evisits/:id/cancel { "Reason": "..." }
+GET  /api/patient/options/:dico
+```
+
+Row shape:
+
+```json
+{ "Id": 41, "Comment": "Цээж базлах шинжтэй",
+  "RequestedDate": "2026-09-20 10:00:00", "ScheduledDate": "2026-09-21 14:30:00",
+  "Status": "scheduled", "StatusLabel": "Цаг товлосон",
+  "DoctorId": 512, "DoctorName": "Батболд Оюун",
+  "MeetingUrl": "https://...", "CreateDate": "...", "UpdateDate": "..." }
+```
+
+Statuses are `requested → scheduled → completed`, with `cancelled` reachable from either open
+state. `completed` and `cancelled` are **terminal for everyone, including an admin** — a
+repeat consultation is a new request. A move that is not legal answers `409
+INVALID_TRANSITION`.
+
+> **`MeetingUrl` is only present while `Status` is `scheduled`.** It is null before and after,
+> deliberately: a join link is a bearer credential for a clinical conversation, so it is not
+> handed out while a request is still pending nor left reachable once the visit is over.
+
+`RequestedDate` is **optional** — sending `{ Comment }` alone still works, which is what the
+shipped Dart client does. A date in the past is refused with `400 DATE_IN_PAST`.
+
+A patient may hold **three open requests** at once; a fourth answers `409
+TOO_MANY_OPEN_REQUESTS`. Field names stay PascalCase inside the lowercase envelope, because
+`RemoteVisit` is a newer-generation table.
+
+**`GET /api/patient/options/:dico`** serves the dropdown lists — allowlisted to
+`remotevisit_status`, `rehab_category`, `rehab_risk`, `rehab_phase`; anything else is `404
+DICO_NOT_ALLOWED`. Use it rather than hardcoding the Mongolian: **this wording is drafted by
+ITsystem and not yet approved by ЗСҮТ**, so it will change, and when it does it changes as a
+database row with no app release. An empty array means the dictionary has not been seeded on
+that server — show "not configured", not an error.
+
+> **Still missing, and not ours to fix:** the patient is not *notified* when a slot is
+> confirmed — there is no push anywhere yet — so poll `GET /evisits`. And `MeetingUrl` carries
+> a link to whatever platform ЗСҮТ choose; that choice is still open, so the column is there
+> and empty.
+
+### 2.6b What the doctor app gets
+
+```
+GET  /api/doctor/evisits              ?scope=mine|unassigned|all &status &from &to
+GET  /api/doctor/evisits/:id
+POST /api/doctor/evisits/:id/schedule { "ScheduledDate": "..."*, "MeetingUrl": "https://..." }
+POST /api/doctor/evisits/:id/complete { "Comment": "..." }
+POST /api/doctor/evisits/:id/cancel   { "Reason": "..." }
+```
+
+`scope=mine` is the default and needs a resolved doctor profile (`403
+DOCTOR_PROFILE_NOT_RESOLVED` otherwise). `scope=unassigned` is **care-team scoped** — you see
+only unassigned requests from patients you are on the team for or monitoring; `scope=all` is
+admin-only. Ordering is oldest-first, which is triage order.
+
+`MeetingUrl` must be `https://` (`400 INVALID_URL`). The doctor is always assigned from the
+token — **there is no way to assign a request to a different doctor through this API**; that
+is done from the web. An id you may not act on returns `404`, never `403`, so the endpoint
+cannot be used to discover which requests exist.
 
 ### 2.7 Сэргээн засах, дасгал хөдөлгөөн
 
@@ -311,15 +368,55 @@ GET  /api/patient/rehab/assessment
 `scripts/add_rehabilitation_tables.sql` has been run against `MnCardio_test`, so the four
 tables exist and the handlers work. `POST rehab/vitals` returns a real `{Id}`.
 
-Two caveats before you treat the module as finished:
+**Updated 2026-09-14. The catalogue now has 39 rows** on `MnCardio_test`, and each carries a
+`CategoryLabel` and a parsed `media` object:
 
-- **`GET rehab/exercises` returns `{"data":[],"total":0}`.** The catalogue has no rows. The
-  exercise list, its categories and the 39 videos are customer decisions still open in
-  [BLOCKERS.md](BLOCKERS.md) §1. An empty list is the correct response today, not a fault —
-  build the screen and it will fill.
+```json
+{ "Id": 1, "Code": "EX-01", "Name": "Дасгал №1 — нэр батлагдаагүй",
+  "CategoryCode": "warmup", "CategoryLabel": "Бэлтгэл дасгал",
+  "DurationSec": null, "OrderNo": 1,
+  "MediaRef": null, "media": { "kind": null, "ref": null, "url": null } }
+```
+
+> **Those 39 rows are PLACEHOLDERS and say so on every row.** The real names, categories and
+> durations are clinical content ЗСҮТ own, and filming has not started. They exist so you have
+> real ids, real ordering, real categories to group by and a real "no video" state to build
+> against — not so they can be shown to a patient. ЗСҮТ enter the real ones through the web.
+
+> **Never parse `MediaRef`. Branch on `media.kind`**, and treat `media.url === null` as "no
+> video yet" rather than as an error:
+>
+> | `media.kind` | meaning | what to do |
+> |---|---|---|
+> | `null` | no video recorded yet | show the exercise without a player |
+> | `"file"` | hosted on the MnCardio server | play `media.url` once it is non-null |
+> | `"url"` | cloud or CDN | play `media.url` |
+> | `"asset"` | bundled in the app | play your local asset named `media.ref` |
+>
+> Where the 39 videos will live is still an open customer question, and this is what keeps
+> that answer from costing an app release: it becomes a database value.
+
 - **Production has not had the script run.** This is an environment difference, so the DDL
   stays on the outstanding list in [READINESS.md](READINESS.md) §3. Do not read "works on
   test" as "shipped".
+
+**New — what the doctor app gets:**
+
+```
+GET  /api/doctor/rehab/exercises                   same shape as the patient's
+GET  /api/doctor/patients/:id/rehab                { assessment, progress, vitals }
+GET  /api/doctor/patients/:id/rehab/assessment     ?limit &offset
+POST /api/doctor/patients/:id/rehab/assessment     { AssessmentDate, RiskLevel, ToleranceScore, ToleranceUnit, Notes }
+```
+
+That POST closes a real gap: `GET /api/patient/rehab/assessment` could only ever read, and
+nothing anywhere could write the row, so the patient's assessment screen was permanently
+empty. All four are gated by care-team membership — a doctor who is not on the patient's team
+or monitoring them gets `403 NO_PATIENT_ACCESS`. A patient with no register number answers
+`409 NO_REGISTRATION`, because `PatRegNo` is the only key these tables have.
+
+**Nothing is scored.** `RiskLevel` is a dictionary value and `ToleranceScore` is stored exactly
+as entered — the risk methodology is a ЗСҮТ deliverable (tracker 38).
 
 Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 

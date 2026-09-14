@@ -51,9 +51,17 @@ router.get('/advice', gate, c.listAdvice);
 // 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology
 router.get('/risk', gate, c.getRisk);
 
-// 2.6 Цахим үзлэг
+// 2.6 Цахим үзлэг - request, appointment and the state of both
 router.get('/evisits', gate, c.listEvisits);
 router.post('/evisits', gate, c.createEvisit);
+// One request, with its assigned doctor and - only once scheduled - its join link
+router.get('/evisits/:id', gate, c.getEvisit);
+// Withdraw a request. A named transition, not a generic status PATCH
+router.post('/evisits/:id/cancel', gate, c.cancelEvisit);
+
+// Option lists for the dropdowns above, served from the OptionTypes dictionary
+// so unapproved wording never gets hardcoded into the app
+router.get('/options/:dico', gate, c.listOptions);
 
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
 // Inert until scripts/add_rehabilitation_tables.sql has been run against the

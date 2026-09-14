@@ -1,6 +1,9 @@
 const { Models, Op } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const DicoLabels = require('../../helper/DicoLabels');
+const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
+const MediaRef = require('../../helper/MediaRef');
 
 /**
  * Handlers for /api/patient/*.
@@ -316,41 +319,259 @@ exports.listAdvice = async (req, res) => {
 
 /* ------------------------------------------------- e-visits (Цахим үзлэг) */
 
+/**
+ * Shape one RemoteVisit row for either surface.
+ *
+ * MeetingUrl is returned ONLY on a scheduled visit. A join link is a bearer
+ * credential for a clinical conversation - anyone holding it can walk into the
+ * consultation - so it is not handed out while a request is still pending, and
+ * not left reachable after the visit is over or cancelled.
+ */
+const shapeEvisit = (row, statusLabels) => {
+  const r = row.toJSON ? row.toJSON() : row;
+  const Doctor = r.Doctor || null;
+
+  return {
+    Id: r.Id,
+    Comment: r.Comment,
+    RequestedDate: r.RequestedDate,
+    ScheduledDate: r.ScheduledDate,
+    Status: r.Status,
+    // null when the dico has not been seeded - the client falls back to the
+    // code rather than showing nothing. See helper/DicoLabels.js.
+    StatusLabel: statusLabels ? statusLabels.get(String(r.Status)) || null : null,
+    DoctorId: r.DoctorId,
+    DoctorName: Doctor ? [Doctor.lastname, Doctor.firstname].filter(Boolean).join(' ') : null,
+    MeetingUrl: r.Status === RemoteVisitFlow.STATUS.SCHEDULED ? r.MeetingUrl || null : null,
+    CreateDate: r.CreateDate,
+    UpdateDate: r.UpdateDate,
+  };
+};
+
+const DOCTOR_INCLUDE = {
+  model: Models.DoctorsProfile,
+  as: 'Doctor',
+  attributes: ['id_data', 'lastname', 'firstname'],
+  required: false,
+};
+
 exports.listEvisits = async (req, res) => {
   try {
     const { limit, offset } = readPaging(req);
 
+    const where = Object.assign(
+      { PatientId: req.Patient.PatientId },
+      // Window on RequestedDate, which the DDL backfilled from CreateDate for
+      // every pre-existing row, so the filter is safe on historical data.
+      readDateRange(req, 'RequestedDate')
+    );
+
+    const { status } = req.query;
+    if (status) {
+      const wanted = String(status)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => RemoteVisitFlow.IsStatus(s));
+      if (!wanted.length) return fail(res, 'INVALID_STATUS', 'Төлөв буруу байна');
+      where.Status = { [Op.in]: wanted };
+    }
+
+    // No raw:true - the Doctor include needs the association hydrated, so this
+    // maps toJSON the way listQuestions does.
     const { rows, count } = await Models.RemoteVisit.findAndCountAll({
-      where: { PatientId: req.Patient.PatientId },
-      attributes: ['Id', 'Comment', 'CreateDate'],
+      where,
+      include: [DOCTOR_INCLUDE],
       order: [['Id', 'DESC']],
       limit,
       offset,
-      raw: true,
     });
 
-    return ok(res, rows, { total: count, limit, offset });
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, rows.map((r) => shapeEvisit(r, labels)), { total: count, limit, offset });
   } catch (ex) {
     return serverError(res, ex, 'listEvisits');
   }
 };
 
+exports.getEvisit = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    // PatientId is in the WHERE, not a check after the fact: a row that is not
+    // this patient's is simply not found, which never reveals that it exists.
+    const row = await Models.RemoteVisit.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+      include: [DOCTOR_INCLUDE],
+    });
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, shapeEvisit(row, labels));
+  } catch (ex) {
+    return serverError(res, ex, 'getEvisit');
+  }
+};
+
+/** Max open (requested or scheduled) requests one patient may hold at once. */
+const MAX_OPEN_EVISITS = 3;
+
 exports.createEvisit = async (req, res) => {
   try {
-    const { Comment } = req.body;
+    const { Comment, RequestedDate } = req.body;
     if (!Comment || !String(Comment).trim()) {
       return fail(res, 'COMMENT_REQUIRED', 'Тайлбараа бичнэ үү');
     }
 
+    // RequestedDate is OPTIONAL, deliberately. The Dart client already shipped
+    // sending { Comment } alone (mobile/client/dart/patient_api.dart), and
+    // making it required here would break an app already in the field.
+    let When = null;
+    if (RequestedDate) {
+      const D = new Date(RequestedDate);
+      if (isNaN(D.getTime())) return fail(res, 'INVALID_DATE', 'Огноо буруу байна');
+      if (D.getTime() < Date.now()) {
+        return fail(res, 'DATE_IN_PAST', 'Өнгөрсөн огноо сонгох боломжгүй');
+      }
+      When = RequestedDate;
+    }
+
+    // A per-patient cap on OPEN requests. There is no rate limiting on
+    // authenticated writes, and each of these creates work for a clinician, so
+    // this is the cheap version of that control. It counts open requests rather
+    // than total, so a patient with a long history is never locked out.
+    const OpenCount = await Models.RemoteVisit.count({
+      where: {
+        PatientId: req.Patient.PatientId,
+        Status: { [Op.in]: RemoteVisitFlow.OPEN },
+      },
+    });
+    if (OpenCount >= MAX_OPEN_EVISITS) {
+      return fail(
+        res,
+        'TOO_MANY_OPEN_REQUESTS',
+        'Хариу хүлээж буй хүсэлт хэт олон байна. Өмнөх хүсэлтээ хүлээнэ үү.',
+        409
+      );
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
     const created = await Models.RemoteVisit.create({
       PatientId: req.Patient.PatientId,
       Comment,
-      CreateDate: ObjectHelper.getDateYMDHMS(),
+      // Defaulting RequestedDate to now keeps the column populated for every
+      // row, so the list's date window and the triage ordering never have to
+      // special-case a null.
+      RequestedDate: When || Now,
+      Status: RemoteVisitFlow.STATUS.REQUESTED,
+      CreateDate: Now,
+      UpdateDate: Now,
     });
 
-    return ok(res, { Id: created.Id });
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id: created.Id,
+      Status: RemoteVisitFlow.STATUS.REQUESTED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.REQUESTED) || null,
+      RequestedDate: When || Now,
+    });
   } catch (ex) {
     return serverError(res, ex, 'createEvisit');
+  }
+};
+
+/**
+ * A named transition, not a generic PATCH.
+ *
+ * A PATCH that took { Status } would have to validate the move anyway, and it
+ * would invite a client to set 'completed' on its own examination. Making the
+ * legal move the URL means the only thing a patient can do is withdraw.
+ *
+ * No PatientHistory audit row is written here, on purpose. ModelHelper stamps
+ * `id` from LogedUser.Id, and for a patient token that is a PatientUsers.Id,
+ * not a Users.Id - writing it into a column that means "staff user" would mix
+ * two id namespaces in an audit table. The cancellation is recorded on the row
+ * itself, by Status and UpdateDate.
+ */
+exports.cancelEvisit = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const row = await Models.RemoteVisit.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+    });
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.CANCELLED)) {
+      return fail(
+        res,
+        'INVALID_TRANSITION',
+        'Энэ хүсэлтийг цуцлах боломжгүй байна',
+        409
+      );
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const { Reason } = req.body || {};
+
+    await Models.RemoteVisit.update(
+      {
+        Status: RemoteVisitFlow.STATUS.CANCELLED,
+        UpdateDate: Now,
+        // Appended rather than replacing: Comment holds the patient's original
+        // complaint and overwriting it would destroy the reason they asked.
+        Comment: Reason
+          ? String(row.Comment || '') + '\n[Цуцалсан] ' + String(Reason).slice(0, 500)
+          : row.Comment,
+      },
+      { where: { Id, PatientId: req.Patient.PatientId } }
+    );
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id,
+      Status: RemoteVisitFlow.STATUS.CANCELLED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.CANCELLED) || null,
+      UpdateDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'cancelEvisit');
+  }
+};
+
+/**
+ * The option lists the app renders dropdowns from.
+ *
+ * This exists so the drafted, unapproved Mongolian wording lives in exactly one
+ * place - the dictionary - instead of being hardcoded in the client. When ЗСҮТ
+ * approve different labels it is a row edit, not an app release.
+ *
+ * Allowlisted, not arbitrary. The legacy /api/base/OptionTypes route would also
+ * serve these, but it dumps every dictionary in the system and until today it
+ * carried no authentication at all. Do not point the app at it.
+ */
+const PATIENT_ALLOWED_DICOS = [
+  'remotevisit_status',
+  'rehab_category',
+  'rehab_risk',
+  'rehab_phase',
+];
+
+exports.listOptions = async (req, res) => {
+  try {
+    const dico = String(req.params.dico || '');
+    if (!PATIENT_ALLOWED_DICOS.includes(dico)) {
+      return fail(res, 'DICO_NOT_ALLOWED', 'Ийм жагсаалт байхгүй', 404);
+    }
+
+    // An empty array is a valid answer: it means the dictionary has not been
+    // seeded on this database yet. The client should show "not configured"
+    // rather than treat it as a failure.
+    const options = await DicoLabels.GetOptions(dico);
+    return ok(res, options, { dico, total: options.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listOptions');
   }
 };
 
@@ -419,7 +640,24 @@ exports.listExercises = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, rows, { total: rows.length });
+    const labels = await DicoLabels.GetLabelMap('rehab_category');
+
+    // MediaRef stays on the row verbatim for compatibility, with a parsed
+    // `media` object beside it.
+    //
+    // CONTRACT FOR THE CLIENT: never parse MediaRef. Branch on media.kind, and
+    // treat media.url === null as "no video yet" rather than as an error. Today
+    // every row is null - the catalogue is 39 placeholders and filming has not
+    // started - so that is the state to build against, and it is also what a
+    // file-hosted video will report until the streaming route exists.
+    const data = rows.map((r) =>
+      Object.assign({}, r, {
+        CategoryLabel: labels.get(String(r.CategoryCode)) || null,
+        media: MediaRef.Parse(r.MediaRef),
+      })
+    );
+
+    return ok(res, data, { total: data.length });
   } catch (ex) {
     return serverError(res, ex, 'listExercises');
   }
