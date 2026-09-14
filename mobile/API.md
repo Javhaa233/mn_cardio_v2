@@ -425,9 +425,41 @@ Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 - vitals → `{rows[{Id, MeasuredAt, Phase, Pulse, BloodPressure, Spo2, Borg}], labels, series{pulse, spo2}}`
 - assessment → latest row or `null`
 
-`MediaRef` is a placeholder for the 39 exercise videos. **There is no video delivery path** —
-the file layer serves `POST` + `Content-Disposition: attachment`, which no video player can
-stream. That endpoint has to be built.
+### 2.7b Playing an exercise video — `/api/Media/*`
+
+**New 2026-09-14.** There is now a delivery path; the file layer's `POST` +
+`Content-Disposition: attachment` never was one.
+
+```
+GET  /api/Media/exercise/:exerciseId     the video for one exercise
+HEAD /api/Media/exercise/:exerciseId     size only, no body
+GET  /api/Media/stream/:generatedName    any attachment you are allowed to read
+```
+
+Full response is `200` with `Accept-Ranges: bytes` and `Content-Disposition: inline`. Send a
+`Range` and you get `206` with `Content-Range`; an unsatisfiable range gives `416`. Suffix
+ranges work (`bytes=-500` is the **last** 500 bytes). So the player can seek.
+
+> **Use `media.url` from the catalogue — do not build this path yourself.** For a file-hosted
+> video `media.url` is already `/api/Media/exercise/{Id}`; for a cloud-hosted one it is the
+> CDN address; for a bundled one it is `null` and `media.kind` is `"asset"`.
+
+> **Send the token as a header.** `VideoPlayerController.networkUrl(..., httpHeaders: {...})`
+> takes one. Do **not** ask for a `?token=` variant — a token in a URL lands in nginx access
+> logs and anywhere the URL gets copied.
+
+What the exercise route answers, by `media.kind`:
+
+| kind | response |
+|---|---|
+| `file` | `200`/`206`, the bytes |
+| `url` | `302` to the real address |
+| `asset` | `409 MEDIA_BUNDLED` with `data.asset` — you already have it locally |
+| `null` | `404` — not filmed yet, which is every row today |
+
+An id you may not read, or one that does not exist, both answer `404`. No token gives a real
+`401` (not the legacy HTTP-200 `AuthError` envelope — that was deliberately avoided here,
+because a player would try to decode it as video).
 
 ### 2.8 Мэдэгдэл — notifications
 

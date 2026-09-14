@@ -101,11 +101,35 @@ nightly `EXEC spUpdateNotification` does. The API exposes it as a boolean.
 Producers wired: a doctor answering a question, and an e-visit slot being confirmed. More
 events can be added by calling `NotificationHelper.NotifyPatient`.
 
-### 2.4 No media delivery path — blocks the 39 videos
+### 2.4 No media delivery path — **fixed 2026-09-14**
 
-The file layer serves `POST` + `Content-Disposition: attachment`. No player can stream that,
-and **no video extension is on the upload allowlist** (`BaseController.js:278-301`). Needs an
-authenticated `GET` with byte-range support before `RehabExercise.MediaRef` means anything.
+`GET` and `HEAD` on `/api/Media/stream/:generatedName` and
+`/api/Media/exercise/:exerciseId`, with real HTTP byte ranges: `200` with
+`Accept-Ranges` and **`Content-Disposition: inline`** for the whole file, `206` with
+`Content-Range` for a range, `416` for one that cannot be satisfied. Suffix ranges
+(`bytes=-500` meaning the *last* 500 bytes) are handled — getting that backwards produces a
+video that plays and then corrupts near the end.
+
+Video extensions are allowed **for `RehabExercise` only**, per-object the way `UploadCapFor`
+already makes the size cap per-object. `MAX_UPLOAD_CEILING` is deliberately unchanged:
+formidable fixes `maxFileSize` before `LinkedObjectInfo` is parsed, so raising it would mean
+every upload is read that far before the per-object cap can reject it.
+
+Authorization is not reimplemented — `MayAttachTo` and `MayDownload` moved to
+`helper/FileAccessHelper.js` unchanged so this route and `/BaseObject/downloadFile` share one
+rule. Two things that were caught while wiring it are worth knowing:
+
+- the catalogue is **shared content with no ownership column**, and `MayDownload`'s patient
+  check refuses anything without a `PatientScope` entry — so a named `SHARED_CONTENT`
+  exemption was needed or every patient would have been refused the exact file the module
+  exists to deliver;
+- mounted in the legacy table, an unauthenticated request returned **HTTP 200 with
+  `{AuthError:true}` JSON**, which a video player would try to decode as video. It is mounted
+  with `VerifyTokenJson` instead and returns a real `401`. No bytes ever leaked.
+
+Still blocked on the customer: the videos themselves. Filming has not started and the hosting
+decision is open — but the route branches on the `MediaRef` scheme, so that answer is a
+database value rather than a release.
 
 ### 2.5 `downloadFile` is authorized — the real gap is `MayAttachTo`'s default
 
