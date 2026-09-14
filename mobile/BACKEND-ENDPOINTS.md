@@ -17,6 +17,62 @@
 | DDL (өгөгдлийн сангийн өөрчлөлт, хэсгээр) | 4 | 11 | **15** |
 | ЗСҮТ эсвэл гадны байгууллагын шийдвэр, гэрээ хүлээж буй | 4 | 10 | **14** |
 
+## Шалгалт — 2026-09-14, `origin/main` d295b51 merge хийсний дараа
+
+Код (`backend/api/*`, `controllers/*`, `helper/*`) болон туршилтын сервер дээрх route-ийн байршлыг
+(нэвтрэлтгүй хүсэлт: мобайл route байвал `401 TOKEN_INVALID`, байхгүй бол `404` эсвэл хуучин `200`)
+тулгаж шалгасан.
+
+✅ бүрэн · 🟡 хэсэгчлэн / flag-аар хаалттай · ❌ байхгүй · ⛔ ЗСҮТ/гадны шийдвэр хүлээж буй
+
+| # | Хэсэг | Төлөв | Юу байна / юу дутуу |
+|---|---|---|---|
+| 1 | Хэрэглэгч тус бүрээр эрх | ❌ | `permissions` ба `RequirePermission` байхгүй |
+| 2 | Онош, ICD, эмчээр хайх | ❌ | `/doctor/visits`-д `icd10`/`diagnosis`/`doctor` шүүлтүүр, `GET /doctor/icd10` (сервер 404) байхгүй |
+| 3 | Мобайл админ | 🟡 | `RehabExercise/Assessment/VitalSign/Progress` ModelConfig бүртгэгдсэн ✅. `/api/patient/options/:dico` ✅. `MobileSetting`, `GET /api/mobile/config` ❌ |
+| 4 | Тайлан экспорт (заавал биш) | — | Апп өөрөө хийдэг. Сервер талд `ExportText` (.txt) нэмэгдсэн |
+| 5 | Эмч үйлчлүүлэгчийн модулийг харах | 🟡 | `/doctor/patients/:id/rehab` ✅. `/patients/:id/risk` ❌ (сервер 404). Цахим үзлэгийг үйлчлүүлэгчээр шүүх `PatientId` параметр `/doctor/evisits`-д ❌ — апп хуучин `RemoteVisit/GetList` workaround-аа хэвээр хэрэглэнэ |
+| 6 | Асуултад хавсралт | ❌ | `POST /patient/questions` multipart биш, `MayAttachTo`-д `VisitComments` дүрэм, `/patient/files/:id` байхгүй. Эмч хариулах `GET/POST /doctor/monitoring/:id/questions` ✅ |
+| 7 | Цахим үзлэг | ✅ | Үйлчлүүлэгч: жагсаалт, үүсгэх, дэлгэрэнгүй, цуцлах. Эмч: жагсаалт, товлох, дуусгах, цуцлах. `MeetingUrl` (видеоны дэд бүтэц ⛔) |
+| 8 | Сэргээн засах | 🟡 | 39 дасгал (нэр ⛔), `/api/Media` Range stream ✅, эмч үнэлгээ бичих ✅. Үйлчлүүлэгчийн үнэлгээний түүх (`/rehab/assessments`) ❌ |
+| 9 | 3 буруу нууц үг | 🟡 | Тоолуур, түгжээ, имэйл мэдэгдэл хийгдсэн. **`FEATURE_LOGIN_LOCKOUT` анхдагч `false`** |
+| 10 | Лицензийн код | 🟡 | `LicenceGate` хийгдсэн. **`FEATURE_DOCTOR_LICENCE` анхдагч `off`** — 660 байгууллагад код байхгүй тул enforce хийвэл бүгд түгжигдэнэ ⛔ |
+| 11 | Нууцын ангилал | 🟡 | `helper/Confidentiality.js` зөвхөн `warn` горимд (логлодог, нуудаггүй). Матриц ⛔ |
+| 12 | ХУР | ❌ | Зөвхөн `POST /api/Xyp/testCall`. OTP, иргэний мэдээлэл, sync байхгүй. Эрх, түлхүүр ⛔ |
+| 13 | Зөвшөөрөл | 🟡 | Үйлчлүүлэгч: `GET/POST/DELETE /patient/consents` ✅. Эмч асран хамгаалагчийн зөвшөөрөл бүртгэх ❌. **`FEATURE_CONSENT` анхдагч `false`** |
+| 14 | Хандалтын лог, мэдэгдэл | 🟡 | `AccessAudit.RecordAccess` (`/doctor/patients/:id` дээр), `AccessNotify` бодлого, `GET /patient/access-log` ✅. **`FEATURE_ACCESS_LOG_API` анхдагч `false`** — унтраалттай бол жагсаалт ажиллахгүй |
+| 15 | Цагийн эталон | ❌ | `GET /api/time` байхгүй. Серверийн NTP-г шалгаагүй |
+| 16 | Цахим гарын үсэг | ❌ ⛔ | ДАН гэрээ |
+| 17 | Backup | ❌ | `AppController.ScheduleBackUp` өөрчлөгдөөгүй — амжилттай үед `Status` бичдэггүй, `/admin/backups` байхгүй |
+| 18 | FHIR / ЭМХТ | 🟡 | `/api/fhir/metadata`, `Patient/:id`, `Condition` ✅. `Encounter`, `Observation`, ЭМХТ илгээх ❌. **`FEATURE_FHIR_EXPORT` анхдагч `false`** |
+| 19 | Эм, хэрэгслийн сан | ❌ ⛔ | |
+| 20 | ЭМД кодчилол (мобайл) | ❌ | Хуучин `EMDService/getTablet*` л байна |
+| 21 | Аюулгүй байдал | 🟡 | `/api/base`, `/api/report` 401 ✅. `/api/Test/*` 4 route устсан ✅. `downloadFile` эзэмшил шалгадаг ✅. Токен цуцлах `/auth/logout`, `/sessions`, `/logout-all` ✅. JWT dev bypass нь `ALLOW_INSECURE_DEV_AUTH` flag-аар ✅. Rate limit (`helper/RateLimit.js`) ✅ боловч **`RATE_LIMIT_ENABLED` анхдагч `false`**, **`TOKEN_REVOCATION_ENABLED` анхдагч `false`** |
+| 22 | XLS, TXT экспорт | 🟡 | `POST /api/BaseObject/ExportText` ✅. Үйлчлүүлэгчийн тэмдэглэл экспорт, үзлэгийн PDF ❌ |
+| 23 | Эх сурвалжийн тэмдэглэгээ | ✅ | `ExportText`/`ExportExcel` ижил `BuildExport`, тайлан/хэвлэлтэд `Provenance` |
+| 24 | Өртөг, зардал | ❌ ⛔ | Тариф |
+| 25 | Автомат шинэчлэлт | ❌ | `GET /api/mobile/version`, `426 UPDATE_REQUIRED` байхгүй |
+| 26 | Push, мэдэгдэл | 🟡 | Үйлчлүүлэгч: мэдэгдэл 4 endpoint ✅, төхөөрөмж 3 ✅. Эмч: төхөөрөмж ✅, **мэдэгдлийн жагсаалт `/doctor/notifications` ❌ (сервер 404)**. Мэдэгдлийн тохиргоо (preferences) ❌. Сервер талын сануулга `/patient/reminders` ✅. Producer: зөвхөн `ReplyQuestion`, `EvisitScheduled` — зөвлөгөө, чат, үнэлгээ ❌. Firebase/APNs ⛔ |
+| 27 | Шинжилгээ, оношлогоо | ❌ | `/diagnostics` endpoint байхгүй |
+
+### Туршилтын сервер дээр flag-уудыг шалгах
+
+Функцүүдийн нэлээд хэсэг **анхдагчаар унтраалттай**. Сервер асахдаа `[FeatureFlags] {...}` мөрийг
+`console.error`-оор бичдэг — PM2 логоос тухайн серверт юу асаалттай байгааг шалгана:
+`FEATURE_LOGIN_LOCKOUT`, `FEATURE_DOCTOR_LICENCE`, `FEATURE_CONSENT`, `FEATURE_ACCESS_LOG_API`,
+`FEATURE_FHIR_EXPORT`, `RATE_LIMIT_ENABLED`, `TOKEN_REVOCATION_ENABLED`, `PUSH_DRIVER`.
+
+### Backend-д үлдсэн ажил (гадны шийдвэргүй)
+
+1. `GET /api/doctor/notifications` (+ `/:id/read`, `/read-all`, `/unread-count`) — эмчийн апп мэдэгдэл харуулах боломжгүй
+2. `GET /api/doctor/patients/:id/risk`, `/doctor/evisits?patientId=`
+3. Асуултын хавсралт (6-р хэсэг)
+4. ICD хайлт ба шүүлтүүр (2-р хэсэг)
+5. `GET /api/mobile/version`, `GET /api/mobile/config` + `MobileSetting`
+6. `GET /api/patient/rehab/assessments`
+7. Push producer: зөвлөгөө нийтлэгдсэн/сэтгэгдэл, чат (офлайн хүлээн авагч), сэргээн засах үнэлгээ
+8. Эрх (1), шинжилгээ оношлогоо (27), backup засвар (17), `GET /api/time` (15), ЭМД wrapper (20), FHIR `Encounter`/`Observation` (18)
+
 ## Бүх endpoint-д мөрдөх дүрэм
 
 `/api/patient/*`, `/api/doctor/*`-ийн одоогийн дүрмийг яг хэвээр мөрдөнө (`api/doctor/index.js`
