@@ -4,6 +4,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
+const PushHelper = require('../../helper/PushHelper');
 
 /**
  * Handlers for /api/patient/*.
@@ -786,5 +787,204 @@ exports.getRehabAssessment = async (req, res) => {
     return ok(res, row || null);
   } catch (ex) {
     return serverError(res, ex, 'getRehabAssessment');
+  }
+};
+
+/* ------------------------------------------------ Мэдэгдэл (tracker row 48) */
+
+/**
+ * SEEN IS '1' OR NULL. Measured on MnCardio_test 2026-09-14 - those are the
+ * only two values in the column. Nothing in this repo writes it; the nightly
+ * EXEC spUpdateNotification does, and its body lives in the database rather
+ * than here. The web bell reads the same column, so this must not invent a
+ * third value like 'y' or 'true'.
+ */
+const SEEN = '1';
+
+const shapeNotification = (r) => ({
+  Id: r.Id,
+  Notes: r.Notes,
+  NotesMn: r.NotesMn,
+  Action: r.Action,
+  LinkObjectName: r.LinkObjectName,
+  LinkObjectId: r.LinkObjectId,
+  Url: r.Url,
+  Seen: r.Seen === SEEN,
+  SeenDate: r.SeenDate,
+  CreateDate: r.CreateDate,
+});
+
+exports.listNotifications = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+
+    const where = { ToPatientId: req.Patient.PatientId };
+    if (String(req.query.unread) === '1') {
+      // Unread is "not the seen value", which includes NULL. Op.ne alone would
+      // exclude NULL rows in SQL Server, and NULL is what an unread row
+      // actually holds - so that would return nothing at all.
+      where[Op.or] = [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }];
+    }
+
+    const { rows, count } = await Models.Notification.findAndCountAll({
+      where,
+      attributes: [
+        'Id',
+        'Notes',
+        'NotesMn',
+        'Action',
+        'LinkObjectName',
+        'LinkObjectId',
+        'Url',
+        'Seen',
+        'SeenDate',
+        'CreateDate',
+      ],
+      order: [['CreateDate', 'DESC'], ['Id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    return ok(res, rows.map(shapeNotification), { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listNotifications');
+  }
+};
+
+/** The badge. Its own endpoint so the app is not paging a list to count. */
+exports.unreadNotificationCount = async (req, res) => {
+  try {
+    const unread = await Models.Notification.count({
+      where: {
+        ToPatientId: req.Patient.PatientId,
+        [Op.or]: [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }],
+      },
+    });
+    return ok(res, { unread });
+  } catch (ex) {
+    return serverError(res, ex, 'unreadNotificationCount');
+  }
+};
+
+/**
+ * Ownership lives in the WHERE clause, never in a check beforehand.
+ *
+ * An UPDATE constrained by both Id and ToPatientId either matches the caller's
+ * own row or matches nothing. Zero rows becomes 404, which is the same answer
+ * an id that does not exist gets - so this cannot be used to discover whether
+ * somebody else's notification exists.
+ */
+exports.markNotificationRead = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: SEEN, SeenDate: Now },
+      { where: { Id, ToPatientId: req.Patient.PatientId } }
+    );
+
+    if (!count) return fail(res, 'NOT_FOUND', 'Мэдэгдэл олдсонгүй', 404);
+    return ok(res, { Id, Seen: true, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markNotificationRead');
+  }
+};
+
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: SEEN, SeenDate: Now },
+      {
+        where: {
+          ToPatientId: req.Patient.PatientId,
+          [Op.or]: [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }],
+        },
+      }
+    );
+    return ok(res, { marked: count, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markAllNotificationsRead');
+  }
+};
+
+/* ------------------------------------------------------ push registration */
+
+/**
+ * Register this device for push.
+ *
+ * The identity is the token's, not the body's: UserType 'P' and the PatientId
+ * from the session. A caller cannot register a token against somebody else.
+ *
+ * Works today with no FCM or APNs credentials - the log driver reports success,
+ * so the client's registration flow is testable now. See helper/PushHelper.js.
+ */
+exports.registerDevice = async (req, res) => {
+  try {
+    const { token, platform, device_id, app_version, locale } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const P = String(platform || '').toLowerCase();
+    if (!['android', 'ios', 'web'].includes(P)) {
+      return fail(res, 'INVALID_PLATFORM', 'platform нь android, ios, web байна');
+    }
+
+    const result = await PushHelper.Register({
+      UserType: 'P',
+      UserId: req.Patient.PatientId,
+      Token: token,
+      Platform: P,
+      DeviceId: device_id,
+      AppVersion: app_version,
+      Locale: locale,
+    });
+
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+
+    return ok(res, { Id: result.Id, moved: result.moved });
+  } catch (ex) {
+    return serverError(res, ex, 'registerDevice');
+  }
+};
+
+/**
+ * POST .../unregister rather than DELETE /devices/:token.
+ *
+ * An FCM token is around 163 characters and contains ':' and '-'. Putting one
+ * in a path segment is fragile through nginx and the router, and it lands in
+ * access logs. Keep it in the body. Do not "tidy" this into a DELETE.
+ */
+exports.unregisterDevice = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const result = await PushHelper.Unregister({
+      UserType: 'P',
+      UserId: req.Patient.PatientId,
+      Token: token,
+    });
+
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+    return ok(res, { deactivated: result.deactivated });
+  } catch (ex) {
+    return serverError(res, ex, 'unregisterDevice');
+  }
+};
+
+/** The caller's own devices. Never returns the token itself. */
+exports.listDevices = async (req, res) => {
+  try {
+    const rows = await PushHelper.List({ UserType: 'P', UserId: req.Patient.PatientId });
+    return ok(res, rows, { total: rows.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listDevices');
   }
 };

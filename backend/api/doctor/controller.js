@@ -6,6 +6,7 @@ const CareTeam = require('../../helper/CareTeam');
 const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
+const NotificationHelper = require('../../helper/NotificationHelper');
 
 /**
  * Handlers for /api/doctor/*.
@@ -595,6 +596,19 @@ exports.replyPatientQuestion = async (req, res) => {
     });
     if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'replyPatientQuestion');
 
+    // Tell the patient. Awaited so a failure is logged against this request,
+    // but NotifyPatient never throws and its result is not checked - the reply
+    // is saved either way, and a silent phone must not fail a clinical write.
+    await NotificationHelper.NotifyPatient({
+      PatientId,
+      Action: 'ReplyQuestion',
+      LinkObjectName: 'VisitComments',
+      LinkObjectId: Id,
+      NotesMn: 'Эмч таны асуултад хариулсан байна',
+      Notes: 'Doctor replied to your question',
+      LogedUser: req.LogedUser,
+    });
+
     return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'replyPatientQuestion');
@@ -1147,6 +1161,19 @@ exports.scheduleEvisit = async (req, res) => {
     );
 
     await WriteEvisitAudit(req, row.PatientId, Id, 'Цахим үзлэгийн цаг товлолоо');
+
+    // The one notification the 2.6 flow genuinely needs. Without it the patient
+    // has no way to learn their slot was confirmed except by opening the app
+    // and looking - which is what mobile/API.md had to tell them to do.
+    await NotificationHelper.NotifyPatient({
+      PatientId: row.PatientId,
+      Action: 'EvisitScheduled',
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: Id,
+      NotesMn: 'Цахим үзлэгийн цаг товлогдлоо: ' + String(ScheduledDate),
+      Notes: 'Your remote examination has been scheduled',
+      LogedUser: req.LogedUser,
+    });
 
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
     return ok(res, {

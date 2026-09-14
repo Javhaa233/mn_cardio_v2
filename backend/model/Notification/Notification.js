@@ -9,8 +9,15 @@ class Notification extends Sequelize.Model {}
 Notification.init(
   {
     Id: { type: Sequelize.INTEGER, autoIncrement: true, primaryKey: true },
-    Notes: { type: Sequelize.INTEGER },
-    LinkObjectName: { type: Sequelize.INTEGER },
+    // Notes and LinkObjectName were declared INTEGER, which was simply wrong:
+    // every producer writes a string into both - AdviceController sends
+    // Notes: 'Publish new ticket' and LinkObjectName: 'Advice' - and the
+    // ObjectNameDic association joins LinkObjectName to a STRING column. The
+    // database columns must already be nvarchar or the live Advice flow would
+    // have been failing on insert, so this corrects the model to match the
+    // table. No DDL.
+    Notes: { type: Sequelize.STRING },
+    LinkObjectName: { type: Sequelize.STRING },
     LinkObjectId: { type: Sequelize.INTEGER },
     NotesMn: { type: Sequelize.STRING },
     CreateDate: { type: Sequelize.DATE },
@@ -19,7 +26,15 @@ Notification.init(
     Action: { type: Sequelize.STRING },
     ToDoctorId: { type: Sequelize.INTEGER },
     ToUserId: { type: Sequelize.INTEGER },
+    // Patient.id_data, NOT PatientUsers.Id - see the header of
+    // scripts/add_notification_patient_recipient.sql for why that distinction
+    // decides whether ДАН logins can ever receive a notification.
+    ToPatientId: { type: Sequelize.INTEGER },
     SeenDate: { type: Sequelize.DATE },
+    // Measured on MnCardio_test 2026-09-14: the only values present are NULL
+    // and '1'. Nothing in this repo writes it - the nightly
+    // EXEC spUpdateNotification does, and its body lives in the database - so
+    // '1' is the value the web bell already treats as seen. Match it.
     Seen: { type: Sequelize.STRING },
     Url: { type: Sequelize.STRING },
     ExpiredDate: { type: Sequelize.DATE },
@@ -44,11 +59,20 @@ Notification.SearchField = [
   'Action',
   'ToDoctorId',
   'ToUserId',
+  'ToPatientId',
   'SeenDate',
   'Seen',
 ];
 
 Notification.SetAssocations = (Models) => {
+  // The patient a notification is addressed to. targetKey is id_data because
+  // ToPatientId holds Patient.id_data, not a PatientUsers id.
+  Notification.belongsTo(Models.Patient, {
+    as: 'ToPatient',
+    foreignKey: 'ToPatientId',
+    targetKey: 'id_data',
+  });
+
   Notification.belongsTo(Models.Users, {
     as: 'CreateUsers',
     foreignKey: 'CreateUserId',

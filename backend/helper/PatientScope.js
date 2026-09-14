@@ -38,6 +38,19 @@ const SCOPE_BY_OBJECT = {
   // authoring account would hide every reply from the patient.
   VisitComments: { Field: 'patient_id', From: 'PatientId' },
 
+  // READ SIDE ONLY, and that restriction is load-bearing.
+  //
+  // This entry lets a patient LIST their own notifications. It must never be
+  // relied on for a WRITE: ApplyPatientOwnership assigns Data[ToPatientId] from
+  // the session, so a notification generated during a patient's action FOR A
+  // DOCTOR - filing an e-visit request, say - would be silently re-addressed to
+  // the patient themselves, and the doctor would never hear about it.
+  //
+  // Producers therefore write with Models.Notification.create directly, never
+  // through BaseControllerHelper.BaseCreate. helper/NotificationHelper.js does
+  // exactly that and says so.
+  Notification: { Field: 'ToPatientId', From: 'PatientId' },
+
   // Newer generation: joined by registration number, no foreign key.
   CVDMonitoring: { Field: 'PatRegNo', From: 'PatRegNo' },
   PatientBodySize: { Field: 'PatRegNo', From: 'PatRegNo' },

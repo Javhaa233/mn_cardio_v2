@@ -63,6 +63,19 @@ router.post('/evisits/:id/cancel', gate, c.cancelEvisit);
 // so unapproved wording never gets hardcoded into the app
 router.get('/options/:dico', gate, c.listOptions);
 
+// Мэдэгдэл (tracker 48). Patients were denied every notification row until now
+router.get('/notifications', gate, c.listNotifications);
+// The badge count on its own, so the app is not paging a list to count
+router.get('/notifications/unread-count', gate, c.unreadNotificationCount);
+router.post('/notifications/:id/read', gate, c.markNotificationRead);
+router.post('/notifications/read-all', gate, c.markAllNotificationsRead);
+
+// Push registration. Works today on the log driver, with no FCM or APNs keys
+router.post('/devices', gate, c.registerDevice);
+// POST, not DELETE /:token - an FCM token is ~163 chars and contains ':'
+router.post('/devices/unregister', gate, c.unregisterDevice);
+router.get('/devices', gate, c.listDevices);
+
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
 // Inert until scripts/add_rehabilitation_tables.sql has been run against the
 // database - the tables do not exist yet, and DDL is a DBA request here.
