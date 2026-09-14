@@ -151,4 +151,22 @@ ChatHelper.prototype.GetDirectoryFilters = async (callback) => {
   await Call("/Chat/GetDirectoryFilters", {}, callback);
 };
 
+/**
+ * A URL an <audio> or <video> element can actually open.
+ *
+ * Every other attachment in this app is fetched as a blob, because auth is
+ * header-based and an <img> cannot send a header. That works for a photo - it
+ * is one request and then the bytes are in memory - and it does not work for
+ * media: a blob has to arrive COMPLETE before the first frame plays, cannot be
+ * seeked until it has, and holds the whole clip in memory. A ten-minute voice
+ * note would be downloaded in full before making a sound.
+ *
+ * So the server mints a short-lived URL scoped to this one file and this one
+ * user instead, and the element streams it with real byte ranges. Returns
+ * { Url, ExpiresAt, Kind, DurationMs, MediaState, ... }.
+ */
+ChatHelper.prototype.GetAttachmentLink = async ({ FileId }, callback) => {
+  await Call("/Chat/GetAttachmentLink", { FileId }, callback);
+};
+
 export default new ChatHelper();

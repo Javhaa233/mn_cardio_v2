@@ -51,6 +51,30 @@ const SCOPE_BY_OBJECT = {
   // exactly that and says so.
   Notification: { Field: 'ToPatientId', From: 'PatientId' },
 
+  /*
+   * Attachments a patient uploads themselves (tender §2.3), added 2026-09-14.
+   *
+   * WITHOUT THIS ENTRY A PATIENT CANNOT ATTACH ANYTHING, SILENTLY.
+   * BaseCreate's first act is ApplyPatientOwnership, which refuses outright
+   * when an object has no entry here and returns null - no throw, no log. So
+   * POST /api/patient/questions with a photo answered 200, moved the bytes into
+   * ALLFILE_DIR, and wrote no File row at all: the attachment existed on disk
+   * and nowhere else. It is the same trap helper/NotificationHelper.js records
+   * for Notification, and it fails in the same silent way.
+   *
+   * `patient_id` is the right column: File has carried one since the legacy
+   * schema, and stamping it from the session is what makes the row the
+   * patient's own rather than whatever the request claimed.
+   *
+   * READ-SIDE EFFECT, considered: this also lets ApplyPatientFilter scope a
+   * /BaseObject read of File to `patient_id = me`. That is a narrower query
+   * than the refusal it replaces, and it returns only rows the patient already
+   * reaches through /api/patient/questions. Ownership of the BYTES is not
+   * decided here in any case - helper/FileAccessHelper.MayDownload re-resolves
+   * every handle to its stored row and authorizes the record it hangs off.
+   */
+  File: { Field: 'patient_id', From: 'PatientId' },
+
   // Newer generation: joined by registration number, no foreign key.
   CVDMonitoring: { Field: 'PatRegNo', From: 'PatRegNo' },
   PatientBodySize: { Field: 'PatRegNo', From: 'PatRegNo' },

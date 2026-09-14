@@ -24,7 +24,7 @@ exist in any form.
 | Patient module 2.1–2.6 | tracker 34–37, 39–40 | `api/patient/*` — 12 live endpoints |
 | **Doctor module** — үзлэг, хяналт, зөвлөгөө, тайлан | tracker 28–32 | `api/doctor/*` — 12 endpoints, new 2026-09-10 |
 | **Session refresh** | — | `api/auth/*` — new 2026-09-10 |
-| Chat: text, image, audio, documents | tracker 47 | `ChatController.js` + `/chatmessage` socket |
+| Chat: text, image, **voice, video**, documents | tracker 47 | `ChatController.js` + `/chatmessage` socket; recording, players, streaming playback and push added 2026-09-14 |
 | Advice feed with paging and scope | tracker 30 | `AdviceController.GetFeed` |
 | File upload with authorization and extension allowlist | tracker 44 | `BaseController.js:366-570` |
 | ХУР integration (web-side plumbing) | tracker 17 | `XypServiceController`, `helper/xypSign.js` |
@@ -125,7 +125,7 @@ events can be added by calling `NotificationHelper.NotifyPatient`.
 (`bytes=-500` meaning the *last* 500 bytes) are handled — getting that backwards produces a
 video that plays and then corrupts near the end.
 
-Video extensions are allowed **for `RehabExercise` only**, per-object the way `UploadCapFor`
+Video extensions are allowed for **`RehabExercise` and `ChatMessages`**, per-object the way `UploadCapFor`
 already makes the size cap per-object. `MAX_UPLOAD_CEILING` is deliberately unchanged:
 formidable fixes `maxFileSize` before `LinkedObjectInfo` is parsed, so raising it would mean
 every upload is read that far before the per-object cap can reject it.

@@ -122,6 +122,7 @@ const controllers = {
     CustomDataApiController: require('./controllers/system/CustomDataApiController'),
     TestController: require('./controllers/system/TestController'),
     MediaController: require('./controllers/system/MediaController'),
+    MediaTicketController: require('./controllers/system/MediaTicketController'),
   },
   auth: {
     UserController: require('./controllers/auth/UserController'),
@@ -348,9 +349,7 @@ app.use(express.static(__dirname + '/public'));
 // clinical save rather than an attack. The middleware below records what
 // actually arrives so the limit can be set from data instead of a guess.
 app.use(express.json({ limit: Flags.JsonBodyLimit }));
-app.use(
-  express.urlencoded({ extended: true, limit: Flags.JsonBodyLimit, parameterLimit: 100000 })
-);
+app.use(express.urlencoded({ extended: true, limit: Flags.JsonBodyLimit, parameterLimit: 100000 }));
 
 // Size instrumentation, not enforcement. Runs after the parsers so a body that
 // was already refused does not also produce a log line.
@@ -359,9 +358,7 @@ app.use((req, res, next) => {
   if (Len > Flags.BodySizeWarnBytes) {
     // console.error: console.log is silenced in production, and this is a
     // production measurement.
-    console.error(
-      `[BodySize] ${req.method} ${req.originalUrl} ${Math.round(Len / 1024)}KB`
-    );
+    console.error(`[BodySize] ${req.method} ${req.originalUrl} ${Math.round(Len / 1024)}KB`);
   }
   return next();
 });
@@ -414,6 +411,37 @@ console.log('✓ Registered route: /api/patient (protected, patient only)');
 app.use('/api/doctor', require('./api/doctor'));
 console.log('✓ Registered route: /api/doctor (protected, staff only)');
 
+/*
+ * Mobile app configuration — the forced-update check and the terms text.
+ *
+ * Mounted here, beside the two surfaces it serves, and before the legacy table
+ * for the same case-insensitive-prefix reason they are. /version carries no
+ * authentication at all and /config is gated by token alone; both decisions are
+ * argued in api/mobile/index.js.
+ *
+ * Deliberately NOT behind the X-App-Build gate that /api/patient and
+ * /api/doctor now carry: an app being told it is too old has to be able to ask
+ * what to upgrade to.
+ */
+app.use('/api/mobile', require('./api/mobile'));
+console.log('✓ Registered route: /api/mobile (version check public, config token-gated)');
+
+/*
+ * Улсын цагийн эталон (§1.3). UNAUTHENTICATED: a clock is not a secret, and a
+ * client detecting its own drift may need to do so before it can log in.
+ * Reports whether chrony is synchronised rather than asserting that it is -
+ * the NTP host itself is a ЗСҮТ deliverable. See api/time/index.js.
+ */
+app.use('/api/time', require('./api/time'));
+console.log('✓ Registered route: /api/time (public)');
+
+/*
+ * Operational endpoints for roles 1 and 6. Gated inside api/admin/index.js by a
+ * stricter rule than RequireDoctor, which also admits roles 2 and 3.
+ */
+app.use('/api/admin', require('./api/admin'));
+console.log('✓ Registered route: /api/admin (roles 1, 6)');
+
 // Session lifecycle — token refresh. Deliberately NOT behind verifyToken: a
 // client refreshes precisely when its access token has expired, and these
 // handlers verify strictly for themselves.
@@ -435,6 +463,22 @@ console.log('✓ Registered route: /api/auth (self-authenticating)');
  * governs the legacy table, and every route here resolves its file through
  * FileAccessHelper.MayDownload, which applies the patient scope itself.
  */
+/*
+ * Ticket redemption mounts FIRST, and ungated.
+ *
+ * A browser's <audio>/<video> element cannot send an Authorization header, so
+ * the chat's voice and video messages are unreachable through the gated route
+ * below. This one takes a short-lived credential scoped to a single file and a
+ * single user instead - helper/MediaTicket.js explains the shape and why it is
+ * not the session-token-in-a-URL that SocketAuth warns against.
+ *
+ * It is safe to mount this before the gate ONLY because the router declares
+ * exactly one path, /t/:ticket. Every other /api/Media/* request matches
+ * nothing in it and falls through to the authenticated router. Do not add
+ * routes to that file.
+ */
+app.use('/api/Media', controllers.system.MediaTicketController);
+
 app.use('/api/Media', require('./helper/VerifyTokenJson'), controllers.system.MediaController);
 
 /*
@@ -518,6 +562,13 @@ async function startServer() {
     // throwing at the first caller. Prints which ones those are.
     await SchemaProbe.Warm();
     SchemaProbe.LogPending();
+
+    // Media left mid-transcode by a restart or a deploy. Without this a row
+    // stays 'pending' for ever and its clip shows a permanent "processing"
+    // hint. Not awaited: it is background work and must not hold up the listen.
+    require('./helper/MediaTranscode')
+      .ResumePending()
+      .catch((ex) => console.error('[MediaTranscode] resume failed: ' + ex.message));
 
     // Start services
     AppController.runService();

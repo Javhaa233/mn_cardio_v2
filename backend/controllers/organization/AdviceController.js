@@ -381,6 +381,30 @@ async function CreateComment(req, res) {
         }
       }
 
+      // The patient this ticket is about. THIS is the one that matters for the
+      // mobile app: Advice.Body is empty on 57% of tickets and the clinical
+      // content lives in the first comment (CLAUDE.md §10), so "advice was
+      // published" without this is a notification about an empty record.
+      //
+      // Sent regardless of adv_ticket_closed - a comment written while closing
+      // a ticket is still the answer the patient was waiting for. Wrapped
+      // because the comment is already saved.
+      try {
+        if (Advice.adv_id_patient) {
+          await NotificationHelper.NotifyPatient({
+            PatientId: Advice.adv_id_patient,
+            Action: 'AdviceComment',
+            LinkObjectName: 'Advice',
+            LinkObjectId: Advice.id_data,
+            NotesMn: 'Эмч таны асуумжинд хариулт бичлээ',
+            Notes: 'A doctor replied on your advice ticket',
+            LogedUser,
+          });
+        }
+      } catch (pex) {
+        console.log('[AdviceController/CreateComment] patient notification failed:', pex);
+      }
+
       console.log('[AdviceController/CreateComment] SUCCESS Response:', JSON.stringify(result));
       return res.send(JSON.stringify(result));
     } else {
@@ -1484,6 +1508,27 @@ async function CustomSaveAndPublish(req, res) {
       }
     } catch (nex) {
       console.log('[AdviceController/CustomSaveAndPublish] notification fan-out failed:', nex);
+    }
+
+    // The patient half. The fan-out above tells other DOCTORS a ticket was
+    // published; the person it is about was told nothing, even though
+    // GET /api/patient/advice serves them this exact row (tender §2.4, "advice
+    // arrives with a notification"). Same try/catch reasoning as above - the
+    // ticket is already live and a silent phone must not read as a failed save.
+    try {
+      if (Data.adv_id_patient) {
+        await NotificationHelper.NotifyPatient({
+          PatientId: Data.adv_id_patient,
+          Action: 'AdvicePublished',
+          LinkObjectName: 'Advice',
+          LinkObjectId: DataId,
+          NotesMn: 'Танд эмчийн шинэ зөвлөгөө ирлээ',
+          Notes: 'New advice was published for you',
+          LogedUser,
+        });
+      }
+    } catch (pex) {
+      console.log('[AdviceController/CustomSaveAndPublish] patient notification failed:', pex);
     }
 
     result.Data = { DataId };

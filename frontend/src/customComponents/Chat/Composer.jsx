@@ -17,11 +17,16 @@ import {
 } from "@mui/material";
 import AttachFileIcon from "@mui/icons-material/AttachFile";
 import SendIcon from "@mui/icons-material/Send";
+import MicIcon from "@mui/icons-material/Mic";
+import VideocamIcon from "@mui/icons-material/Videocam";
 
 import Helper from "helper";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/tokens";
 import { docIcon } from "customComponents/AdviceFeed/PostMedia";
+import AudioRecorder from "./AudioRecorder";
+import VideoRecorder from "./VideoRecorder";
+import { recorderUnavailableReason } from "./useMediaRecorder";
 
 /**
  * The message composer.
@@ -64,6 +69,14 @@ const ALLOWED_EXT = [
   "ogg",
   "wav",
   "webm",
+  // audio/webm, what a browser voice note is when it cannot record audio/mp4
+  "weba",
+  // Video, matching AllowedExtFor('ChatMessages') on the backend. Kept in step
+  // with that list: anything here the server does not accept is a file the user
+  // watches upload and then loses.
+  "mp4",
+  "m4v",
+  "mov",
 ];
 
 const TYPING_THROTTLE_MS = 2000;
@@ -78,6 +91,16 @@ const Composer = forwardRef(function Composer(
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(null);
   const inputRef = useRef(null);
+
+  // Recording state. `recordAudio` swaps the text field for the recorder row;
+  // `recordVideo` opens a dialog over the panel.
+  const [recordAudio, setRecordAudio] = useState(false);
+  const [recordVideo, setRecordVideo] = useState(false);
+
+  // Resolved once on mount via the lazy initialiser: it only asks what the
+  // browser supports and whether the page is a secure context, and neither can
+  // change for the life of the component.
+  const [cannotRecord] = useState(recorderUnavailableReason);
 
   // Typing-signal bookkeeping. This used to emit on EVERY keystroke and never
   // said "stopped", so a long message was dozens of socket frames and the other
@@ -302,7 +325,7 @@ const Composer = forwardRef(function Composer(
           <span>
             <IconButton
               size="small"
-              disabled={Disabled}
+              disabled={Disabled || recordAudio}
               onClick={() => inputRef.current && inputRef.current.click()}
               aria-label={t("Файл хавсаргах")}
             >
@@ -311,45 +334,112 @@ const Composer = forwardRef(function Composer(
           </span>
         </Tooltip>
 
-        <TextField
-          fullWidth
-          multiline
-          maxRows={5}
-          size="small"
-          disabled={Disabled}
-          placeholder={t("Мессеж бичих...")}
-          value={text}
-          onChange={(e) => {
-            setText(e.target.value);
-            OnDraftChange && OnDraftChange(e.target.value);
-            if (e.target.value) signalTyping();
-            else stopTyping();
-          }}
-          onKeyDown={onKeyDown}
-          onPaste={onPaste}
-          inputProps={{ "aria-label": t("Мессеж бичих...") }}
-        />
+        {recordAudio ? (
+          <AudioRecorder
+            Active={recordAudio}
+            OnDone={(file) => {
+              setRecordAudio(false);
+              // Straight out, not into the chip strip: a voice note is the
+              // message, not an attachment to one, and making the user press
+              // send twice for it would be a strange way to talk.
+              stopTyping();
+              OnSend({ MessageText: "", Files: [file] });
+            }}
+            OnCancel={() => setRecordAudio(false)}
+            OnError={(msg) => {
+              setRecordAudio(false);
+              setError(t(msg));
+            }}
+          />
+        ) : (
+          <>
+            <Tooltip title={cannotRecord ? t(cannotRecord) : t("Дуу бичих")}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={Disabled || !!cannotRecord}
+                  onClick={() => {
+                    setError(null);
+                    setRecordAudio(true);
+                  }}
+                  aria-label={t("Дуу бичих")}
+                >
+                  <MicIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
 
-        <Tooltip title={t("Илгээх")}>
-          <span>
-            <IconButton
-              size="small"
-              disabled={!canSend}
-              onClick={send}
-              aria-label={t("Илгээх")}
-              sx={{
-                bgcolor: canSend ? colors.brand.cyanInk : "transparent",
-                color: canSend ? "#fff" : undefined,
-                "&:hover": {
-                  bgcolor: canSend ? colors.brand.cyanInkHover : undefined,
-                },
-              }}
-            >
-              <SendIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
+            <Tooltip title={cannotRecord ? t(cannotRecord) : t("Видео бичих")}>
+              <span>
+                <IconButton
+                  size="small"
+                  disabled={Disabled || !!cannotRecord}
+                  onClick={() => {
+                    setError(null);
+                    setRecordVideo(true);
+                  }}
+                  aria-label={t("Видео бичих")}
+                >
+                  <VideocamIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          </>
+        )}
+
+        {recordAudio ? null : (
+          <TextField
+            fullWidth
+            multiline
+            maxRows={5}
+            size="small"
+            disabled={Disabled}
+            placeholder={t("Мессеж бичих...")}
+            value={text}
+            onChange={(e) => {
+              setText(e.target.value);
+              OnDraftChange && OnDraftChange(e.target.value);
+              if (e.target.value) signalTyping();
+              else stopTyping();
+            }}
+            onKeyDown={onKeyDown}
+            onPaste={onPaste}
+            inputProps={{ "aria-label": t("Мессеж бичих...") }}
+          />
+        )}
+
+        {recordAudio ? null : (
+          <Tooltip title={t("Илгээх")}>
+            <span>
+              <IconButton
+                size="small"
+                disabled={!canSend}
+                onClick={send}
+                aria-label={t("Илгээх")}
+                sx={{
+                  bgcolor: canSend ? colors.brand.cyanInk : "transparent",
+                  color: canSend ? "#fff" : undefined,
+                  "&:hover": {
+                    bgcolor: canSend ? colors.brand.cyanInkHover : undefined,
+                  },
+                }}
+              >
+                <SendIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+        )}
       </Box>
+
+      <VideoRecorder
+        Open={recordVideo}
+        OnClose={() => setRecordVideo(false)}
+        OnDone={(file) => {
+          setRecordVideo(false);
+          stopTyping();
+          OnSend({ MessageText: "", Files: [file] });
+        }}
+      />
     </Box>
   );
 });

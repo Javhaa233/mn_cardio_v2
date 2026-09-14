@@ -34,6 +34,22 @@ PatientConsent.init(
     Granted: { type: Sequelize.BOOLEAN },
     GrantedDate: { type: Sequelize.DATE },
     Channel: { type: Sequelize.STRING },
+    /*
+     * Guardian consent - mobile tender §1.2, columns added by
+     * scripts/add_consent_guardian_columns.sql.
+     *
+     * DECLARED HERE OR THE WRITES VANISH. Sequelize silently drops any
+     * attribute a model does not declare, so a guardian consent would insert
+     * with its guardian fields missing and no error anywhere - the row would
+     * say somebody consented and not say who.
+     *
+     * GrantedBy is NULL on every historical row. Those predate the guardian
+     * route and are self-consents by construction; read NULL as 'self'.
+     */
+    GrantedBy: { type: Sequelize.STRING },
+    GuardianRegNo: { type: Sequelize.STRING },
+    GuardianName: { type: Sequelize.STRING },
+    GuardianRelation: { type: Sequelize.STRING },
     IpAddress: { type: Sequelize.STRING },
     CreateDate: { type: Sequelize.DATE },
     CreateUserId: { type: Sequelize.INTEGER },

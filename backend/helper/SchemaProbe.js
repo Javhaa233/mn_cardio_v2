@@ -104,6 +104,7 @@ const PENDING = [
   { Feature: 'doctor licence', Table: 'DoctorsProfile', Column: 'LicenseCode', Script: 'add_doctor_licence_code.sql' },
   { Feature: 'consent capture', Table: 'PatientConsent', Script: 'add_consent_tables.sql' },
   { Feature: 'confidentiality', Table: 'Patient', Column: 'ConfidentialityLevel', Script: 'add_confidentiality_flag.sql' },
+  { Feature: 'chat media duration (47)', Table: 'File', Column: 'duration_ms', Script: 'add_file_media_columns.sql' },
 ];
 
 function LogPending() {

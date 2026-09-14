@@ -38,6 +38,12 @@ const gate = [require('../../helper/VerifyTokenJson'), require('../../helper/Den
 router.get('/Patient/:id', gate, c.getPatient);
 // ICD-coded diagnoses as a searchset Bundle of Condition resources
 router.get('/Condition', gate, c.searchCondition);
+// Examinations as Encounter resources. ?patient= is required on both of these
+// for the same reason it is on Condition: unbounded is an export, not a search
+router.get('/Encounter', gate, c.searchEncounter);
+// Vital signs and laboratory results as Observation. A LOINC coding is emitted
+// only for a CodeMapping row marked Verified - see add_code_mapping.sql
+router.get('/Observation', gate, c.searchObservation);
 // What this server claims to support - the standard's own discovery document
 router.get('/metadata', gate, c.metadata);
 

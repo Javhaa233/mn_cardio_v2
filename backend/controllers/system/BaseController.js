@@ -11,6 +11,9 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const BaseHelper = require('../../helper/BaseHelper');
 const ImageHelper = require('../../helper/ImageHelper');
+const MediaSniff = require('../../helper/MediaSniff');
+const MediaStream = require('../../helper/MediaStream');
+const MediaMeta = require('../../helper/MediaMeta');
 // Flags, ChatIdentity, ChatHelper, PatientScope and AdviceScopeHelper moved to
 // helper/FileAccessHelper.js with the two functions that used them.
 const { CheckContact } = require('../../helper/ContactValidation');
@@ -44,8 +47,6 @@ router.post('/downloadFile', downloadFile);
 router.post('/deleteFile', deleteFile);
 router.post('/ExportExcel', ExportExcel);
 router.post('/ExportText', ExportText);
-
-
 
 //#region GetDetail
 async function getDetail(req, res) {
@@ -257,7 +258,9 @@ async function destroy(req, res) {
       // filter had matched nothing - and hid refusals as successes.
       if (Result === null) {
         return res.send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Энэ бичлэгийг устгах эрхгүй байна'))
+          JSON.stringify(
+            BaseControllerHelper.GetDefaultErrorResult('Энэ бичлэгийг устгах эрхгүй байна')
+          )
         );
       }
       if (Result === false) {
@@ -285,89 +288,23 @@ async function destroy(req, res) {
 
 //#region File
 
-// 10 MB. It was 1000 MB, which on a public wall is a denial-of-service against
-// ALLFILE_DIR: any authenticated user could park gigabytes per request.
-const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
-
-// Chat attachments get a higher ceiling: a chest X-ray or a .dcm study does not
-// fit in 10 MB, and chat is where doctors actually pass those to each other.
-//
-// Storage-capacity implications are a ZSUT question - see the note in
-// scripts/add_chat_v2_columns.sql's companion plan.
-const MAX_UPLOAD_BYTES_CHAT = 50 * 1024 * 1024;
-
-// formidable's maxFileSize is fixed when the form is constructed, which happens
-// BEFORE LinkedObjectInfo is parsed - so it has to admit the largest cap any
-// object allows, and the per-object limit is then enforced in the file loop
-// below. Nothing gets a bigger allowance than its own cap; the ceiling only
-// decides how far a request is read before it can be judged.
-const MAX_UPLOAD_CEILING = MAX_UPLOAD_BYTES_CHAT;
-
-const UploadCapFor = (LinkedObjectName) =>
-  LinkedObjectName === 'ChatMessages' ? MAX_UPLOAD_BYTES_CHAT : MAX_UPLOAD_BYTES;
-
-/**
- * Video, allowed for the rehabilitation catalogue and NOWHERE ELSE.
+/*
+ * Upload policy - which extensions, which size caps - moved to
+ * helper/UploadPolicy.js on 2026-09-14, unchanged.
  *
- * ALLOWED_UPLOAD_EXT below is shared by all eight models this endpoint serves,
- * and its own comment says widening it widens uploads app-wide - which is why
- * this is per-object, the same way UploadCapFor makes the size cap per-object,
- * rather than six more entries on the global list.
- *
- * NOTE: MAX_UPLOAD_CEILING is deliberately NOT raised for this. formidable
- * fixes maxFileSize before LinkedObjectInfo has been parsed, so a bigger
- * ceiling would mean EVERY upload is read that far before the per-object cap
- * can reject it - a denial-of-service regression against the current 10 MB
- * default, in exchange for videos this endpoint will probably never carry.
- * The 39 exercise videos are far more likely to arrive by URL or bundled in
- * the app (helper/MediaRef.js), and if they do come through here, 50 MB of
- * short instructional clip is enough.
+ * Same reason MayAttachTo and MayDownload moved to helper/FileAccessHelper.js
+ * below: /api/patient/questions stores attachments now as well, and a second
+ * copy of an extension allowlist is how the two drift until one is wrong. The
+ * reasoning behind every constant lives in that file.
  */
-const ALLOWED_UPLOAD_EXT_VIDEO = ['mp4', 'm4v', 'mov', 'webm'];
+const {
+  MAX_UPLOAD_BYTES,
+  MAX_UPLOAD_CEILING,
+  UploadCapFor,
+  ALLOWED_UPLOAD_EXT,
+  AllowedExtFor,
+} = require('../../helper/UploadPolicy');
 
-const AllowedExtFor = (LinkedObjectName) =>
-  LinkedObjectName === 'RehabExercise'
-    ? ALLOWED_UPLOAD_EXT.concat(ALLOWED_UPLOAD_EXT_VIDEO)
-    : ALLOWED_UPLOAD_EXT;
-
-// Extensions this endpoint will store. Everything else is rejected outright.
-// There was no check at all before, so a .exe renamed .jpg was stored and
-// served straight back to the next viewer.
-//
-// The audio formats exist for mobile tender §8, which requires chat carrying
-// "text, images, audio and documents". NOTE: this list is shared by all eight
-// models that use /BaseObject/uploadFile, so widening it widens uploads
-// app-wide - it belongs in front of the mandated information-security audit
-// (CLAUDE.md §9) rather than being treated as a chat detail.
-const ALLOWED_UPLOAD_EXT = [
-  'jpg',
-  'jpeg',
-  'png',
-  'gif',
-  'webp',
-  'bmp',
-  'heic',
-  'pdf',
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'txt',
-  'csv',
-  'dcm',
-  // audio - mobile tender §8
-  'mp3',
-  'm4a',
-  'aac',
-  'ogg',
-  'wav',
-  'webm',
-];
-
-// MayAttachTo and MayDownload moved to helper/FileAccessHelper.js on
-// 2026-09-14, unchanged. MediaController streams the same files and must ask
-// the same question; a second copy of an authorization rule is how the two
-// drift until one is wrong. Same reason AdviceScopeHelper and CareTeam exist.
 const { MayAttachTo, MayDownload } = require('../../helper/FileAccessHelper');
 
 async function uploadFile(req, res) {
@@ -450,7 +387,9 @@ async function uploadFile(req, res) {
                     const FileNameOriginal = NewFile.originalFilename || NewFile.name;
                     const FileType = ImageHelper.getType(FileNameOriginal);
 
-                    if (AllowedExtFor(LinkedObjectName).indexOf(String(FileType).toLowerCase()) === -1) {
+                    if (
+                      AllowedExtFor(LinkedObjectName).indexOf(String(FileType).toLowerCase()) === -1
+                    ) {
                       console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
                       Rejected.push({
                         Name: FileNameOriginal,
@@ -496,6 +435,32 @@ async function uploadFile(req, res) {
                       continue;
                     }
 
+                    // Do the BYTES agree with the name? Audio and video only -
+                    // MediaSniff judges nothing else, so no existing clinical
+                    // attachment flow gains a new way to fail. This matters for
+                    // media specifically because the player routes serve it
+                    // Content-Disposition: inline, and inline is where a
+                    // mislabelled file stops being inert.
+                    const Sniff = MediaSniff.Check(OldPath, FileType);
+                    if (!Sniff.Ok) {
+                      console.log(
+                        '[BaseController/uploadFile] REJECTED content:',
+                        FileType,
+                        FileNameOriginal
+                      );
+                      Rejected.push({
+                        Name: FileNameOriginal,
+                        Reason: 'content',
+                        Message: Sniff.Reason,
+                      });
+                      try {
+                        await fsPromises.unlink(OldPath);
+                      } catch (e) {
+                        /* temp file may already be gone */
+                      }
+                      continue;
+                    }
+
                     // getDateNumbers() has one-second resolution, so two
                     // concurrent requests from the same user in the same second
                     // used to generate the same name and silently overwrite each
@@ -520,7 +485,7 @@ async function uploadFile(req, res) {
                     }
 
                     // Create database record after file is successfully moved
-                    await BaseControllerHelper.BaseCreate({
+                    const NewFileId = await BaseControllerHelper.BaseCreate({
                       ObjectName: 'File',
                       Data: {
                         LinkedObjectName: LinkedObjectName,
@@ -534,6 +499,31 @@ async function uploadFile(req, res) {
                       LogedUser,
                       SaveLog: true,
                     });
+
+                    /*
+                     * Keep the duration the CLIENT measured, as a provisional value.
+                     *
+                     * The authoritative number comes from ffprobe during
+                     * normalisation, and overwrites this. But that runs after the
+                     * message is delivered, and on a server with no ffmpeg it never
+                     * runs at all - so without this a voice note shows "-:--" for
+                     * the gap in between, and for ever on an un-normalised host. The
+                     * recorder already knows the length exactly; throwing it away
+                     * and then having nothing to show is the worse trade.
+                     *
+                     * Only a plausible number is kept (under 24h), and only for
+                     * audio and video. It is a label, not a clinical value.
+                     */
+                    const ClaimedMs = parseInt(FileInfo.DurationMs, 10);
+                    const FileKind = MediaStream.Kind(FileType);
+                    if (
+                      NewFileId &&
+                      (FileKind === 'audio' || FileKind === 'video') &&
+                      ClaimedMs > 0 &&
+                      ClaimedMs < 24 * 60 * 60 * 1000
+                    ) {
+                      await MediaMeta.Write(NewFileId, { DurationMs: ClaimedMs });
+                    }
                   }
                 }
               }
@@ -623,14 +613,14 @@ async function downloadFile(req, res) {
       // rather than the client's - the client does not get to pick the path.
       const Stored = await MayDownload({ FileInfo, LogedUser });
       if (!Stored) {
-        console.log(
-          '[BaseController/downloadFile] DENIED',
-          LogedUser.Id,
-          FileInfo.generated_name
-        );
-        return res.status(403).send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Энэ файлд хандах эрхгүй байна'))
-        );
+        console.log('[BaseController/downloadFile] DENIED', LogedUser.Id, FileInfo.generated_name);
+        return res
+          .status(403)
+          .send(
+            JSON.stringify(
+              BaseControllerHelper.GetDefaultErrorResult('Энэ файлд хандах эрхгүй байна')
+            )
+          );
       }
       const downloadFile = await BaseControllerHelper.BaseDownloadFile(Stored);
       if (downloadFile) {
@@ -640,20 +630,24 @@ async function downloadFile(req, res) {
         // The row exists but the bytes do not - the usual cause is a database
         // restored onto a host that never received ALLFILE_DIR. Say it in
         // Mongolian: this text is what the doctor reads in the alert.
-        return res.status(404).send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Файл серверт олдсонгүй'))
-        );
+        return res
+          .status(404)
+          .send(
+            JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Файл серверт олдсонгүй'))
+          );
       }
     } else {
-      return res.status(400).send(
-        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
-      );
+      return res
+        .status(400)
+        .send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing')));
     }
   } catch (ex) {
     console.error('downloadFile error:', ex);
-    return res.status(500).send(
-      JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.message || 'Download failed'))
-    );
+    return res
+      .status(500)
+      .send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.message || 'Download failed'))
+      );
   }
 }
 
@@ -675,15 +669,17 @@ async function deleteFile(req, res) {
       });
       return res.send(JSON.stringify(result));
     } else {
-      return res.status(400).send(
-        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
-      );
+      return res
+        .status(400)
+        .send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing')));
     }
   } catch (ex) {
     console.error('deleteFile error:', ex);
-    return res.status(500).send(
-      JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.message || 'Delete failed'))
-    );
+    return res
+      .status(500)
+      .send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.message || 'Delete failed'))
+      );
   }
 }
 //#endregion

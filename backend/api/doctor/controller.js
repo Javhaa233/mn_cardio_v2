@@ -1,4 +1,4 @@
-const { Models, Op } = require('../../config/DB');
+const { Models, Op, Sequelize, sequelize } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const AccessAudit = require('../../helper/AccessAudit');
@@ -7,6 +7,17 @@ const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const NotificationHelper = require('../../helper/NotificationHelper');
+const RiskInputs = require('../../helper/RiskInputs');
+const AttachmentIntake = require('../../helper/AttachmentIntake');
+const Diagnostics = require('../../helper/Diagnostics');
+const Confidentiality = require('../../helper/Confidentiality');
+const Export = require('../../helper/Export');
+const Provenance = require('../../helper/Provenance');
+const PrintHelper = require('../../helper/PrintHelper');
+const DoctorExamReportHelper = require('../../helper/DoctorExamReportHelper');
+const Consent = require('../../helper/Consent');
+const EMDServiceHelper = require('../../helper/EMDServiceHelper');
+const Permissions = require('../../helper/Permissions');
 const PushHelper = require('../../helper/PushHelper');
 
 /**
@@ -129,6 +140,17 @@ exports.getMe = async (req, res) => {
       });
     }
 
+    /*
+     * §1.2 - what this user is permitted to do, so the app can hide a menu
+     * item rather than let somebody tap it and be refused.
+     *
+     * AN EMPTY ARRAY MEANS "NOTHING CONFIGURED", NOT "NOTHING PERMITTED", and
+     * the client must render it as show-everything. RoleToPermission is empty
+     * today, so empty is what every caller gets; treating that as a denial
+     * would make seeding the matrix a prerequisite for the app working at all.
+     */
+    const permissions = await Permissions.Of(D.UserId);
+
     return ok(res, {
       UserId: D.UserId,
       DoctorId: D.DoctorId,
@@ -137,11 +159,122 @@ exports.getMe = async (req, res) => {
       FullName: D.FullName,
       profile,
       organization,
+      permissions,
+      // So the client can tell "the feature is off" from "you have no
+      // permissions", which look identical from the array alone.
+      permissionMode: require('../../helper/FeatureFlags').Permissions,
     });
   } catch (ex) {
     return serverError(res, ex, 'getMe');
   }
 };
+
+/**
+ * Ceiling on the patient-id list an ?icd10= search resolves before it is sent
+ * back to SQL Server as an IN clause. See searchPatients for why it exists and
+ * why exceeding it is reported rather than hidden.
+ */
+const ICD10_PATIENT_CAP = 5000;
+
+/**
+ * Ceiling on an export. Over this the request is REFUSED, not truncated: a
+ * spreadsheet that silently stops looks complete, and somebody will report from
+ * it. The tender's own wording for this endpoint names 10,000.
+ */
+const EXPORT_MAX_ROWS = 10000;
+
+/** Autocomplete: never fewer than this many characters, never more than this many rows. */
+const ICD10_MIN_CHARS = 2;
+const ICD10_MAX_ROWS = 20;
+
+/**
+ * An ICD-10 filter over Visit.
+ *
+ * READ THIS BEFORE CHANGING IT - the obvious implementation returns nothing.
+ *
+ * `Visit.icd10` looks like the column to filter on and IS NOT. Measured on
+ * MnCardio_test 2026-09-14 against all 450,604 rows: it is NULL on 73,535 and
+ * an empty string on every single one of the rest. Nothing has ever written it.
+ *
+ * The code is inside `main_diagnosis`, which stores the vwICD10 DISPLAY LABEL
+ * verbatim - `*I21.4 Acute subendocardial myocardial infarction`. Leading
+ * asterisk, code, space, English term. So an ICD filter is a prefix match on
+ * that string, and `icd10` is kept in the OR only so the filter still works if
+ * the column is ever backfilled or differs on production.
+ *
+ * TWO FORMS, deliberately:
+ *   `I21`   exact  -> `*I21 ...` only, not I21.0. A register count is taken on
+ *                     an exact code and silently widening it inflates the number.
+ *   `I21%`  prefix -> I21, I21.0, I21.9 and the rest of the block, which is
+ *                     what a clinical search almost always means.
+ *
+ * `%` and `_` in the value are NOT escaped away - the prefix form is expressed
+ * with one. The value is bound as a parameter, so a wildcard stays a wildcard
+ * and can never become a statement.
+ */
+const icd10Where = (raw) => {
+  const v = String(raw || '').trim();
+  if (!v) return null;
+
+  const isPrefix = v.indexOf('%') !== -1;
+
+  return {
+    [Op.or]: [
+      // The label form, which is where the code actually is.
+      { main_diagnosis: { [Op.like]: isPrefix ? '*' + v : '*' + v + ' %' } },
+      // `*I21` with no trailing term, in case a label was stored bare.
+      ...(isPrefix ? [] : [{ main_diagnosis: '*' + v }]),
+      // The column the schema suggests. Empty everywhere today; harmless.
+      { icd10: isPrefix ? { [Op.like]: v } : v },
+    ],
+  };
+};
+
+/**
+ * The free-text diagnosis filter, ?diagnosis=.
+ *
+ * Searches the English label as well as the Mongolian, because
+ * `main_diagnosis_mn` is NULL on 432,364 of 450,604 rows (96%) - it is only
+ * populated on recent examinations. Filtering the Mongolian alone, as the
+ * endpoint was specified, would hide almost the entire archive.
+ */
+const diagnosisWhere = (raw) => {
+  const v = String(raw || '').trim();
+  if (!v) return null;
+  const like = { [Op.like]: '%' + v + '%' };
+  return { [Op.or]: [{ main_diagnosis_mn: like }, { main_diagnosis: like }] };
+};
+
+/**
+ * Users.Id of every doctor whose name matches, for ?doctor=.
+ *
+ * Resolved as its own query and applied with Op.in rather than joined, because
+ * `Visit.id` is a creating USER id with no association declared to
+ * DoctorsProfile - and `DoctorsProfile.id` is the Users.Id while `id_data` is
+ * the profile's own key, a distinction that joins the wrong doctor silently
+ * when it is got wrong (see the header of helper/CareTeam.js).
+ *
+ * Returns [] for a name nobody has, which correctly yields an empty list rather
+ * than an unfiltered one.
+ */
+async function DoctorUserIdsByName(name) {
+  const v = String(name || '').trim();
+  if (!v) return null;
+
+  const rows = await Models.DoctorsProfile.findAll({
+    where: {
+      id: { [Op.ne]: null },
+      [Op.or]: [
+        { lastname: { [Op.like]: '%' + v + '%' } },
+        { firstname: { [Op.like]: '%' + v + '%' } },
+      ],
+    },
+    attributes: ['id'],
+    raw: true,
+  });
+
+  return rows.map((r) => r.id);
+}
 
 /* ------------------------------------------- 28 Миний үзлэгүүд (my exams) */
 
@@ -153,39 +286,100 @@ exports.getMe = async (req, res) => {
  * same column BaseControllerHelper calls "the creating USER" where it scopes
  * the АМ-1Б register. Filtering on it is what makes "mine" mean mine.
  */
+/**
+ * The WHERE clause behind /visits, shared with /visits/export.
+ *
+ * EXTRACTED SO THE EXPORT CANNOT SELECT A DIFFERENT SET FROM THE SCREEN IT WAS
+ * LAUNCHED FROM. That is the worst kind of reporting bug - nothing errors and
+ * the numbers are simply wrong - and it is what happens the moment these
+ * filters are written out twice.
+ *
+ * Returns { where, include, scope } ready for findAndCountAll or findAll.
+ */
+async function BuildVisitQuery(req, D) {
+  const scope = req.query.scope === 'organization' ? 'organization' : 'mine';
+
+  const where = Object.assign({}, readDateRange(req, 'visit_date'));
+
+  if (scope === 'mine') {
+    where.id = D.UserId;
+  } else {
+    const orgIds = await OrganizationIds(D);
+    if (orgIds) where.OrganizationId = { [Op.in]: orgIds };
+  }
+
+  /*
+   * Дурын талбараар хайх (tender §1.3).
+   *
+   * Every filter is pushed onto ONE Op.and list rather than assigned as its own
+   * key, because icd10Where, diagnosisWhere and `search` each produce an Op.or -
+   * and a second `where[Op.or] = ...` would overwrite the first silently,
+   * turning "I21 AND this doctor" into "this doctor" with no error. AND-ing
+   * means each filter can only narrow.
+   */
+  const and = [];
+
+  const icd10 = icd10Where(req.query.icd10);
+  if (icd10) and.push(icd10);
+
+  const diagnosis = diagnosisWhere(req.query.diagnosis);
+  if (diagnosis) and.push(diagnosis);
+
+  const doctorName = String(req.query.doctor || '').trim();
+  if (doctorName) {
+    let userIds = await DoctorUserIdsByName(doctorName);
+    // Under scope=mine, `where.id` is already this user. Intersecting rather
+    // than assigning means ?doctor= can only ever NARROW the result - writing
+    // where.id outright would drop the "mine" restriction and hand back other
+    // doctors' examinations under a scope that promises not to.
+    if (scope === 'mine') userIds = userIds.filter((u) => String(u) === String(D.UserId));
+    // Op.in [] is the honest answer for a name nobody has - an empty list, not
+    // every examination in the organisation.
+    where.id = { [Op.in]: userIds };
+  }
+
+  const search = (req.query.search || '').trim();
+  const include = [PATIENT_INCLUDE];
+  if (search) {
+    // `search` is the one free-text box in the app, so it has to reach the
+    // diagnosis columns as well as the patient's name - a doctor typing "I21"
+    // into it expects examinations back.
+    //
+    // The patient half uses $-qualified column references and the include stays
+    // required:false, because an OR that spans parent and included table cannot
+    // live inside the include's own where: required:true there would AND the
+    // join, and a visit matching on the diagnosis alone would vanish.
+    // subQuery:false at the call site is what makes those references resolvable
+    // under LIMIT.
+    const like = { [Op.like]: '%' + search + '%' };
+    and.push({
+      [Op.or]: [
+        // main_diagnosis carries both the code and the English term, so one LIKE
+        // over it answers "I21" and "infarction" alike.
+        { main_diagnosis: like },
+        { main_diagnosis_mn: like },
+        { '$Patient.p_registration$': like },
+        { '$Patient.p_lastname$': like },
+        { '$Patient.p_firstname$': like },
+      ],
+    });
+  }
+
+  if (and.length) where[Op.and] = and;
+
+  return { where, include, scope };
+}
+
 exports.listVisits = async (req, res) => {
   try {
     const D = req.Doctor;
     const { limit, offset } = readPaging(req);
-    const scope = req.query.scope === 'organization' ? 'organization' : 'mine';
-
-    const where = Object.assign({}, readDateRange(req, 'visit_date'));
-
-    if (scope === 'mine') {
-      where.id = D.UserId;
-    } else {
-      const orgIds = await OrganizationIds(D);
-      if (orgIds) where.OrganizationId = { [Op.in]: orgIds };
-    }
-
-    const search = (req.query.search || '').trim();
-    const include = [PATIENT_INCLUDE];
-    if (search) {
-      include[0] = Object.assign({}, PATIENT_INCLUDE, {
-        required: true,
-        where: {
-          [Op.or]: [
-            { p_registration: { [Op.like]: '%' + search + '%' } },
-            { p_lastname: { [Op.like]: '%' + search + '%' } },
-            { p_firstname: { [Op.like]: '%' + search + '%' } },
-          ],
-        },
-      });
-    }
+    const { where, include, scope } = await BuildVisitQuery(req, D);
 
     const { rows, count } = await Models.Visit.findAndCountAll({
       where,
       include,
+      subQuery: false,
       attributes: [
         'id_data',
         'visit_date',
@@ -552,6 +746,14 @@ exports.listPatientQuestions = async (req, res) => {
       subQuery: false,
     });
 
+    // One query for the whole page, not one per row. Identical shape to the
+    // patient's own /api/patient/questions, so the two apps render a thread
+    // with the same code.
+    const filesByComment = await AttachmentIntake.ListFor({
+      LinkedObjectName: 'VisitComments',
+      Ids: rows.map((r) => r.id_data),
+    });
+
     const data = rows.map((r) => {
       const row = r.toJSON();
       return {
@@ -562,6 +764,7 @@ exports.listPatientQuestions = async (req, res) => {
         doctor_name: row.DoctorsProfile
           ? [row.DoctorsProfile.lastname, row.DoctorsProfile.firstname].filter(Boolean).join(' ')
           : null,
+        files: filesByComment.get(row.id_data) || [],
       };
     });
 
@@ -581,8 +784,25 @@ exports.replyPatientQuestion = async (req, res) => {
     const PatientId = toInt(req.params.patientId);
     if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
 
-    const comment = String(req.body.comment || '').trim();
-    if (!comment) return fail(res, 'COMMENT_REQUIRED', 'Хариултаа бичнэ үү');
+    /*
+     * Accepts JSON or multipart, the same way the patient's createQuestion
+     * does - a doctor answering "is this rash a reaction?" needs to be able to
+     * send back an image or a document, and the question thread is now the
+     * place where both sides carry files.
+     */
+    let comment;
+    let files = [];
+    if (String(req.headers['content-type'] || '').indexOf('multipart/form-data') !== -1) {
+      const parsed = await AttachmentIntake.Parse(req);
+      comment = String(parsed.fields.comment || '').trim();
+      files = parsed.files;
+    } else {
+      comment = String((req.body || {}).comment || '').trim();
+    }
+
+    if (!comment && !files.length) {
+      return fail(res, 'COMMENT_REQUIRED', 'Хариулт эсвэл хавсралт оруулна уу');
+    }
 
     if (!(await IsMonitored(D, PatientId))) {
       return fail(res, 'NOT_MONITORED', 'Таны хяналтад байхгүй байна', 403);
@@ -597,6 +817,19 @@ exports.replyPatientQuestion = async (req, res) => {
     });
     if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'replyPatientQuestion');
 
+    // After the create, because a File row needs a LinkedObjectId that does not
+    // exist until now. A rejection here costs an attachment, never the reply.
+    let attached = { saved: [], rejected: [] };
+    if (files.length) {
+      attached = await AttachmentIntake.Store({
+        Files: files,
+        LinkedObjectName: 'VisitComments',
+        LinkedObjectId: Id,
+        FieldName: 'attachment',
+        LogedUser: req.LogedUser,
+      });
+    }
+
     // Tell the patient. Awaited so a failure is logged against this request,
     // but NotifyPatient never throws and its result is not checked - the reply
     // is saved either way, and a silent phone must not fail a clinical write.
@@ -610,7 +843,11 @@ exports.replyPatientQuestion = async (req, res) => {
       LogedUser: req.LogedUser,
     });
 
-    return ok(res, { id_data: Id });
+    return ok(res, {
+      id_data: Id,
+      files: attached.saved,
+      ...(attached.rejected.length ? { rejected: attached.rejected } : {}),
+    });
   } catch (ex) {
     return serverError(res, ex, 'replyPatientQuestion');
   }
@@ -777,6 +1014,560 @@ exports.reportSummary = async (req, res) => {
   }
 };
 
+/* ------------------------------- Асран хамгаалагчийн зөвшөөрөл (§1.2) */
+
+/**
+ * One patient's consent state, as the doctor sees it.
+ *
+ * The patient's own /api/patient/consents already answers this for them. This
+ * exists for the case the tender actually names and which has no route at all:
+ * a patient who cannot give consent themselves.
+ */
+exports.listPatientConsents = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    const states = await Consent.CurrentStates(PatRegNo);
+    const labels = await DicoLabels.GetLabelMap('consent_purpose');
+
+    return ok(
+      res,
+      states.map((s) => ({
+        PurposeCode: s.PurposeCode,
+        PurposeLabel: labels.get(String(s.PurposeCode)) || null,
+        Granted: !!s.Granted,
+        GrantedDate: s.GrantedDate,
+        Channel: s.Channel,
+        // NULL predates the guardian route, and those rows are self-consents by
+        // construction. Reporting it as 'self' rather than null keeps the
+        // client from having to know that history.
+        GrantedBy: s.GrantedBy || 'self',
+        GuardianName: s.GuardianName || null,
+        GuardianRelation: s.GuardianRelation || null,
+      }))
+    );
+  } catch (ex) {
+    return serverError(res, ex, 'listPatientConsents');
+  }
+};
+
+/**
+ * Record a consent given by the patient's guardian.
+ *
+ * ALL THREE GUARDIAN FIELDS ARE REQUIRED. A consent given by somebody other
+ * than the data subject is only meaningful if the record says who they were and
+ * on what basis they were entitled to give it. Accepting a guardian consent
+ * with the guardian's name missing would produce a row that proves nothing,
+ * which is worse than refusing to write it - the archive could no longer tell
+ * "the patient agreed" from "a person in the room agreed".
+ *
+ * Append-only, like every other write to this table: withdrawing later writes a
+ * further row with Granted = 0 and this one is never modified.
+ *
+ * Channel is 'web' rather than 'mobile': whatever device the doctor is holding,
+ * this was recorded by a clinician on the patient's behalf, and that is the
+ * distinction the column is for.
+ */
+exports.createPatientConsent = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const D = req.Doctor;
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { purposeCode, granted, guardianRegNo, guardianName, guardianRelation } = req.body || {};
+
+    if (!purposeCode) return fail(res, 'PURPOSE_REQUIRED', 'Зорилгыг заана уу');
+    if (granted === undefined || granted === null) {
+      return fail(res, 'GRANTED_REQUIRED', 'Зөвшөөрсөн эсэхийг заана уу');
+    }
+    if (!guardianName || !String(guardianName).trim()) {
+      return fail(res, 'GUARDIAN_NAME_REQUIRED', 'Асран хамгаалагчийн нэрийг заана уу');
+    }
+    if (!guardianRegNo || !String(guardianRegNo).trim()) {
+      return fail(res, 'GUARDIAN_REGNO_REQUIRED', 'Асран хамгаалагчийн регистрийн дугаарыг заана уу');
+    }
+    if (!guardianRelation || !String(guardianRelation).trim()) {
+      return fail(res, 'GUARDIAN_RELATION_REQUIRED', 'Төрөл садангийн холбоог заана уу');
+    }
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    // The text the guardian was shown. Without an active document there is
+    // nothing for them to have agreed TO, so this refuses rather than recording
+    // agreement to an unknown wording.
+    const doc = await Consent.ActiveDocument(String(purposeCode));
+    if (!doc) return fail(res, 'CONSENT_DOC_NOT_FOUND', 'Зөвшөөрлийн текст олдсонгүй', 400);
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.PatientConsent.create({
+      PatRegNo,
+      PatientId,
+      PatientUserId: null,
+      ConsentDocumentId: doc.Id,
+      PurposeCode: String(purposeCode),
+      Granted: granted === true || granted === 'true' || granted === 1 || granted === '1',
+      GrantedDate: Now,
+      Channel: 'web',
+      IpAddress: String(req.ip || '').slice(0, 45),
+      GrantedBy: 'guardian',
+      GuardianRegNo: String(guardianRegNo).trim(),
+      GuardianName: String(guardianName).trim(),
+      GuardianRelation: String(guardianRelation).trim(),
+      CreateDate: Now,
+      // Who RECORDED it. The guardian gave it; this doctor witnessed and
+      // entered it, and the two must not be conflated.
+      CreateUserId: D.UserId,
+    });
+
+    Consent.Invalidate(PatRegNo);
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'PatientConsent',
+      LinkObjectId: created.Id,
+      Action: 'Create',
+      LogedUser: req.LogedUser,
+      PatientId,
+      NotesMn: 'Асран хамгаалагчийн зөвшөөрөл бүртгэлээ',
+      Notes: 'Recorded guardian consent',
+    });
+
+    return ok(res, {
+      Id: created.Id,
+      PurposeCode: String(purposeCode),
+      Granted: created.Granted,
+      GrantedBy: 'guardian',
+      GrantedDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'createPatientConsent');
+  }
+};
+
+/* ------------------------------------- Экспорт ба хэвлэх (tender §1.8) */
+
+/**
+ * The visit list as a file, under exactly the filters the list endpoint takes.
+ *
+ * WHY IT SHARES listVisits' WHERE CLAUSE RATHER THAN REBUILDING IT. An export
+ * that quietly selects a different set from the screen it was launched from is
+ * the worst kind of reporting bug: nothing errors, and the numbers are wrong.
+ * BuildVisitQuery is the single place those filters are expressed, and both
+ * callers use it.
+ *
+ * Over EXPORT_MAX_ROWS the request is REFUSED rather than truncated. A
+ * spreadsheet that silently stops at ten thousand rows looks complete, and
+ * somebody will report from it.
+ */
+exports.exportVisits = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    if (!Export.IsFormat(format)) {
+      return fail(res, 'INVALID_FORMAT', 'format нь ' + Export.FORMATS.join(', ') + ' байна');
+    }
+
+    const { where, include, scope } = await BuildVisitQuery(req, D);
+
+    const count = await Models.Visit.count({ where, include, distinct: true, col: 'id_data' });
+    if (count > EXPORT_MAX_ROWS) {
+      return fail(
+        res,
+        'EXPORT_TOO_LARGE',
+        'Экспортын мөрийн тоо хэтэрсэн: ' + count + '. Дээд хязгаар ' + EXPORT_MAX_ROWS +
+          '. Огнооны шүүлтүүр нэмнэ үү.',
+        400
+      );
+    }
+
+    const rows = await Models.Visit.findAll({
+      where,
+      include,
+      subQuery: false,
+      attributes: [
+        'id_data',
+        'visit_date',
+        'PatRegNo',
+        'chief_complaint',
+        'main_diagnosis',
+        'main_diagnosis_mn',
+        'OrganizationId',
+      ],
+      order: [
+        ['visit_date', 'DESC'],
+        ['id_data', 'DESC'],
+      ],
+      limit: EXPORT_MAX_ROWS,
+    });
+
+    const data = JSON.parse(JSON.stringify(rows));
+
+    return await Export.Send({
+      res,
+      format,
+      fileName: 'visits_' + scope,
+      sheetName: 'Үзлэг',
+      headers: [
+        'Дугаар',
+        'Огноо',
+        'Регистр',
+        'Овог',
+        'Нэр',
+        'Зовиур',
+        'Онош (код)',
+        'Онош (монгол)',
+        'Байгууллага',
+      ],
+      rows: data.map((r) => [
+        r.id_data,
+        r.visit_date,
+        r.PatRegNo,
+        r.Patient ? r.Patient.p_lastname : '',
+        r.Patient ? r.Patient.p_firstname : '',
+        r.chief_complaint,
+        r.main_diagnosis,
+        r.main_diagnosis_mn,
+        r.OrganizationId,
+      ]),
+      provenance: Provenance.Lines({
+        LogedUser: req.LogedUser,
+        Register: 'Үзлэгийн бүртгэл',
+        From: req.query.from,
+        To: req.query.to,
+        Note: 'Хамрах хүрээ: ' + scope,
+      }),
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'exportVisits');
+  }
+};
+
+/**
+ * The doctor summary report as a file.
+ *
+ * helper/DoctorExamReportHelper.BuildExport already produces headers, rows and
+ * the provenance block for this report - it is what the web's own export uses.
+ * Reusing it means the mobile download and the web download are the same
+ * numbers, which is the entire point of not writing a second query.
+ */
+exports.exportReportSummary = async (req, res) => {
+  try {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    if (!Export.IsFormat(format)) {
+      return fail(res, 'INVALID_FORMAT', 'format нь ' + Export.FORMATS.join(', ') + ' байна');
+    }
+
+    const { headers, rows, provenance } = await DoctorExamReportHelper.BuildExport({
+      LogedUser: req.LogedUser,
+      Filter: { StartDate: req.query.from, EndDate: req.query.to },
+    });
+
+    return await Export.Send({
+      res,
+      format,
+      fileName: 'doctor_summary',
+      sheetName: 'Тайлан',
+      headers,
+      rows,
+      provenance,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'exportReportSummary');
+  }
+};
+
+/**
+ * One examination as an A4 PDF.
+ *
+ * Scoped exactly as getVisit is - an id outside the caller's organisation is
+ * 404, not a document - and audited, because it is a per-patient clinical read
+ * that leaves the system as a file.
+ *
+ * Rendered through helper/PrintHelper.SendPdf, which owns the Puppeteer page
+ * lifecycle, the A4 setup and the organisation footer. FooterFor supplies the
+ * provenance line at the bottom of every page, which is the print equivalent of
+ * the header block Export.Send writes into a spreadsheet.
+ */
+exports.printVisit = async (req, res) => {
+  try {
+    const D = req.Doctor;
+    const id = toInt(req.params.id);
+    if (!id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const where = { id_data: id };
+    if (!D.IsAdmin) {
+      const orgIds = await OrganizationIds(D);
+      if (orgIds) where.OrganizationId = { [Op.in]: orgIds };
+    }
+
+    const visit = await Models.Visit.findOne({
+      where,
+      include: [PATIENT_INCLUDE],
+    });
+    if (!visit) return fail(res, 'NOT_FOUND', 'Үзлэг олдсонгүй', 404);
+
+    const v = JSON.parse(JSON.stringify(visit));
+    const P = v.Patient || {};
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: v.PatientId,
+      ObjectName: 'Visit',
+      ObjectId: id,
+      Action: 'PrintVisit',
+    });
+
+    const E = PrintHelper.Esc;
+    const Row = (label, value) =>
+      value === null || value === undefined || value === ''
+        ? ''
+        : '<tr><th>' + E(label) + '</th><td>' + E(value) + '</td></tr>';
+
+    // No <table> or bare h1-h6 in the markup that the SCSS could reach - this
+    // is a standalone document, but the same rule keeps it self-contained.
+    const html =
+      '<!doctype html><html><head><meta charset="utf-8"><style>' +
+      'body{font-family:"Segoe UI",Arial,sans-serif;font-size:12px;color:#0c2233;margin:0}' +
+      '.t{font-size:18px;font-weight:700;margin:0 0 2mm}' +
+      '.s{font-size:11px;color:#0a6c96;margin:0 0 6mm}' +
+      'table{border-collapse:collapse;width:100%;margin-bottom:5mm}' +
+      'th,td{border:1px solid #c9d8e4;padding:2mm 3mm;text-align:left;vertical-align:top}' +
+      'th{width:38mm;background:#eaf2f8;font-weight:600}' +
+      '</style></head><body>' +
+      '<p class="t">Үзлэгийн тэмдэглэл</p>' +
+      '<p class="s">Дугаар: ' + E(v.id_data) + ' · Огноо: ' + E(v.visit_date || '') + '</p>' +
+      '<table>' +
+      Row('Овог, нэр', [P.p_lastname, P.p_firstname].filter(Boolean).join(' ')) +
+      Row('Регистр', P.p_registration || v.PatRegNo) +
+      Row('Төрсөн огноо', P.p_birthday) +
+      Row('Нас', P.p_age) +
+      Row('Утас', P.p_telephone) +
+      '</table>' +
+      '<table>' +
+      Row('Зовиур', v.chief_complaint) +
+      Row('Онош', v.main_diagnosis) +
+      Row('Онош (монгол)', v.main_diagnosis_mn) +
+      Row('Үзлэгийн төрөл', v.exam_type_icd) +
+      Row('Шалтгаан', v.cause_icd10) +
+      Row('Ажилбар', v.procedure_icd9) +
+      Row('Хүндрэл', v.has_complication) +
+      '</table>' +
+      '</body></html>';
+
+    return await PrintHelper.SendPdf({
+      res,
+      html,
+      namePrefix: 'Visit',
+      downloadName: 'visit_' + id + '.pdf',
+      footer: await PrintHelper.FooterFor(req.LogedUser, v.OrganizationId),
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'printVisit');
+  }
+};
+
+/* -------------------------------- Шинжилгээ, оношлогоо (tender §3.1) */
+
+/**
+ * One patient's investigations across all four tables, newest first.
+ *
+ * The mapping lives in helper/Diagnostics.js so this and the patient's own
+ * /api/patient/diagnostics cannot drift. Both are audited, and both run the
+ * confidentiality check - LaboratoryTest carries hiv, hbs_ag, hcv and syphilis,
+ * which is precisely the data tender §1.2 has in mind.
+ */
+exports.listPatientDiagnostics = async (req, res) => {
+  try {
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const type = req.query.type ? String(req.query.type) : null;
+    if (type && !Diagnostics.IsType(type)) {
+      return fail(res, 'INVALID_TYPE', 'type нь ' + Diagnostics.TYPE_NAMES.join(', ') + ' байна');
+    }
+
+    const patient = await Models.Patient.findByPk(PatientId, {
+      attributes: ['id_data'],
+      raw: true,
+    });
+    if (!patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+
+    const { limit, offset } = readPaging(req);
+    const { total, rows } = await Diagnostics.List({
+      PatientId,
+      Type: type,
+      From: req.query.from,
+      To: req.query.to,
+      Limit: limit,
+      Offset: offset,
+    });
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId,
+      ObjectName: 'Diagnostics',
+      ObjectId: null,
+      Action: 'ViewDiagnostics',
+      RowCount: rows.length,
+    });
+
+    return ok(res, rows, { total, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listPatientDiagnostics');
+  }
+};
+
+/**
+ * One investigation in full.
+ *
+ * The patient is read FROM THE RECORD, not from the request, so the audit row
+ * names the right person and the confidentiality check is asked about the right
+ * person - an id is not permitted to claim whose result it is.
+ */
+exports.getDiagnostic = async (req, res) => {
+  try {
+    const type = String(req.params.type || '');
+    const Id = toInt(req.params.id);
+    if (!Diagnostics.IsType(type)) {
+      return fail(res, 'INVALID_TYPE', 'type нь ' + Diagnostics.TYPE_NAMES.join(', ') + ' байна');
+    }
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    let detail = await Diagnostics.GetOne({ Type: type, Id });
+    if (!detail) return fail(res, 'NOT_FOUND', 'Шинжилгээ олдсонгүй', 404);
+
+    // Confidentiality runs at FEATURE_CONFIDENTIALITY's default of 'off' until
+    // ЗСҮТ supply the access matrix, so this masks nothing today. Wiring it now
+    // means turning it on is a flag, not a code change - and the panel that
+    // will be masked is already declared in Diagnostics.LAB_PANELS.
+    // MaySeePatient returns { Allowed, Level, Mode, Reason }, not a boolean.
+    const Conf = await Confidentiality.MaySeePatient({
+      LogedUser: req.LogedUser,
+      PatientId: detail.PatientId,
+    });
+    if (Conf && Conf.Allowed === false) detail = Diagnostics.MaskConfidential(detail);
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: detail.PatientId,
+      ObjectName: Diagnostics.TYPES[type].Model,
+      ObjectId: Id,
+      Action: 'ViewDiagnostic',
+    });
+
+    return ok(res, detail);
+  } catch (ex) {
+    return serverError(res, ex, 'getDiagnostic');
+  }
+};
+
+/* ------------------------------------------------ ICD-10 (онош хайх, §1.3) */
+
+/**
+ * ICD-10 autocomplete for the diagnosis box.
+ *
+ * WHY IT IS A RAW QUERY. vwICD10 carries the code in `value` (18,803 rows) and
+ * the English text in `label`, pre-formatted as `*CODE ENG`. The Mongolian is in
+ * IcdTranslation (11,008 rows). vwICD10.findAllNew already expresses a join
+ * between them, but it passes `logging` - a statement per keystroke into the PM2
+ * log - and has no WHERE and no TOP, so it materialises the whole
+ * classification. Neither is acceptable for a typeahead.
+ *
+ * WHY IT JOINS ON `code` AND NOT ON THE LABEL. findAllNew matches
+ * `'*' + t.code + ' ' + t.eng = v.label`. That expression is not sargable: it
+ * concatenates three columns per candidate row before it can compare, so the
+ * optimiser has no index to use and the search degenerates into 18,803 × 11,008
+ * string builds. Measured on MnCardio_test: searching the Mongolian that way did
+ * not return in ten minutes. Joining on `t.code = v.value` - the same rows, an
+ * equality on a plain column - answers in ~130 ms.
+ *
+ * WHY IT DEDUPES WITH GROUP BY. `IcdTranslation.code` is NOT unique: B00, J17
+ * and J91 each have two rows, so a plain LEFT JOIN emits the same ICD code
+ * twice - a visible duplicate in a list of twenty. GROUP BY v.value collapses
+ * them and MIN() picks one translation.
+ *
+ * AND WHY NOT OUTER APPLY + EXISTS, which is the obvious way to write that. It
+ * was measured: 43 seconds for `I21` and 9.9 seconds for a Mongolian term,
+ * because both the APPLY and the EXISTS are correlated and run once per
+ * candidate row of an 18,803-row view. The single join below is one pass and
+ * answers in ~130 ms. The acceptance criterion for search is three seconds.
+ *
+ * Three columns are searched so a doctor can type any of them: the code, the
+ * English term and the Mongolian term. Two characters minimum, twenty rows
+ * maximum, per the mobile specification.
+ *
+ * `name_en` has the `*CODE ` prefix stripped here rather than in SQL - the
+ * client wants a term, not the view's display string, and doing it in JS keeps
+ * the statement readable.
+ */
+exports.searchIcd10 = async (req, res) => {
+  try {
+    const q = String(req.query.search || '').trim();
+    if (q.length < ICD10_MIN_CHARS) {
+      return fail(res, 'SEARCH_TOO_SHORT', 'Хайлтын утга 2-оос доошгүй тэмдэгт байна');
+    }
+
+    const rows = await sequelize.query(
+      `SELECT TOP (${ICD10_MAX_ROWS})
+              v.value    AS code,
+              MIN(v.label) AS label,
+              MIN(t.mon)   AS name_mn
+         FROM [vwICD10] v
+         LEFT JOIN [IcdTranslation] t ON t.code = v.value
+        WHERE v.value LIKE :prefix
+           OR v.label LIKE :anywhere
+           OR t.mon   LIKE :anywhere
+        GROUP BY v.value
+        ORDER BY
+              -- A code match first: typing "I21" wants I21 at the top, not
+              -- every term that happens to contain those letters.
+              CASE WHEN v.value LIKE :prefix THEN 0 ELSE 1 END,
+              v.value`,
+      {
+        type: Sequelize.QueryTypes.SELECT,
+        replacements: { prefix: q + '%', anywhere: '%' + q + '%' },
+      }
+    );
+
+    const data = rows.map((r) => ({
+      code: r.code,
+      name_mn: r.name_mn || null,
+      name_en: String(r.label || '')
+        .replace(/^\*\S*\s*/, '')
+        .trim(),
+    }));
+
+    return ok(res, data, { total: data.length, max: ICD10_MAX_ROWS });
+  } catch (ex) {
+    return serverError(res, ex, 'searchIcd10');
+  }
+};
+
 /* ------------------------- 32 Үйлчлүүлэгчийн модуль харах (patient read) */
 
 /**
@@ -790,18 +1581,72 @@ exports.searchPatients = async (req, res) => {
   try {
     const { limit, offset } = readPaging(req);
     const search = (req.query.search || '').trim();
-    if (search.length < 3) {
+    const icd10 = icd10Where(req.query.icd10);
+
+    // The 3-character floor exists to stop a one-character LIKE scanning the
+    // whole patient table. An ICD-10 code is already a narrow filter, so when
+    // one is supplied `search` becomes optional rather than required - which is
+    // what makes "every patient with an I21 diagnosis" a query at all.
+    if (!icd10 && search.length < 3) {
       return fail(res, 'SEARCH_TOO_SHORT', 'Хайлтын утга 3-аас доошгүй тэмдэгт байна');
     }
 
+    const where = {};
+    let icd10Capped = false;
+
+    if (search) {
+      where[Op.or] = [
+        { p_registration: { [Op.like]: '%' + search + '%' } },
+        { p_lastname: { [Op.like]: '%' + search + '%' } },
+        { p_firstname: { [Op.like]: '%' + search + '%' } },
+      ];
+    }
+
+    if (icd10) {
+      /*
+       * Patients who HAVE such an examination: a DISTINCT id list applied with
+       * Op.in, not a JOIN - a patient with twelve I21 visits must appear once,
+       * and `count` must stay a count of patients.
+       *
+       * Raw SQL rather than Sequelize, because `attributes: [fn('DISTINCT',…)]`
+       * with a `limit` makes Sequelize emit
+       *   SELECT DISTINCT(PatientId) … ORDER BY id_data OFFSET 0 ROWS FETCH NEXT …
+       * and SQL Server rejects it outright: "ORDER BY items must appear in the
+       * select list if SELECT DISTINCT is specified." It adds the ORDER BY for
+       * us because OFFSET/FETCH requires one. TOP needs no ORDER BY, so the
+       * statement is written by hand.
+       *
+       * Capped, because Visit holds ~450,000 rows and a broad prefix like `I%`
+       * would otherwise build an IN list of tens of thousands of ids and send it
+       * back as one statement. Exceeding the cap is REPORTED in the envelope
+       * rather than applied silently - a truncated result that looks complete is
+       * worse than one that says it is truncated.
+       */
+      const isPrefix = String(req.query.icd10).indexOf('%') !== -1;
+      const code = String(req.query.icd10).trim();
+
+      const ids = await sequelize.query(
+        `SELECT DISTINCT TOP (${ICD10_PATIENT_CAP}) PatientId
+           FROM [Visit]
+          WHERE PatientId IS NOT NULL
+            AND (main_diagnosis LIKE :label ${isPrefix ? '' : 'OR main_diagnosis = :bare'}
+                 OR icd10 LIKE :plain)`,
+        {
+          type: Sequelize.QueryTypes.SELECT,
+          replacements: {
+            label: isPrefix ? '*' + code : '*' + code + ' %',
+            bare: '*' + code,
+            plain: isPrefix ? code : code,
+          },
+        }
+      );
+
+      icd10Capped = ids.length >= ICD10_PATIENT_CAP;
+      where.id_data = { [Op.in]: ids.map((r) => r.PatientId) };
+    }
+
     const { rows, count } = await Models.Patient.findAndCountAll({
-      where: {
-        [Op.or]: [
-          { p_registration: { [Op.like]: '%' + search + '%' } },
-          { p_lastname: { [Op.like]: '%' + search + '%' } },
-          { p_firstname: { [Op.like]: '%' + search + '%' } },
-        ],
-      },
+      where,
       attributes: PATIENT_ATTRS,
       order: [['id_data', 'DESC']],
       limit,
@@ -809,7 +1654,14 @@ exports.searchPatients = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, rows, { total: count, limit, offset });
+    return ok(res, rows, {
+      total: count,
+      limit,
+      offset,
+      // Only present when it is true, so a client that ignores it is not
+      // reading a flag on every response.
+      ...(icd10Capped ? { truncated: true, cap: ICD10_PATIENT_CAP } : {}),
+    });
   } catch (ex) {
     return serverError(res, ex, 'searchPatients');
   }
@@ -968,6 +1820,27 @@ exports.listDoctorEvisits = async (req, res) => {
 
     const where = Object.assign({}, readDateRange(req, 'RequestedDate'));
 
+    /*
+     * ?patientId= turns this from a triage QUEUE into one patient's e-visit
+     * HISTORY, which is what the patient card needs.
+     *
+     * It exists because the app was calling the legacy /api/RemoteVisit/GetList
+     * and discarding other people's rows CLIENT-SIDE - so the rows were on the
+     * wire regardless of whether they were ever drawn.
+     *
+     * Three deliberate differences from the queue, all following from "history,
+     * not queue":
+     *   - scope is ignored, and not required to be 'all'. Per-patient reads on
+     *     this surface are nationwide by design (see getPatient) rather than
+     *     care-team scoped, and a narrower rule here than on the card the list
+     *     sits inside would be inconsistent, not safer.
+     *   - the default status filter is dropped. A history that hides completed
+     *     visits is not a history. ?status= still narrows it.
+     *   - the read is audited, because it is a per-patient clinical read.
+     */
+    const patientId = toInt(req.query.patientId);
+    if (patientId) where.PatientId = patientId;
+
     const { status } = req.query;
     if (status) {
       const wanted = String(status)
@@ -976,13 +1849,21 @@ exports.listDoctorEvisits = async (req, res) => {
         .filter((s) => RemoteVisitFlow.IsStatus(s));
       if (!wanted.length) return fail(res, 'INVALID_STATUS', 'Төлөв буруу байна');
       where.Status = { [Op.in]: wanted };
-    } else {
+    } else if (!patientId) {
       // Default to what still needs doing. A triage queue full of completed
       // visits is not a queue.
       where.Status = { [Op.in]: RemoteVisitFlow.OPEN };
     }
 
-    if (scope === 'mine') {
+    if (patientId) {
+      AccessAudit.RecordAccess({
+        LogedUser: req.LogedUser,
+        PatientId: patientId,
+        ObjectName: 'RemoteVisit',
+        ObjectId: null,
+        Action: 'ViewEvisits',
+      });
+    } else if (scope === 'mine') {
       if (!D.DoctorId) {
         return fail(res, 'DOCTOR_PROFILE_NOT_RESOLVED', 'Эмчийн мэдээлэл олдсонгүй', 403);
       }
@@ -1240,6 +2121,19 @@ exports.completeEvisit = async (req, res) => {
       Comment ? 'Цахим үзлэг хийгдлээ: ' + String(Comment).slice(0, 400) : 'Цахим үзлэг хийгдлээ'
     );
 
+    // completed is TERMINAL, and MeetingUrl stops being served the moment it is
+    // reached. So this is the only signal the patient gets that the visit is
+    // over rather than that their join link broke.
+    await NotificationHelper.NotifyPatient({
+      PatientId: row.PatientId,
+      Action: 'EvisitCompleted',
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: Id,
+      NotesMn: 'Цахим үзлэг дууслаа',
+      Notes: 'Your remote examination has been completed',
+      LogedUser: req.LogedUser,
+    });
+
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
     return ok(res, {
       Id,
@@ -1285,6 +2179,21 @@ exports.cancelDoctorEvisit = async (req, res) => {
         ? 'Цахим үзлэгийн хүсэлтийг цуцаллаа: ' + String(Reason).slice(0, 400)
         : 'Цахим үзлэгийн хүсэлтийг цуцаллаа'
     );
+
+    // The patient did not do this - a doctor refused or withdrew their request,
+    // and cancelled is terminal. Without telling them, the app simply shows a
+    // request that stopped moving. The reason is included when one was given.
+    await NotificationHelper.NotifyPatient({
+      PatientId: row.PatientId,
+      Action: 'EvisitCancelled',
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: Id,
+      NotesMn: Reason
+        ? 'Цахим үзлэгийн хүсэлт цуцлагдлаа: ' + String(Reason).slice(0, 200)
+        : 'Цахим үзлэгийн хүсэлт цуцлагдлаа',
+      Notes: 'Your remote examination request was cancelled',
+      LogedUser: req.LogedUser,
+    });
 
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
     return ok(res, {
@@ -1361,6 +2270,41 @@ async function ResolvePatRegNo(PatientId) {
   if (!P) return { Patient: null, PatRegNo: null };
   return { Patient: P, PatRegNo: P.p_registration || null };
 }
+
+/**
+ * Эрсдэл үнэлгээ for one patient — the doctor's view of GET /api/patient/risk.
+ *
+ * Reads through helper/RiskInputs so it CANNOT diverge from what the patient
+ * sees on their own phone. Same nationwide scope as getPatient, which this sits
+ * inside, and audited for the same reason: it is a per-patient clinical read,
+ * and the tender's "notify on access" requirement is fed by exactly these rows.
+ *
+ * No score, no risk class - see the header of helper/RiskInputs.js.
+ */
+exports.getPatientRisk = async (req, res) => {
+  try {
+    const PatientId = toInt(req.params.id);
+    if (!PatientId) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId,
+      ObjectName: 'PatientBodySize',
+      ObjectId: null,
+      Action: 'ViewRisk',
+    });
+
+    // A patient with no registration number has no rows to find, which is the
+    // empty answer rather than an error - the same fail-soft the patient side
+    // gives them.
+    return ok(res, await RiskInputs.Read(PatRegNo));
+  } catch (ex) {
+    return serverError(res, ex, 'getPatientRisk');
+  }
+};
 
 /**
  * Everything rehabilitation knows about one patient: the latest assessment,
@@ -1552,9 +2496,123 @@ exports.createPatientAssessment = async (req, res) => {
       Notes: 'Recorded rehabilitation assessment',
     });
 
+    // Notes on an assessment IS the doctor's advice (tender §4.1), so a patient
+    // who is not told one was written has no reason to open the screen that
+    // holds it. Deep-linked to RehabAssessment rather than to the rehab tab.
+    await NotificationHelper.NotifyPatient({
+      PatientId,
+      Action: 'RehabAssessment',
+      LinkObjectName: 'RehabAssessment',
+      LinkObjectId: created.Id,
+      NotesMn: 'Сэргээн засахын шинэ үнэлгээ бүртгэгдлээ',
+      Notes: 'A new rehabilitation assessment was recorded',
+      LogedUser: req.LogedUser,
+    });
+
     return ok(res, { Id: created.Id, PatRegNo, AssessmentDate: AssessmentDate || Now });
   } catch (ex) {
     return serverError(res, ex, 'createPatientAssessment');
+  }
+};
+
+/* ------------------------------------------------------------ Мэдэгдэл */
+
+/**
+ * The doctor half of the notification centre.
+ *
+ * A doctor could register a device for push (below) but had nowhere to read
+ * what had been sent - the four patient endpoints had no counterpart here, so
+ * the app had a bell with nothing behind it.
+ *
+ * Addressed by ToUserId, not ToDoctorId. Both columns exist and
+ * AdviceController has written both since long before this surface did
+ * (:298, :373, :1474), but ToUserId is the one every producer fills and the one
+ * that survives a doctor without a DoctorsProfile row. Reading it also means
+ * these endpoints show the same rows as the web bell rather than a subset.
+ *
+ * The seen value and the row shape come from helper/NotificationHelper so this
+ * cannot drift from /api/patient - see the note there.
+ */
+const UNREAD_WHERE = () => ({
+  // Unread is "not the seen value", which includes NULL. Op.ne alone would
+  // exclude NULL rows in SQL Server, and NULL is what an unread row actually
+  // holds - so that would return nothing at all.
+  [Op.or]: [{ Seen: null }, { Seen: { [Op.ne]: NotificationHelper.SEEN } }],
+});
+
+exports.listNotifications = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+
+    const where = { ToUserId: req.Doctor.UserId };
+    if (String(req.query.unread) === '1') Object.assign(where, UNREAD_WHERE());
+
+    const { rows, count } = await Models.Notification.findAndCountAll({
+      where,
+      attributes: NotificationHelper.ShapeAttributes,
+      order: [
+        ['CreateDate', 'DESC'],
+        ['Id', 'DESC'],
+      ],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    return ok(res, rows.map(NotificationHelper.Shape), { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listNotifications');
+  }
+};
+
+/** The badge. Its own endpoint so the app is not paging a list to count. */
+exports.unreadNotificationCount = async (req, res) => {
+  try {
+    const unread = await Models.Notification.count({
+      where: Object.assign({ ToUserId: req.Doctor.UserId }, UNREAD_WHERE()),
+    });
+    return ok(res, { unread });
+  } catch (ex) {
+    return serverError(res, ex, 'unreadNotificationCount');
+  }
+};
+
+/**
+ * Ownership lives in the WHERE clause, never in a check beforehand.
+ *
+ * An UPDATE constrained by both Id and ToUserId either matches the caller's own
+ * row or matches nothing. Zero rows becomes 404, which is the same answer an id
+ * that does not exist gets - so this cannot be used to discover whether another
+ * doctor's notification exists.
+ */
+exports.markNotificationRead = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: NotificationHelper.SEEN, SeenDate: Now },
+      { where: { Id, ToUserId: req.Doctor.UserId } }
+    );
+
+    if (!count) return fail(res, 'NOT_FOUND', 'Мэдэгдэл олдсонгүй', 404);
+    return ok(res, { Id, Seen: true, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markNotificationRead');
+  }
+};
+
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: NotificationHelper.SEEN, SeenDate: Now },
+      { where: Object.assign({ ToUserId: req.Doctor.UserId }, UNREAD_WHERE()) }
+    );
+    return ok(res, { marked: count, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markAllNotificationsRead');
   }
 };
 
@@ -1627,5 +2685,132 @@ exports.listDevices = async (req, res) => {
     return ok(res, rows, { total: rows.length });
   } catch (ex) {
     return serverError(res, ex, 'listDevices');
+  }
+};
+
+/* ---------------------------------- ЭМД кодчилол (tender §1.6) */
+
+/**
+ * Insurance-subsidised drugs for a diagnosis.
+ *
+ * NOT A NEW INTEGRATION. controllers/integrations/EMDServiceController.js has
+ * spoken to st.health.gov.mn for years and the web uses it today; this is the
+ * same helper behind the /api/doctor conventions, because the legacy endpoint
+ * is POST-for-everything, answers errors with HTTP 200, and takes PatRegNo from
+ * the request BODY.
+ *
+ * THAT LAST POINT IS THE REASON THIS EXISTS RATHER THAN THE APP CALLING
+ * /api/EMDService/getTabletByDiagnosis DIRECTLY. The upstream call is made with
+ * a citizen's registration number, and taking it from the body means any
+ * authenticated caller can ask the national insurance service about any
+ * citizen. Here the registration number is resolved from the PATIENT ID via the
+ * database, after the caller's access to that patient has been checked - so the
+ * request can only ever be about somebody the doctor is entitled to see.
+ *
+ * ?icd10= may carry several comma-separated codes, because a prescription is
+ * written against a diagnosis list. Upstream answers one code per call, so they
+ * are fetched in sequence and merged, each row tagged with the code it came
+ * from - the same shape the web controller produces.
+ *
+ * A null from the helper means the upstream call failed; it logs and returns
+ * null rather than throwing. That becomes 502, not 500: the fault is not here.
+ */
+exports.emdDrugs = async (req, res) => {
+  try {
+    const D = req.Doctor;
+
+    const PatientId = toInt(req.query.patientId);
+    if (!PatientId) return fail(res, 'PATIENT_REQUIRED', 'Үйлчлүүлэгчийг заана уу');
+
+    const May = await CareTeam.CanAccessPatient(D, PatientId);
+    if (!May) return fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+
+    const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+    if (!Patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    }
+
+    const codes = String(req.query.icd10 || '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+
+    if (!codes.length) return fail(res, 'ICD10_REQUIRED', 'Оношийн кодыг заана уу');
+
+    let upstreamFailed = false;
+    let drugs = [];
+
+    for (const code of codes) {
+      const r = await EMDServiceHelper.getTabletByDiagnosis(code, PatRegNo);
+      if (r === null) {
+        upstreamFailed = true;
+        continue;
+      }
+      if (r && r.listTabletModel) {
+        const diagCode = r.diagModel ? r.diagModel.diagCode : code;
+        drugs = drugs.concat(r.listTabletModel.map((t) => Object.assign({}, t, { diagCode })));
+      }
+    }
+
+    if (upstreamFailed && !drugs.length) {
+      return fail(res, 'EMD_UNAVAILABLE', 'ЭМД-ын үйлчилгээнд холбогдож чадсангүй', 502);
+    }
+
+    const search = String(req.query.search || '').trim().toLowerCase();
+    if (search) {
+      drugs = drugs.filter((t) =>
+        [t.tabletName, t.internationalName, t.tabletCode]
+          .filter(Boolean)
+          .some((v) => String(v).toLowerCase().indexOf(search) !== -1)
+      );
+    }
+
+    return ok(res, drugs, {
+      total: drugs.length,
+      codes,
+      // Present only when something upstream failed but other codes answered,
+      // so a partial list is never mistaken for a complete one.
+      ...(upstreamFailed ? { partial: true } : {}),
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'emdDrugs');
+  }
+};
+
+/**
+ * The insurance service catalogue.
+ *
+ * No patient is involved - this is the national list of covered services - so
+ * unlike emdDrugs it takes no patient and performs no per-patient check. It is
+ * still behind the doctor gate: it is reference data for clinicians, not a
+ * public catalogue.
+ *
+ * The upstream call returns everything; ?search= filters here rather than
+ * there, because the upstream endpoint offers no search parameter.
+ */
+exports.emdServices = async (req, res) => {
+  try {
+    const list = await EMDServiceHelper.getTablet();
+    if (list === null) {
+      return fail(res, 'EMD_UNAVAILABLE', 'ЭМД-ын үйлчилгээнд холбогдож чадсангүй', 502);
+    }
+
+    let rows = Array.isArray(list) ? list : list && list.listTabletModel ? list.listTabletModel : [];
+
+    const search = String(req.query.search || '').trim().toLowerCase();
+    if (search) {
+      rows = rows.filter((t) =>
+        Object.values(t || {})
+          .filter((v) => typeof v === 'string')
+          .some((v) => v.toLowerCase().indexOf(search) !== -1)
+      );
+    }
+
+    const limit = Math.min(parseInt(req.query.limit, 10) || 100, 500);
+    return ok(res, rows.slice(0, limit), { total: rows.length, limit });
+  } catch (ex) {
+    return serverError(res, ex, 'emdServices');
   }
 };

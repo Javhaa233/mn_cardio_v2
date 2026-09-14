@@ -2,6 +2,7 @@ const path = require('path');
 const ExcelJS = require('exceljs');
 const { Sequelize, sequelize, Models } = require('../config/DB');
 const BaseControllerHelper = require('./BaseControllerHelper');
+const Provenance = require('./Provenance');
 
 /**
  * Эмчийн нэгдсэн үзлэгийн тайлан - эмч тус бүрээр нэг мөр, тухайн хүний системд
@@ -306,32 +307,22 @@ function BuildSummary(Rows) {
 }
 
 /**
- * Экспортын эх сурвалжийн тэмдэглэгээ. Тендер экспорт бүрээс үүнийг шаарддаг тул
- * BaseControllerHelper.BuildExport-ийн блоктой ижил бүтэцтэй байлгав.
+ * Экспортын эх сурвалжийн тэмдэглэгээ.
+ *
+ * MOVED TO helper/Provenance.js on 2026-09-14, unchanged in output. Every other
+ * export - the patient journal, the visit list, the summary - needs the exact
+ * same block, and a stamp whose format depends on which endpoint produced it
+ * defeats the purpose of having one. This wrapper keeps the local call sites
+ * and the Filter shape they pass.
  */
 function BuildProvenance({ LogedUser, Filter }) {
-  const ExportedBy =
-    (LogedUser && (LogedUser.FullName || (LogedUser.Doctor && LogedUser.Doctor.FullName))) ||
-    (LogedUser && LogedUser.UserName) ||
-    '';
-  const OrgName =
-    (LogedUser && LogedUser.Doctor && LogedUser.Doctor.Organization
-      ? LogedUser.Doctor.Organization.Name
-      : null) || '';
-  const StartDate = ToDateOrNull(Filter.StartDate);
-  const EndDate = ToDateOrNull(Filter.EndDate);
-  const Period =
-    StartDate || EndDate ? (StartDate || '...') + ' - ' + (EndDate || '...') : 'Бүх хугацаа';
-
-  return [
-    'Байгууллага: ' + OrgName,
-    'Мэдээллийн сан: ' + (process.env.SQL_DB || ''),
-    'Бүртгэл: Эмчийн нэгдсэн үзлэгийн тайлан',
-    'Хамрах хугацаа: ' + Period,
-    'Гаргасан огноо: ' + new Date().toISOString().slice(0, 19) + 'Z (UTC)',
-    'Гаргасан хэрэглэгч: ' + ExportedBy,
-    'Тайлбар: тоо бүр тухайн бичлэгийг СИСТЕМД ҮҮСГЭСЭН хэрэглэгчээр тоологдсон болно.',
-  ];
+  return Provenance.Lines({
+    LogedUser,
+    Register: 'Эмчийн нэгдсэн үзлэгийн тайлан',
+    From: Filter.StartDate,
+    To: Filter.EndDate,
+    Note: 'тоо бүр тухайн бичлэгийг СИСТЕМД ҮҮСГЭСЭН хэрэглэгчээр тоологдсон болно.',
+  });
 }
 
 async function BuildExport({ LogedUser, Filter }) {
@@ -391,4 +382,10 @@ module.exports = {
   GetData,
   ExportExcel,
   ExportText,
+  // Exported for /api/doctor/reports/summary/export, which renders the same
+  // headers, rows and provenance block through helper/Export.js. Sharing this
+  // is what stops the mobile download and the web download disagreeing about
+  // the numbers.
+  BuildExport,
+  BuildProvenance,
 };

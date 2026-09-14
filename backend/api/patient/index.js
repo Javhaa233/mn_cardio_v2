@@ -29,9 +29,21 @@ const c = require('./controller');
  */
 const router = express.Router();
 
-// Verify the token (401 in this surface's envelope, not the legacy 200), then
-// assert the caller is a patient and resolve the ids handlers scope by.
-const gate = [require('../../helper/VerifyTokenJson'), require('../../helper/RequirePatient')];
+/*
+ * Verify the token (401 in this surface's envelope, not the legacy 200), then
+ * assert the caller is a patient and resolve the ids handlers scope by.
+ *
+ * The X-App-Build gate sits FIRST, before the token is even verified: an app
+ * too old to be allowed through should be told to update rather than told its
+ * session expired. A request with no X-App-Build header passes untouched, which
+ * is every build in the field today and the web frontend - see the header of
+ * helper/RequireAppBuild.js for why "cannot tell" must never mean "refuse".
+ */
+const gate = [
+  require('../../helper/RequireAppBuild'),
+  require('../../helper/VerifyTokenJson'),
+  require('../../helper/RequirePatient'),
+];
 
 // 2.1 Миний бүртгэл
 router.get('/me', gate, c.getMe);
@@ -40,6 +52,9 @@ router.get('/me', gate, c.getMe);
 router.get('/journal', gate, c.listJournal);
 router.post('/journal', gate, c.createJournal);
 router.get('/journal/summary', gate, c.journalSummary);
+// §1.8 - the journal as a file, for showing a doctor at an appointment.
+// Returns a FILE with a source stamp, not the JSON envelope
+router.get('/journal/export', gate, c.exportJournal);
 
 // 2.3 Эмчээс асуух асуулт
 router.get('/questions', gate, c.listQuestions);
@@ -50,6 +65,11 @@ router.get('/advice', gate, c.listAdvice);
 
 // 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology
 router.get('/risk', gate, c.getRisk);
+
+// §3.1 Шинжилгээ, оношлогоо — the patient's own results, same shape the doctor
+// app gets. Scoped by the token, and a foreign id answers 404, never 403
+router.get('/diagnostics', gate, c.listDiagnostics);
+router.get('/diagnostics/:type/:id', gate, c.getDiagnostic);
 
 // 2.6 Цахим үзлэг - request, appointment and the state of both
 router.get('/evisits', gate, c.listEvisits);
@@ -109,5 +129,8 @@ router.post('/rehab/progress', gate, c.createRehabProgress);
 router.get('/rehab/vitals', gate, c.listRehabVitals);
 router.post('/rehab/vitals', gate, c.createRehabVital);
 router.get('/rehab/assessment', gate, c.getRehabAssessment);
+// The history behind that single row - risk level and exercise tolerance over
+// a whole programme, which is why they are recorded repeatedly
+router.get('/rehab/assessments', gate, c.listRehabAssessments);
 
 module.exports = router;

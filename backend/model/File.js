@@ -30,6 +30,21 @@ File.init(
     LinkedObjectName: { type: Sequelize.STRING },
     LinkedObjectId: { type: Sequelize.INTEGER },
     FieldName: { type: Sequelize.STRING },
+
+    /*
+     * duration_ms and media_state (scripts/add_file_media_columns.sql) are
+     * DELIBERATELY NOT DECLARED HERE. helper/MediaMeta.js reads and writes them
+     * with guarded raw SQL instead.
+     *
+     * model/Patient/Patient.js declares ConfidentialityLevel the ordinary way
+     * for the same situation, and that is normally right. File is the exception
+     * because of blast radius: a declared attribute goes into the default
+     * SELECT of every File query, so on a database where the script has not run
+     * yet, EVERY attachment in the application - not just chat media - fails
+     * with an invalid column reference. The confidentiality script had already
+     * been applied when its column was declared; this one is still a request to
+     * whoever holds SQL access, so the code has to work on both sides of it.
+     */
   },
   {
     sequelize,

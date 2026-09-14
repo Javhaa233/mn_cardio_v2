@@ -1,5 +1,6 @@
 const { Models, Op } = require('../../config/DB');
 const Flags = require('../../helper/FeatureFlags');
+const CodeMappings = require('../../helper/CodeMappings');
 
 /**
  * FHIR R4 projection handlers.
@@ -242,8 +243,10 @@ exports.metadata = async (req, res) => {
       {
         mode: 'server',
         documentation:
-          'Read-only projection. Two resources only, and no write operations. The scope of ' +
-          'FHIR compliance for this system is an open decision.',
+          'Read-only projection, no write operations. The scope of FHIR compliance for this ' +
+          'system is an open decision. NOTE: Condition and Observation may return resources ' +
+          'with a CodeableConcept carrying text and no coding - the source data is largely ' +
+          'uncoded, and no ICD or LOINC code is asserted unless one has been verified.',
         resource: [
           { type: 'Patient', interaction: [{ code: 'read' }] },
           {
@@ -251,8 +254,261 @@ exports.metadata = async (req, res) => {
             interaction: [{ code: 'search-type' }],
             searchParam: [{ name: 'patient', type: 'reference' }],
           },
+          {
+            type: 'Encounter',
+            interaction: [{ code: 'search-type' }],
+            searchParam: [{ name: 'patient', type: 'reference' }],
+          },
+          {
+            type: 'Observation',
+            interaction: [{ code: 'search-type' }],
+            searchParam: [
+              { name: 'patient', type: 'reference' },
+              { name: 'code', type: 'token' },
+            ],
+          },
         ],
       },
     ],
   });
+};
+
+/* ======================================================================
+ * Encounter and Observation — mobile tender §1.4.
+ * ====================================================================== */
+
+
+/**
+ * A Visit as a FHIR R4 Encounter.
+ *
+ * `status` is 'finished' for every row, and that is a statement about the DATA
+ * MODEL rather than a default. Visit records a completed examination - there is
+ * no in-progress state, no admission and no discharge on this table, so every
+ * row that exists describes something that already happened. An 'unknown'
+ * status would be less true, not more careful.
+ *
+ * `class` is AMB (ambulatory). Visit is the outpatient examination register;
+ * inpatient stays live in Stay and HfStay and are not projected here.
+ *
+ * serviceProvider points at the organisation. No Practitioner reference is
+ * emitted: Visit.id is a Users.Id, not a clinician resource this server
+ * publishes, and a reference to a Practitioner endpoint that does not exist
+ * would be a dangling pointer in every Bundle.
+ */
+function toEncounterResource(v) {
+  const text = v.main_diagnosis_mn || v.main_diagnosis || undefined;
+
+  return clean({
+    resourceType: 'Encounter',
+    id: String(v.id_data),
+    status: 'finished',
+    class: {
+      system: 'http://terminology.hl7.org/CodeSystem/v3-ActCode',
+      code: 'AMB',
+      display: 'ambulatory',
+    },
+    subject: { reference: 'Patient/' + String(v.PatientId) },
+    period: clean({ start: isoInstant(v.visit_date), end: isoInstant(v.visit_date) }),
+    reasonCode: text ? [clean({ text })] : undefined,
+    serviceProvider: v.OrganizationId
+      ? { reference: 'Organization/' + String(v.OrganizationId) }
+      : undefined,
+  });
+}
+
+/**
+ * One measurement as a FHIR R4 Observation.
+ *
+ * THE CODING IS CONDITIONAL, AND THAT IS THE POINT. A LOINC code is emitted
+ * only when CodeMapping.Verified = 1 for that field. Unverified, the resource
+ * still carries `code.text` - "this measurement was recorded, it is not coded"
+ * - which is exactly what searchCondition already does for an uncoded
+ * diagnosis. Emitting an unreviewed LOINC code would silently assert that a
+ * number means something nobody has checked, to every system that consumes it.
+ *
+ * valueQuantity is used when the stored string parses as a number and a unit is
+ * known; otherwise valueString. LaboratoryTest stores everything as a string,
+ * including values that are not quantities at all, and those must not be
+ * coerced into one.
+ */
+function toObservationResource({ id, patientId, date, map, localCode, value, category }) {
+  const numeric = Number(String(value).replace(',', '.'));
+  const isQuantity = !!(map && map.Unit && String(value).trim() !== '' && Number.isFinite(numeric));
+
+  return clean({
+    resourceType: 'Observation',
+    id,
+    status: 'final',
+    category: [
+      {
+        coding: [
+          {
+            system: 'http://terminology.hl7.org/CodeSystem/observation-category',
+            code: category,
+          },
+        ],
+      },
+    ],
+    code: clean({
+      // Verified only. See the header.
+      coding:
+        map && map.Verified && map.Code
+          ? [{ system: map.System || 'http://loinc.org', code: map.Code, display: map.Display }]
+          : undefined,
+      text: (map && map.Display) || localCode,
+    }),
+    subject: { reference: 'Patient/' + String(patientId) },
+    effectiveDateTime: isoInstant(date),
+    valueQuantity: isQuantity
+      ? { value: numeric, unit: map.Unit, system: 'http://unitsofmeasure.org', code: map.Unit }
+      : undefined,
+    valueString: isQuantity ? undefined : String(value),
+  });
+}
+
+/**
+ * GET /fhir/Encounter?patient=
+ *
+ * `patient` is required, for the same reason it is on Condition: an unbounded
+ * search over 450,604 Visit rows is an export, and an export is the thing the
+ * outstanding scope decision is about.
+ */
+exports.searchEncounter = async (req, res) => {
+  try {
+    if (!Flags.FhirExport) return disabled(res);
+
+    const patient = String(req.query.patient || '').replace(/^Patient\//, '');
+    const id = parseInt(patient, 10);
+    if (!id) {
+      return outcome(res, 400, 'required', 'The `patient` search parameter is required');
+    }
+
+    const count = Math.min(parseInt(req.query._count, 10) || 50, 200);
+
+    const rows = await Models.Visit.findAll({
+      where: { PatientId: id },
+      attributes: [
+        'id_data',
+        'PatientId',
+        'visit_date',
+        'main_diagnosis',
+        'main_diagnosis_mn',
+        'OrganizationId',
+      ],
+      order: [['visit_date', 'DESC']],
+      limit: count,
+      raw: true,
+    });
+
+    return res.type(FHIR_JSON).json(bundle(rows.map(toEncounterResource), rows.length));
+  } catch (ex) {
+    console.error('[api/fhir] searchEncounter: ' + ex.message);
+    return outcome(res, 500, 'exception', 'Internal error');
+  }
+};
+
+/**
+ * GET /fhir/Observation?patient=&code=
+ *
+ * TWO SOURCES, ONE BUNDLE: the patient's own vital-sign log
+ * (PatientMonitoring) and their laboratory results (LaboratoryTest). Those are
+ * the two tables that hold anything an Observation can honestly represent.
+ *
+ * ?code= filters by LOINC code and matches ONLY verified mappings - an
+ * unverified field has no code to filter on, so returning it for a code query
+ * would mean answering "give me systolic blood pressure" with a column somebody
+ * believes is systolic blood pressure. Without ?code= everything is returned,
+ * coded or not.
+ *
+ * The resource id is composite - one row of PatientMonitoring is five
+ * Observations - because each needs a stable identity a client can dereference
+ * and de-duplicate on.
+ */
+exports.searchObservation = async (req, res) => {
+  try {
+    if (!Flags.FhirExport) return disabled(res);
+
+    const patient = String(req.query.patient || '').replace(/^Patient\//, '');
+    const id = parseInt(patient, 10);
+    if (!id) {
+      return outcome(res, 400, 'required', 'The `patient` search parameter is required');
+    }
+
+    // Accept a bare code or the token form "http://loinc.org|8480-6".
+    const rawCode = String(req.query.code || '').trim();
+    const wantCode = rawCode.indexOf('|') === -1 ? rawCode : rawCode.split('|').pop().trim();
+    const count = Math.min(parseInt(req.query._count, 10) || 100, 500);
+
+    const maps = await CodeMappings.All();
+    const out = [];
+
+    /* ---- vital signs, from the patient's own journal ------------------- */
+    const VITALS = ['blood_pressure', 'blood_pressure2', 'pulse', 'weight', 'inr'];
+    const pm = await Models.PatientMonitoring.findAll({
+      where: { patient_id: id },
+      attributes: ['id_data', 'date', 'blood_pressure', 'blood_pressure2', 'pulse', 'weight', 'inr'],
+      order: [['date', 'DESC']],
+      limit: count,
+      raw: true,
+    });
+
+    pm.forEach((r) => {
+      VITALS.forEach((f) => {
+        const v = r[f];
+        if (v === null || v === undefined || String(v).trim() === '') return;
+        const map = maps.get('PatientMonitoring|' + f) || null;
+        if (wantCode && !(map && map.Verified && map.Code === wantCode)) return;
+        out.push(
+          toObservationResource({
+            id: 'pm-' + r.id_data + '-' + f,
+            patientId: id,
+            date: r.date,
+            map,
+            localCode: f,
+            value: v,
+            category: 'vital-signs',
+          })
+        );
+      });
+    });
+
+    /* ---- laboratory results -------------------------------------------- */
+    const LAB_FIELDS = [...maps.keys()]
+      .filter((k) => k.indexOf('LaboratoryTest|') === 0)
+      .map((k) => k.split('|')[1]);
+
+    if (LAB_FIELDS.length) {
+      const labs = await Models.LaboratoryTest.findAll({
+        where: { PatientId: id },
+        order: [['LaboratoryTestDate', 'DESC']],
+        limit: count,
+        raw: true,
+      });
+
+      labs.forEach((r) => {
+        LAB_FIELDS.forEach((f) => {
+          const v = r[f];
+          if (v === null || v === undefined || String(v).trim() === '') return;
+          const map = maps.get('LaboratoryTest|' + f) || null;
+          if (wantCode && !(map && map.Verified && map.Code === wantCode)) return;
+          out.push(
+            toObservationResource({
+              id: 'lab-' + r.Id + '-' + f,
+              patientId: id,
+              date: r.LaboratoryTestDate,
+              map,
+              localCode: f,
+              value: v,
+              category: 'laboratory',
+            })
+          );
+        });
+      });
+    }
+
+    return res.type(FHIR_JSON).json(bundle(out.slice(0, count), out.length));
+  } catch (ex) {
+    console.error('[api/fhir] searchObservation: ' + ex.message);
+    return outcome(res, 500, 'exception', 'Internal error');
+  }
 };

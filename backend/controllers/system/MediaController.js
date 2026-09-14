@@ -1,13 +1,10 @@
 const express = require('express');
-const fs = require('fs');
-const path = require('path');
-const mime = require('mime-types');
 const router = express.Router();
 
 const { Models } = require('../../config/DB');
-const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const { MayDownload } = require('../../helper/FileAccessHelper');
 const MediaRef = require('../../helper/MediaRef');
+const { ResolveOnDisk, SendFile } = require('../../helper/MediaStream');
 
 /**
  * Streaming media, with byte ranges.
@@ -20,113 +17,30 @@ const MediaRef = require('../../helper/MediaRef');
  * anything - mobile/READINESS.md §2.4 records it as the thing blocking the 39
  * exercise videos.
  *
- * WHY A HEADER-AUTHENTICATED GET IS FINE HERE. The usual objection is that an
- * HTML <video> element cannot set an Authorization header, so media routes end
- * up taking a token in the query string. Flutter's VideoPlayerController takes
- * httpHeaders, and Flutter is the client - so the token stays in the header.
- * Do not "fix" this into ?token=: helper/SocketAuth.js already explains that a
- * token in a URL lands in nginx access logs and browser history, and a media URL
- * is exactly the sort of thing that gets copied around.
+ * WHY THIS ROUTE IS HEADER-AUTHENTICATED. An HTML <video> element cannot set an
+ * Authorization header, so media routes are often "fixed" by taking a session
+ * token in the query string. Do not do that here: helper/SocketAuth.js explains
+ * that a token in a URL lands in nginx access logs and browser history, and a
+ * media URL is exactly the sort of thing that gets copied around. Flutter's
+ * VideoPlayerController takes httpHeaders, so the mobile client - the one this
+ * route was written for - keeps its token in the header and needs nothing else.
+ *
+ * THE BROWSER CASE IS SERVED ELSEWHERE. MediaTicketController answers
+ * /api/Media/t/:ticket with a short-lived credential scoped to ONE file and ONE
+ * user, minted only after a full authorization check and re-checked on
+ * redemption. That is deliberately not a session token, and it is why this file
+ * did not have to grow a ?token= branch.
  *
  * AUTHORIZATION IS NOT REIMPLEMENTED HERE. It calls the same MayDownload that
  * /BaseObject/downloadFile does, which is why that function was moved to
- * helper/FileAccessHelper.js rather than duplicated.
+ * helper/FileAccessHelper.js rather than duplicated. Sending the bytes is
+ * likewise helper/MediaStream.js, shared with the ticket route.
  */
 
 router.get('/stream/:generatedName', stream);
 router.head('/stream/:generatedName', stream);
 router.get('/exercise/:exerciseId', exercise);
 router.head('/exercise/:exerciseId', exercise);
-
-/** The legacy quirk: some older uploads are a DIRECTORY containing `file`. */
-function ResolveOnDisk(generatedName) {
-  const validated = BaseControllerHelper.ValidateFilePath(generatedName);
-  if (!fs.existsSync(validated)) return null;
-
-  const stat = fs.statSync(validated);
-  // BaseDownloadFile and FileExistsOnHost both handle this, and a large share
-  // of the existing corpus is stored that way. Omitting it here would 404 files
-  // that download perfectly well through the old route - the single easiest
-  // mistake to make in this file.
-  const filePath = stat.isDirectory() ? path.join(validated, 'file') : validated;
-  if (!fs.existsSync(filePath)) return null;
-
-  return { Path: filePath, Size: fs.statSync(filePath).size };
-}
-
-/**
- * Parse an HTTP Range header.
- *
- * Returns null for "no range, send the whole thing", or {start,end}, or the
- * string 'invalid' for something that parses but cannot be satisfied - which is
- * a 416 rather than a 400, because the request was well-formed and the resource
- * simply does not have those bytes.
- */
-function ParseRange(header, size) {
-  if (!header) return null;
-
-  const m = String(header).match(/^bytes=(\d*)-(\d*)$/);
-  if (!m) return 'invalid';
-
-  const hasStart = m[1] !== '';
-  const hasEnd = m[2] !== '';
-  if (!hasStart && !hasEnd) return 'invalid';
-
-  let start;
-  let end;
-
-  if (!hasStart) {
-    // 'bytes=-500' means the LAST 500 bytes, not the first 500. Getting this
-    // backwards produces a video that plays and then corrupts near the end.
-    const suffix = parseInt(m[2], 10);
-    if (!suffix) return 'invalid';
-    start = Math.max(0, size - suffix);
-    end = size - 1;
-  } else {
-    start = parseInt(m[1], 10);
-    end = hasEnd ? parseInt(m[2], 10) : size - 1;
-  }
-
-  if (isNaN(start) || isNaN(end) || start > end || start >= size) return 'invalid';
-  if (end >= size) end = size - 1;
-
-  return { start, end };
-}
-
-/** Send a file, honouring Range. Shared by both routes. */
-function SendFile(req, res, Stored, OnDisk) {
-  const ContentType = mime.contentType(Stored.ext) || 'application/octet-stream';
-  const range = ParseRange(req.headers.range, OnDisk.Size);
-
-  if (range === 'invalid') {
-    res.set('Content-Range', 'bytes */' + OnDisk.Size);
-    return res.status(416).end();
-  }
-
-  // inline, NOT attachment. That one header is the difference between a file
-  // the browser downloads and a file a player can render.
-  res.set('Content-Disposition', 'inline');
-  res.set('Content-Type', ContentType);
-  res.set('Accept-Ranges', 'bytes');
-  // private: this is one patient's or one clinic's media; a shared proxy cache
-  // must never hold it.
-  res.set('Cache-Control', 'private, max-age=3600');
-
-  if (req.method === 'HEAD') {
-    res.set('Content-Length', String(OnDisk.Size));
-    return res.status(200).end();
-  }
-
-  if (!range) {
-    res.set('Content-Length', String(OnDisk.Size));
-    return fs.createReadStream(OnDisk.Path).pipe(res);
-  }
-
-  res.status(206);
-  res.set('Content-Range', 'bytes ' + range.start + '-' + range.end + '/' + OnDisk.Size);
-  res.set('Content-Length', String(range.end - range.start + 1));
-  return fs.createReadStream(OnDisk.Path, { start: range.start, end: range.end }).pipe(res);
-}
 
 /**
  * Stream any file the caller is allowed to read, by its generated_name.
