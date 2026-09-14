@@ -1,5 +1,11 @@
 # МнКардио — Мобайл апп / Mobile app
 
+> **Start here if you are the mobile developer:**
+> [HANDOVER-2026-09-14.md](HANDOVER-2026-09-14.md) — what changed on
+> 2026-09-14, what is live on the test server, and the handful of contracts
+> that cost a day if you discover them by debugging. `API.md` remains the
+> full reference.
+
 **Work from this folder.** It is the contract between the MnCardio backend and the
 Android + iOS app described in the mobile tender (`mobile mncardio.docx`,
 2026.07.03 – 2026.10.15).
