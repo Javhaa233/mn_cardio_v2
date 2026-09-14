@@ -751,7 +751,7 @@ class FeedCommentTile extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
             decoration: BoxDecoration(
               color: AppColors.surfaceAlt,
-              borderRadius: BorderRadius.circular(AppTheme.cardRadius * 2),
+              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

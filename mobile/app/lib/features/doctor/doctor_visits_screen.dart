@@ -196,7 +196,7 @@ class DoctorVisitTile extends StatelessWidget {
                           ),
                         ),
                       ),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(12),
               child: Row(
                 children: <Widget>[
                   Icon(
@@ -238,7 +238,7 @@ class DoctorVisitTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest
                     .withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(999),
               ),
               child: Text(
                 'ICD-10: ${visit.icd10!.trim()}',

@@ -314,6 +314,7 @@ class _DoctorPickerState extends State<DoctorPicker> {
           child: DropdownButtonFormField<String?>(
             initialValue: _province,
             isExpanded: true,
+            borderRadius: BorderRadius.circular(12),
             decoration: _dense,
             items: <DropdownMenuItem<String?>>[
               const DropdownMenuItem<String?>(
@@ -337,6 +338,7 @@ class _DoctorPickerState extends State<DoctorPicker> {
             key: ValueKey<String>('soum-${province ?? ''}'),
             initialValue: _soum,
             isExpanded: true,
+            borderRadius: BorderRadius.circular(12),
             decoration: _dense,
             disabledHint: const Text(
               'Бүх сум / дүүрэг',

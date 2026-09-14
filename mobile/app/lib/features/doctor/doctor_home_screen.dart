@@ -308,7 +308,7 @@ class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
   }
 
   InputDecoration _field({String? hint, Widget? prefix, Widget? suffix}) {
-    final radius = BorderRadius.circular(AppTheme.controlRadius + 3);
+    final radius = BorderRadius.circular(AppTheme.controlRadius);
     return InputDecoration(
       hintText: hint,
       prefixIcon: prefix,
@@ -342,7 +342,7 @@ class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         gradient: AppColors.brandGradient,
-        borderRadius: BorderRadius.circular(AppTheme.cardRadius * 2),
+        borderRadius: BorderRadius.circular(AppTheme.heroRadius),
         // tokens.js § elevation.3 — navy өнгөтэй, саарал хар биш.
         boxShadow: const <BoxShadow>[
           BoxShadow(
@@ -363,7 +363,7 @@ class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
                   color: Colors.white.withValues(alpha: 0.18),
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: const Icon(
                   Icons.person_search_rounded,
@@ -402,6 +402,7 @@ class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
                   child: DropdownButtonFormField<String?>(
                     initialValue: _province,
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(12),
                     decoration: _field(),
                     items: <DropdownMenuItem<String?>>[
                       const DropdownMenuItem<String?>(
@@ -427,6 +428,7 @@ class _DoctorSearchHeroState extends State<_DoctorSearchHero> {
                     key: ValueKey<String>('hero-soum-${province ?? ''}'),
                     initialValue: _soum,
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(12),
                     decoration: _field(),
                     disabledHint: const Text(
                       'Бүх сум / дүүрэг',

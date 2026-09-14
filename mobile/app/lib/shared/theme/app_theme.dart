@@ -11,14 +11,19 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  /// Булангийн радиус — `frontend/src/theme/tokens.js` § `radius`.
+  /// Булангийн радиус — зөвхөн мобайл.
   ///
-  /// Карт нь `radius.sm` (6px): вебийн бүх карт `UniCard`-аар зурагддаг бөгөөд
-  /// тэр нь `radius.sm` авдаг. Контрол нь `radius.xs` = `CONTROL.radius` (3px),
-  /// тиймээс картын дотор сууж буй контрол хоёр дахь карт мэт биш, контрол
-  /// мэт харагдана.
-  static const double cardRadius = 6; // radius.sm — UniCard
-  static const double controlRadius = 3; // radius.xs — CONTROL.radius
+  /// Вебийн `tokens.js` (карт 6px, контрол 3px) гар утсан дээр хурц өнцөгтэй
+  /// харагдаж байсан тул мобайл дээр бөөрөнхий булантай болгов. Вебийг
+  /// өөрчлөөгүй. Шатлал нь хэвээр: контрол картаасаа бага радиустай тул
+  /// картын дотор сууж буй контрол хоёр дахь карт мэт биш, контрол мэт
+  /// харагдана.
+  static const double cardRadius = 16;
+  static const double controlRadius = 12;
+  /// Нүүрний градиент хавтан зэрэг том гадаргуу.
+  static const double heroRadius = 20;
+  /// Харилцах цонх, доороос гарах хуудас.
+  static const double sheetRadius = 24;
   static const double gap = 16; // space.4
 
   /// Сүүдэр нь **бэхний navy өнгөөр** будагдана, хэзээ ч саарал хар биш
@@ -232,9 +237,7 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         indicatorColor: AppColors.navSelected,
-        indicatorShape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(controlRadius),
-        ),
+        indicatorShape: const StadiumBorder(),
         elevation: 0,
         height: 68,
         labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
@@ -265,7 +268,7 @@ class AppTheme {
           height: 1.4,
         ),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(cardRadius),
         ),
       ),
 
@@ -274,7 +277,7 @@ class AppTheme {
         shadowColor: shadowInk,
         surfaceTintColor: Colors.transparent,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14), // radius.lg
+          borderRadius: BorderRadius.circular(sheetRadius),
         ),
         titleTextStyle: TextStyle(
           color: textColor,
@@ -293,7 +296,7 @@ class AppTheme {
         backgroundColor: surfaceColor,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(14)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(sheetRadius)),
         ),
         showDragHandle: true,
       ),

@@ -196,7 +196,7 @@ class _MonitoringTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: theme.colorScheme.surfaceContainerHighest
                     .withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 'Хэмжилт бүртгээгүй байна',
