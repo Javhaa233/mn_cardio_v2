@@ -29,19 +29,21 @@ separately; chase the letter.
 
 ## Not yet raised — new, and specific to the mobile tender
 
-### 1. Execute the two ready SQL scripts
+### 1. Execute the two ready SQL scripts — **both already run on `MnCardio_test`**
 
-Both are written, reviewed and idempotent. Neither has been run, and the repo owns no
-migrations, so this needs whoever holds SQL access.
+Verified by direct query on 2026-09-14 against `MnCardio_test` (server `mncardiosrv1`).
+This entry previously said neither had been run anywhere, which was wrong.
 
-- **`backend/scripts/add_rehabilitation_tables.sql`** — creates 4 tables. All four Sequelize
-  models and all six `/api/patient/rehab/*` endpoints are already written and currently
-  return 500 purely because the tables are absent. **This is the highest-value single action
-  available:** one script turns module 2.7 on with no further code.
-- **`backend/scripts/add_remotevisit_booking_columns.sql`** — adds booking columns. Note this
-  one is **not sufficient alone**: the model still declares only its original four columns
-  and no controller reads the new ones, so code work follows. It also needs
-  `remotevisit_status` option values (below).
+- **`backend/scripts/add_rehabilitation_tables.sql`** — the four tables **exist on test**.
+  `RehabExercise` holds **0 rows**, so `GET /api/patient/rehab/exercises` returns an empty
+  list rather than 500. What is missing is content, not schema: the 39 exercise names,
+  categories and durations are a clinical deliverable.
+- **`backend/scripts/add_remotevisit_booking_columns.sql`** — `Status`, `RequestedDate`,
+  `ScheduledDate` and `DoctorId` **exist on test**. Still true that this is not sufficient
+  alone: the model declares only its original four columns and no controller reads the new
+  ones, so the code work remains. `MeetingUrl` is a later addition and is **not** present.
+- **Production is a separate question.** Neither has been confirmed against production, and
+  running DDL there needs the customer's approval.
 
 ### 2. Apple Developer and Google Play accounts
 

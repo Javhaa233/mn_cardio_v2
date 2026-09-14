@@ -160,15 +160,22 @@ the column; only the create handler's destructure was missing it.
 
 ---
 
-## 3. Blocked on DDL — written, reviewed, not run
+## 3. Blocked on DDL
 
-The repo owns no migrations; schema changes are a request to whoever holds SQL access
-(`CLAUDE.md §2`). These two scripts already exist and need executing, nothing more.
+The repo owns no migrations; schema changes are a hand-written script plus a request to
+whoever holds SQL access (`CLAUDE.md §2`).
 
-| Script | Effect | Note |
+**Corrected 2026-09-14.** This section said both scripts were "written, reviewed, not run".
+Verified by direct query against `MnCardio_test` (server `mncardiosrv1`), **both have already
+been run there**. The server's own boot log now reports which features are dark — see
+`helper/SchemaProbe.js`.
+
+| Script | State on `MnCardio_test` | Note |
 |---|---|---|
-| `scripts/add_rehabilitation_tables.sql` | 4 tables | **Highest value single action in this document.** All four models (`model/Rehabilitation/`) and all six endpoints are already written. Running this turns module 2.7 on with zero further code. |
-| `scripts/add_remotevisit_booking_columns.sql` | `RequestedDate, ScheduledDate, Status, DoctorId, UpdateDate` | **Not sufficient on its own** — the model still declares only its original 4 columns and no controller reads the new ones. DDL plus code. Also depends on `remotevisit_status` dico rows, unapproved. |
+| `scripts/add_rehabilitation_tables.sql` | **run** — all 4 tables present | `RehabExercise` holds **0 rows**, so the endpoints return an empty list, not 500. Missing is content, not schema: the 39 names, categories and durations are a clinical deliverable. |
+| `scripts/add_remotevisit_booking_columns.sql` | **run** — `Status`, `RequestedDate`, `ScheduledDate`, `DoctorId` present | Still not sufficient alone: the model declares only its original 4 columns and no controller reads the new ones. `MeetingUrl` is a later addition and is **not** present. Also wants `remotevisit_status` dico rows, unapproved. |
+
+Production has not been checked and is a separate request needing the customer's approval.
 
 Still needing new scripts written, each carrying a tender requirement:
 
