@@ -237,11 +237,12 @@ List `data` → array of `id_data, date, time, blood_pressure, blood_pressure2, 
 weight, inr, comment`, newest first.
 
 Create body: `date` **required** (else 400 `DATE_REQUIRED`); optional `time`,
-`blood_pressure`, `pulse`, `weight`, `inr`, `comment`. Returns `{id_data}`.
+`blood_pressure`, `blood_pressure2`, `pulse`, `weight`, `inr`, `comment`. Returns `{id_data}`.
 
-> **Asymmetry to know about:** reads return `blood_pressure2` (diastolic) but **create does
-> not accept it** (`controller.js:115-140`). A patient cannot currently record diastolic
-> pressure through the API, though the chart plots it. Flagged in READINESS.
+> **Changed 2026-09-14:** create now accepts `blood_pressure2` (diastolic). Until then reads
+> and the summary chart returned it but create silently dropped it, so a patient could not
+> record diastolic pressure at all. Send both halves of a blood-pressure reading;
+> `blood_pressure` is systolic.
 
 Summary `data` → `{labels: [date...], series: {blood_pressure, blood_pressure2, pulse,
 weight}}`, ascending, capped at 365 points. Built server-side so you just plot it.
@@ -534,11 +535,21 @@ in `ALLFILE_DIR` under a generated name; a `File` row records the original.
 > web form signals removal. Send the `{id_data}` marker for every file you intend to keep,
 > or an edit will quietly delete attachments.
 
-### Do not call `POST /api/BaseObject/downloadFile`
+### `POST /api/BaseObject/downloadFile` — authorized, but prefer a purpose-built route
 
-It has **no ownership check at all** — anyone holding a `generated_name` and `ext` gets the
-bytes (`helper/BaseControllerHelper.js:1011-1050`). Chat deliberately does not use it. Use a
-purpose-built authorized route, and if the file type you need has none, ask for one.
+**Corrected 2026-09-14.** Earlier versions of this document said this endpoint had no
+ownership check. That is no longer true and has not been true for some time.
+`downloadFile` (`controllers/system/BaseController.js:738`) resolves the client's handle to
+the stored `File` row and authorizes *that* row through `MayDownload` (`:422-491`), which
+refuses soft-deleted rows, routes Advice and AdviceComment through
+`AdviceScopeHelper.MayReadAdviceAttachment`, applies `MayAttachTo`, and adds an explicit
+`PatientScope` check. A refusal is a real **403**. The client does not get to pick the path.
+
+Still prefer a purpose-built route where one exists — chat uses its own membership-checked
+`Chat/DownloadAttachment`, and rehabilitation media uses `/api/Media/*`. Two reasons: they
+return a streamable `GET` rather than a `POST` attachment download, and `MayAttachTo` ends in
+a permissive default for any object it does not name, so an object with no explicit branch is
+authorized only by the generic checks around it.
 
 ---
 
@@ -553,12 +564,12 @@ Do not spend a sprint discovering these.
 | `/api/patient/evisits` | complaint box; no booking, status, doctor or video |
 | `/api/Notification/GetListData` | **patients are denied every row** — `Notification` is not in `PatientScope`; no mark-read route exists. Still open. |
 | `/api/RemoteVisit/GetList` | read-only over 4 columns; booking columns unrun **and** unwired |
-| `/api/BaseObject/downloadFile` | no ownership check — do not use |
+| `/api/BaseObject/downloadFile` | ~~no ownership check~~ — **corrected**: it authorizes via `MayDownload` and 403s. Residual gap is `MayAttachTo`'s permissive default for unnamed objects. |
 | `/api/Advice/GetTicket` | bypasses `BuildAdviceScope`; a known visibility gap |
 | `/api/base/*`, `/api/report/*` | mounted with **no authentication** (`server.js:389`) |
-| `/api/Test/*` | **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB file upload into the patient attachment directory |
+| `/api/Test/*` | ~~public 1 GB unauthenticated upload~~ — **fixed 2026-09-14**. `uploadFile`, `ApiSendMail`, `print` and `printNew` were deleted. Two pure string-validation routes remain public. |
 | ~~doctor module~~ | **Built 2026-09-10** — `/api/doctor/*`, §4 |
 
-The four rows from `downloadFile` to `/api/Test/*` are security findings, already recorded in
+The rows from `GetTicket` to `/api/Test/*` are security findings, already recorded in
 `CLAUDE.md §10` for the contract's mandated audit. They are listed here so you do not mistake
 them for features.

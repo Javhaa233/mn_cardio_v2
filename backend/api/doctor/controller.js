@@ -1,6 +1,7 @@
 const { Models, Op } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const AccessAudit = require('../../helper/AccessAudit');
 
 /**
  * Handlers for /api/doctor/*.
@@ -237,7 +238,20 @@ exports.getVisit = async (req, res) => {
     const visit = await Models.Visit.findOne({ where, include: [PATIENT_INCLUDE] });
     if (!visit) return fail(res, 'NOT_FOUND', 'Үзлэг олдсонгүй', 404);
 
-    return ok(res, JSON.parse(JSON.stringify(visit)));
+    const Row = JSON.parse(JSON.stringify(visit));
+
+    // Audited AFTER the authorization above, so a refused read is not recorded
+    // as an access that happened. Not awaited: the audit is a side record, and
+    // the doctor should not wait on it to see the examination.
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: Row.PatientId || (Row.Patient ? Row.Patient.id_data : null),
+      ObjectName: 'Visit',
+      ObjectId: Row.id_data,
+      Action: 'ViewVisit',
+    });
+
+    return ok(res, Row);
   } catch (ex) {
     return serverError(res, ex, 'getVisit');
   }
@@ -444,6 +458,13 @@ exports.getMonitoringJournal = async (req, res) => {
       raw: true,
     });
     if (!monitored) return fail(res, 'NOT_MONITORED', 'Таны хяналтад байхгүй байна', 403);
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId,
+      ObjectName: 'PatientMonitoring',
+      Action: 'ViewJournal',
+    });
 
     const where = Object.assign(
       { patient_id: PatientId },
@@ -792,6 +813,17 @@ exports.getPatient = async (req, res) => {
       raw: true,
     });
     if (!patient) return fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+
+    // This read is nationwide and unscoped - any staff token can open any
+    // patient card by id. That is pre-existing and deliberate for a national
+    // consult service, but it is precisely the read the tender wants logged.
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: id,
+      ObjectName: 'Patient',
+      ObjectId: id,
+      Action: 'ViewPatient',
+    });
 
     const [visits, journal, monitored] = await Promise.all([
       Models.Visit.findAll({

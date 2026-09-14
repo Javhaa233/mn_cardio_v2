@@ -10,14 +10,12 @@ const ObjectHelper = require('../../helper/ObjectHelper');
 const MailHelper = require('../../helper/MailHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const { PasswordRegex, IsBcryptHash } = require('../../helper/PasswordPolicy');
+const { CheckContact } = require('../../helper/ContactValidation');
+const Flags = require('../../helper/FeatureFlags');
+const LoginGuard = require('../../helper/LoginGuard');
 
 // routes
-router.post('/Login', (req, res, next) => {
-  console.log('🔥 LOGIN ROUTE HIT - req.body:', req.body);
-  console.log('🔥 Content-Type:', req.headers['content-type']);
-  console.log('🔥 req.body type:', typeof req.body);
-  Login(req, res, next);
-});
+router.post('/Login', Login);
 router.post('/LogOut', Auth.verifyToken, LogOut);
 router.post('/CheckLogin', Auth.verifyToken, CheckLogin);
 router.post('/Save', Auth.verifyToken, Save);
@@ -25,6 +23,121 @@ router.post('/ForgetPassword', ForgetPassword);
 router.route('/ResetPassword').post(ResetPassword);
 router.post('/ChangePassword', Auth.verifyToken, ChangePassword);
 router.post('/getUserData', Auth.verifyToken, getUserData);
+router.post('/GetMyContact', Auth.verifyToken, GetMyContact);
+router.post('/UpdateMyContact', Auth.verifyToken, UpdateMyContact);
+
+//#region Own contact details (post-login prompt)
+
+// Staff only. Patients (role 4) live in PatientUsers and get their details from ХУР/ДАН.
+function IsStaff(LogedUser) {
+  return !!(LogedUser && LogedUser.Id && String(LogedUser.RoleId) !== '4');
+}
+
+// `Users.Email` is what password reset mails, so "missing" is judged on it.
+// The profile copy is only a prefill for the prompt.
+async function LoadOwnContact(UserId) {
+  const User = await Models.Users.findOne({
+    where: { Id: UserId },
+    attributes: ['Id', 'Email'],
+    raw: true,
+  });
+  const Doctor = await Models.DoctorsProfile.findOne({
+    where: { UserId },
+    attributes: ['id_data', 'email', 'telephone'],
+    raw: true,
+  });
+  const UserEmail = User && User.Email ? String(User.Email).trim() : '';
+  const Phone = Doctor && Doctor.telephone ? String(Doctor.telephone).trim() : '';
+  return {
+    DoctorId: Doctor ? Doctor.id_data : null,
+    Email: UserEmail || (Doctor && Doctor.email ? String(Doctor.email).trim() : ''),
+    Phone,
+    Missing: { Email: !UserEmail, Phone: !Phone },
+  };
+}
+
+async function GetMyContact(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!IsStaff(LogedUser)) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Access denied')));
+    }
+    const Contact = await LoadOwnContact(LogedUser.Id);
+    delete Contact.DoctorId;
+    return res.send(JSON.stringify({ Success: true, Message: '', Data: Contact }));
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+// Writes ONLY the caller's own account - the target is req.LogedUser, never the body.
+async function UpdateMyContact(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!IsStaff(LogedUser)) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Access denied')));
+    }
+
+    const Data = { Email: req.body.Email, Phone: req.body.Phone };
+    const ContactError = CheckContact(Data, {
+      EmailKey: 'Email',
+      PhoneKey: 'Phone',
+      Required: true,
+    });
+    if (ContactError) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+    }
+
+    const Current = await LoadOwnContact(LogedUser.Id);
+    if (!Current.DoctorId) {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult(
+            'Хэрэглэгчид харъяалагдах эмчийн мэдээлэл олдсонгүй'
+          )
+        )
+      );
+    }
+
+    // updateNew carries the case-insensitive duplicate-email check.
+    await Models.Users.updateNew({ Email: Data.Email }, LogedUser.Id, 'Id');
+    await Models.DoctorsProfile.update(
+      {
+        email: Data.Email,
+        telephone: Data.Phone,
+        date_modif: new Date(),
+        user_mod: String(LogedUser.Id),
+      },
+      { where: { UserId: LogedUser.Id } }
+    );
+    Auth.clearUserCache(LogedUser.RoleId, LogedUser.Id);
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'DoctorsProfile',
+      LinkObjectId: Current.DoctorId,
+      NotesMn: 'Холбоо барих мэдээллээ шинэчиллээ',
+      Notes: 'Updated own contact details',
+      Action: 'Update',
+      LogedUser,
+    });
+
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        Message: 'Successfully saved',
+        Data: { Email: Data.Email, Phone: Data.Phone },
+      })
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(
+      JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.Message || ex.message))
+    );
+  }
+}
+
+//#endregion
 
 async function LogOut(req, res) {
   const result = { Data: {}, Success: true, Message: 'Logout Success' };
@@ -129,25 +242,42 @@ async function CheckLogin(req, res) {
 }
 
 async function Login(req, res) {
-  // LOG THE ENTIRE REQUEST BODY FOR DEBUGGING
-  console.log('=== LOGIN REQUEST RECEIVED ===');
-  console.log('Full req.body:', JSON.stringify(req.body, null, 2));
-  console.log('==============================');
-
+  // No request-body or password logging here, in any environment. The two
+  // blocks that used to sit at this point printed req.body and then the
+  // submitted password in plaintext. server.js silences console.log only when
+  // NODE_ENV === 'production', so on every developer machine and every test
+  // host those lines wrote real credentials into the log.
   const { UserName, Password } = req.body;
 
-  // LOG EXTRACTED VALUES
-  console.log('Extracted UserName:', UserName);
-  console.log('Extracted Password:', Password);
+  // The password-checking branch is now the DEFAULT, not the production-only
+  // one. It used to be gated on NODE_ENV === 'production', so anything that
+  // was not exactly that string - a test host, a machine with NODE_ENV unset,
+  // a container someone forgot to configure - issued a token for whoever you
+  // named, with no password. Opting out is now explicit and defaults to off.
+  const UseInsecureDevLogin =
+    process.env.NODE_ENV !== 'production' && Flags.AllowInsecureDevAuth;
 
   try {
-    // Use different authentication logic based on environment
-    if (process.env.NODE_ENV === 'production') {
-      // ORIGINAL PRODUCTION CODE - USERNAME AND PASSWORD VALIDATION
+    if (!UseInsecureDevLogin) {
+      // USERNAME AND PASSWORD VALIDATION
       if (!UserName || !Password) {
         return res.send({
           Success: false,
           Message: 'Login name or password is incorrect',
+          Data: { token: null, LogedUser: null },
+        });
+      }
+
+      // Lockout is checked BEFORE the lookup, which also closes a timing
+      // oracle: the findAllDetail plus bcrypt.compare below takes measurably
+      // longer than an early return, so without this an attacker could tell
+      // "no such user" from "wrong password" by the clock even though both
+      // answer with the same message.
+      const Guard = await LoginGuard.Check({ UserType: 'staff', UserName });
+      if (Guard.Locked) {
+        return res.send({
+          Success: false,
+          Message: LoginGuard.LockedMessage(Guard.RetryAfterSec),
           Data: { token: null, LogedUser: null },
         });
       }
@@ -160,6 +290,12 @@ async function Login(req, res) {
       userDatas = JSON.parse(JSON.stringify(userDatas));
 
       if (userDatas.length === 0) {
+        await LoginGuard.RecordFailure({
+          UserType: 'staff',
+          UserName,
+          Reason: 'NO_USER',
+          Req: req,
+        });
         return res.send({
           Success: false,
           Message: 'Login name or password is incorrect',
@@ -174,10 +310,28 @@ async function Login(req, res) {
       const isPasswordMatch = await bcrypt.compare(Password, userPassword);
 
       if (!isPasswordMatch) {
-        // ❌ Wrong password → DO NOT login
+        // Wrong password -> do not login
+        const Fail = await LoginGuard.RecordFailure({
+          UserType: 'staff',
+          UserName,
+          UserId: userData.Id,
+          Reason: 'BAD_PASSWORD',
+          Req: req,
+        });
+
+        // Notify the account holder, once per lock. Awaited rather than fired
+        // and forgotten so a mail failure is logged against this request, but
+        // LoginGuard.Notify never throws - a broken SMTP host must not turn a
+        // failed login into a 500.
+        if (Fail.ShouldNotify) {
+          await LoginGuard.Notify({ Email: userData.Email, UserName, Req: req });
+        }
+
         return res.send({
           Success: false,
-          Message: 'Login name or password is incorrect',
+          Message: Fail.Locked
+            ? LoginGuard.LockedMessage(Flags.LoginLockoutMinutes * 60)
+            : 'Login name or password is incorrect',
           Data: { token: null, LogedUser: null },
         });
       }
@@ -187,6 +341,13 @@ async function Login(req, res) {
 
       // Role check
       if (!userData.RoleId) {
+        await LoginGuard.RecordFailure({
+          UserType: 'staff',
+          UserName,
+          UserId: userData.Id,
+          Reason: 'NO_ROLE',
+          Req: req,
+        });
         const errorResult = {
           Success: false,
           Message: 'Хандалтын эрхийн мэдээлэл олдсонгүй',
@@ -228,6 +389,8 @@ async function Login(req, res) {
             'lastname',
             'firstname',
             'email',
+            // The post-login contact prompt needs to know whether a phone exists.
+            'telephone',
             'skype',
             'OrganizationId',
             'addr_prov_city',
@@ -253,6 +416,16 @@ async function Login(req, res) {
         userData.Doctor = JSON.parse(JSON.stringify(Doctor));
       }
 
+      // The password was right and the account is usable: end the episode, so
+      // a doctor who mistyped twice and then got it right does not stay two
+      // failures away from a lockout for the rest of the window.
+      await LoginGuard.RecordSuccess({
+        UserType: 'staff',
+        UserName,
+        UserId: userData.Id,
+        Req: req,
+      });
+
       // Generate JWT token
       Auth.login(userData, function (token) {
         const result = {
@@ -260,7 +433,9 @@ async function Login(req, res) {
           Message: 'Successfully logged in',
           Data: { token, LogedUser: userData },
         };
-        console.log('[UserController/Login] SUCCESS Response:', JSON.stringify(result));
+        // The response carries a bearer token and the full user record. Log
+        // that a login succeeded, not what was handed out.
+        console.log('[UserController/Login] SUCCESS for', userData.UserName);
         return res.send(result);
       });
     } else {
@@ -365,6 +540,7 @@ async function Login(req, res) {
             'lastname',
             'firstname',
             'email',
+            'telephone',
             'skype',
             'OrganizationId',
             'addr_prov_city',

@@ -390,11 +390,30 @@ class BaseCrudHelper {
   };
 
   ExportExcel = async (
-    { ObjectName, Url, SearchOption, FileName },
+    {
+      ObjectName,
+      Url,
+      SearchOption,
+      FileName,
+      ExportFields,
+      ReqData: ReqDataOverride,
+    },
     callback,
   ) => {
     const Token = localStorage.getItem("MnCardioToken");
-    const ReqData = this.GetRequestData(ObjectName, SearchOption);
+    // An aggregate report endpoint takes its own filter shape, not the
+    // {ObjectName, SearchField, ...} list envelope. Passing ReqData lets those
+    // screens reuse this helper instead of hand-rolling another raw axios
+    // download - the four CVD copies of that are exactly what goes wrong,
+    // because a Blob response never matches their `Success === false` check.
+    const ReqData =
+      ReqDataOverride || this.GetRequestData(ObjectName, SearchOption);
+    // Optional fixed column set for screens whose export layout is agreed with
+    // the customer and must not follow the list grid. Omitted means the
+    // server's existing GridField behaviour.
+    if (Array.isArray(ExportFields) && ExportFields.length > 0) {
+      ReqData["ExportFields"] = ExportFields;
+    }
     process.env.NODE_ENV === "development" &&
       console.log({ ReqData, Url: ObjectName ? ObjectName : Url });
     await Server({
@@ -438,12 +457,26 @@ class BaseCrudHelper {
    * ExportExcel rather than parameterised because the response type, the MIME
    * type and the failure detection all differ.
    */
-  ExportText = async ({ ObjectName, SearchOption, FileName }, callback) => {
+  ExportText = async (
+    {
+      ObjectName,
+      Url,
+      SearchOption,
+      FileName,
+      ExportFields,
+      ReqData: ReqDataOverride,
+    },
+    callback,
+  ) => {
     const Token = localStorage.getItem("MnCardioToken");
-    const ReqData = this.GetRequestData(ObjectName, SearchOption);
+    const ReqData =
+      ReqDataOverride || this.GetRequestData(ObjectName, SearchOption);
+    if (Array.isArray(ExportFields) && ExportFields.length > 0) {
+      ReqData["ExportFields"] = ExportFields;
+    }
     await Server({
       method: "POST",
-      url: "/BaseObject/ExportText",
+      url: Url || "/BaseObject/ExportText",
       headers: { authorization: "Bearer " + Token },
       data: ReqData,
       responseType: "blob",

@@ -11,12 +11,29 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const BaseHelper = require('../../helper/BaseHelper');
 const ImageHelper = require('../../helper/ImageHelper');
+const Flags = require('../../helper/FeatureFlags');
 // Chat attachments ride this generic upload endpoint rather than getting a
 // table of their own; MayAttachTo needs both to authorize them.
 const ChatIdentity = require('../../helper/ChatIdentity');
 const ChatHelper = require('../../helper/ChatHelper');
 const PatientScope = require('../../helper/PatientScope');
 const AdviceScopeHelper = require('../../helper/AdviceScopeHelper');
+const { CheckContact } = require('../../helper/ContactValidation');
+
+// Email/phone rules for the account objects that pass through this generic
+// controller. Create is strict (a new Users row needs an email); update only
+// judges keys that were sent, so an edit that leaves them alone is never refused.
+// UserRequest/Confirm creates accounts via BaseControllerHelper directly, not
+// through here, so approving an old sign-up request is unaffected.
+function AccountContactError(ObjectName, Data, IsCreate) {
+  if (ObjectName === 'Users') {
+    return CheckContact(Data, { EmailKey: 'Email', PhoneKey: null, Required: IsCreate });
+  }
+  if (ObjectName === 'DoctorsProfile' && !IsCreate) {
+    return CheckContact(Data, { Required: false });
+  }
+  return null;
+}
 
 // routes
 router.post('/getData', getData);
@@ -157,6 +174,10 @@ async function create(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && Data && LogedUser) {
+      const ContactError = AccountContactError(ObjectName, Data, true);
+      if (ContactError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+      }
       const Result = await BaseControllerHelper.BaseCreate({
         ObjectName,
         Data,
@@ -192,6 +213,10 @@ async function update(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && Data && LogedUser) {
+      const ContactError = AccountContactError(ObjectName, Data, false);
+      if (ContactError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+      }
       const Result = await BaseControllerHelper.BaseUpdate({
         ObjectName,
         Data,
@@ -379,6 +404,39 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser }) {
     if (!Comment) return false;
     return String(Comment.id) === String(LogedUser.Id);
   }
+
+  // THE PERMISSIVE DEFAULT, and the last real gap in this file.
+  //
+  // Everything not named above is allowed for staff. Patients are still covered
+  // downstream - MayDownload applies PatientScope separately - so the exposure
+  // is staff-to-staff across the clinical models this endpoint serves.
+  //
+  // It is NOT closed yet, on purpose. This endpoint is shared by eight models,
+  // those models are not enumerated anywhere in the code, and they do not share
+  // an ownership column, so there is no generic check to apply. Guessing an
+  // allowlist here would silently deny an existing clinical attachment flow,
+  // which this function's own header correctly calls the worse outcome.
+  //
+  // So: measure first. FILE_ATTACH_STRICT defaults to 'warn', which logs every
+  // object name that reaches this line and denies nothing. After a period of
+  // real traffic the log names the objects actually in use, the allowlist can
+  // be written from evidence rather than guesswork, and 'enforce' becomes safe.
+  if (Flags.FileAttachStrict !== 'off') {
+    // console.error so it survives the production console.log override.
+    console.error(
+      '[MayAttachTo] permissive default hit - object=' +
+        String(LinkedObjectName) +
+        ' id=' +
+        String(LinkedObjectId) +
+        ' user=' +
+        String(LogedUser.Id) +
+        ' role=' +
+        String(LogedUser.RoleId) +
+        (Flags.FileAttachStrict === 'enforce' ? ' -> DENIED' : ' -> allowed (warn mode)')
+    );
+  }
+
+  if (Flags.FileAttachStrict === 'enforce') return false;
 
   return true;
 }
@@ -835,6 +893,9 @@ async function ExportExcel(req, res) {
         ObjectName,
         LogedUser,
         Option,
+        // Optional fixed column set, in the order the caller asks for. Anything
+        // that is not a declared field of this ObjectName is dropped.
+        ExportFields: Array.isArray(req.body.ExportFields) ? req.body.ExportFields : undefined,
       });
 
       if (filePath && filePath !== null) {
@@ -890,6 +951,7 @@ async function ExportText(req, res) {
       ObjectName,
       LogedUser,
       Option,
+      ExportFields: Array.isArray(req.body.ExportFields) ? req.body.ExportFields : undefined,
     });
 
     if (!filePath) {

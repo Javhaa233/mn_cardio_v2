@@ -93,37 +93,70 @@ The file layer serves `POST` + `Content-Disposition: attachment`. No player can 
 and **no video extension is on the upload allowlist** (`BaseController.js:278-301`). Needs an
 authenticated `GET` with byte-range support before `RehabExercise.MediaRef` means anything.
 
-### 2.5 `/api/BaseObject/downloadFile` has no ownership check
+### 2.5 `downloadFile` is authorized — the real gap is `MayAttachTo`'s default
 
-Any caller holding `generated_name` + `ext` gets the bytes. Chat already routes around it
-with its own membership-checked `DownloadAttachment`; every new mobile file consumer needs
-the same treatment.
+**Corrected 2026-09-14.** This section previously said `/api/BaseObject/downloadFile` had no
+ownership check. It does: `downloadFile` (`controllers/system/BaseController.js:738`) resolves
+the handle to the stored `File` row and authorizes it through `MayDownload` (`:422-491`),
+returning 403 on refusal. The source comment at `:413-421` records the fix and the patient
+token that proved the original hole.
 
-### 2.6 `GetTicket` bypasses `BuildAdviceScope`
+What is still open is narrower. `MayAttachTo` (`:355-408`) ends in a bare `return true` for
+any `LinkedObjectName` it does not explicitly name. Patients are still covered, because
+`MayDownload` adds a `PatientScope` check at `:471-489` — **staff are not**. Closing it means
+an explicit per-object allowlist, and the function's own header warns that silently denying an
+existing clinical file flow would be worse than the hole it closes. So it is a deliberate,
+reviewed narrowing, not a one-line change.
 
-`AdviceController.js:1176-1178`, flagged in the source itself. Access is `AppId + id` only,
-so any authenticated user can read any ticket by guessing an id. Must close before an app
-reaches a public store.
+### 2.6 `GetTicket` bypasses `BuildAdviceScope` — **fixed 2026-09-14**
+
+Access was `AppId + id` only, so any authenticated session could read any ticket by guessing
+an `id_data`. Both `GetTicket` and `AdviceScopeHelper.MayReadAdviceAttachment` now apply
+`BuildAdviceScope`, and they were changed in the same commit because the attachment rule
+deliberately mirrors the ticket rule — the source comment on it said so. Tighten one alone and
+you either leave the hole open through the file route, or 403 an attachment on a ticket the
+same session can open.
+
+One subtlety worth knowing if you touch either: `BuildAdviceScope` denies by returning
+`{ id_data: -1 }`. Both call sites merge as `{ id_data: AdviceId, ...Scope }` — scope **last**
+— so that sentinel survives. Merged the other way round, the caller's id would overwrite the
+deny and return exactly the ticket the scope meant to refuse.
+
+Nothing the feed shows loses access: a ticket visible on the feed is by definition inside the
+scope. What stops working is a direct link to a ticket outside the caller's organisation
+reach, which is the hole being closed.
 
 ### 2.7 Security findings that a public app makes materially worse
 
 Each is recorded in `CLAUDE.md §10` for the mandated audit; listing them here because
 shipping a mobile app changes their severity.
 
-- `/api/base/*` and `/api/report/*` mounted **outside** `Auth.verifyToken` (`server.js:389`)
-- `/api/Test/*` is **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB
-  upload into the same directory as patient attachments
-- dev-mode bypasses: `jwt.decode()` instead of `jwt.verify()` (`Auth.js:212`), and staff
-  login skipping password validation (`UserController.js:246`)
-- **no rate limiting anywhere**, with `express.json({limit:'100mb'})`
+- ~~`/api/base/*` and `/api/report/*` mounted **outside** `Auth.verifyToken`~~ — **fixed
+  2026-09-14.** Gated in `api/index.js` with `[VerifyTokenJson, DenyPatient]`, on the two
+  sub-routers rather than by wrapping the `/api` mount, so the blast radius is exactly those
+  two prefixes and unmatched paths still 404 instead of 401.
+- ~~`/api/Test/*` is **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB
+  upload~~ — **fixed 2026-09-14.** `uploadFile`, `ApiSendMail`, `print` and `printNew` were
+  deleted rather than moved: the upload route was unreachable (its only caller chain calls
+  `this.uploadTes` while the method is `uploadTest`) and wrote a file with no `File` row that
+  nothing could read back. Two pure string-validation routes remain public.
+- ~~dev-mode bypasses~~ — **fixed 2026-09-14.** Both now require `ALLOW_INSECURE_DEV_AUTH=true`
+  *in addition to* `NODE_ENV`, and it defaults to false, so a host that merely has `NODE_ENV`
+  set wrong is no longer open. The staff-login password check is now the default branch rather
+  than the production-only one. The plaintext password logging in `Login()` is gone
+  unconditionally.
+- **no rate limiting anywhere**, with `express.json({limit:'100mb'})` — body size is now
+  measured and logged above `BODY_SIZE_WARN_BYTES` so the real ceiling can be set from data;
+  the limit itself is unchanged pending that measurement.
 - Socket.IO fan-out is per-process (`ChatSocket.js:29-33`) — silently drops members under PM2
   cluster mode without a Redis adapter
 
-### 2.8 Small but real
+### 2.8 Small but real — **fixed 2026-09-14**
 
-`POST /api/patient/journal` does not accept `blood_pressure2`, though reads return it and the
-summary chart plots it — a patient cannot record diastolic pressure. One line in
-`controller.js:115-140`.
+`POST /api/patient/journal` accepts `blood_pressure2` (diastolic). It previously did not,
+while reads returned it and the summary chart plotted it, so a patient could not record their
+own diastolic pressure at all. Both the model and `PatientMonitoringConfig` already declared
+the column; only the create handler's destructure was missing it.
 
 ---
 

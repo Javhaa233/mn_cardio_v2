@@ -92,6 +92,12 @@ const Root = styled(Box, {
   [theme.breakpoints.down("md")]: {
     width: expanded ? T.searchWidthSm : T.button,
   },
+
+  // Same touch size as TopBarIconButton, so the bar stays one height of control.
+  "@media (pointer: coarse)": {
+    height: T.buttonTouch,
+    ...(!expanded && { width: T.buttonTouch }),
+  },
 }));
 
 const Input = styled("input")({

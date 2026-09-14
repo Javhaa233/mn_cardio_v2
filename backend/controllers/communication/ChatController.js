@@ -10,6 +10,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const ChatHelper = require('../../helper/ChatHelper');
 const ChatIdentity = require('../../helper/ChatIdentity');
+const CareTeam = require('../../helper/CareTeam');
 const ChatSocket = require('../../WebSockets/ChatSocket');
 
 /**
@@ -847,26 +848,11 @@ async function CanReach(Me, Target) {
  * rec_status 2 is soft-deleted throughout the legacy generation.
  */
 async function GetCareTeamUserIds(PatientId) {
-  const Rows = await sequelize.query(
-    `SELECT dp.id AS UserId
-       FROM [DoctorsTeamPatient] dtp
-       JOIN [LookupDoctorTeam] ldt
-         ON ldt.team_id = dtp.team_id AND ISNULL(ldt.rec_status, 0) <> 2
-       JOIN [DoctorsProfile] dp
-         ON dp.id_data = ldt.doctor_id AND ISNULL(dp.rec_status, 0) <> 2
-      WHERE dtp.patient_id = :PatientId
-        AND ISNULL(dtp.rec_status, 0) <> 2
-        AND dp.id IS NOT NULL
-     UNION
-     SELECT pmd.user_id AS UserId
-       FROM [PatientMonitoringDoctor] pmd
-       JOIN [Users] u ON u.Id = pmd.user_id AND u.RoleId <> 4
-      WHERE pmd.patient_id = :PatientId
-        AND pmd.is_active = '1'`,
-    { type: Sequelize.QueryTypes.SELECT, replacements: { PatientId } }
-  );
-
-  return Rows.map((R) => R.UserId);
+  // Delegated to helper/CareTeam.js. The query is unchanged; it moved because
+  // the rehabilitation write path, the e-visit triage queue and the access
+  // audit all need the same answer, and a security boundary kept in two files
+  // is one that will eventually disagree with itself.
+  return CareTeam.GetCareTeamUserIds(PatientId);
 }
 
 /**

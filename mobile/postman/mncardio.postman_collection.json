@@ -1036,7 +1036,7 @@
               "host": ["{{baseUrl}}"],
               "path": ["api", "Chat", "DownloadAttachment"]
             },
-            "description": "Membership-checked. Use this for chat files — never the generic /api/BaseObject/downloadFile, which has no ownership check at all."
+            "description": "Membership-checked, and the right route for chat files. The generic /api/BaseObject/downloadFile is also authorized (MayDownload, 403 on refusal) — an earlier note here claimed otherwise and was wrong — but prefer this one for chat."
           },
           "response": []
         }

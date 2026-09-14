@@ -10,6 +10,8 @@ const ObjectHelper = require('../../helper/ObjectHelper');
 const MailHelper = require('../../helper/MailHelper');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const { IsAcceptable, RequirementMessageMn } = require('../../helper/PasswordPolicy');
+const Flags = require('../../helper/FeatureFlags');
+const LoginGuard = require('../../helper/LoginGuard');
 
 // routes
 router.post('/Login', Login);
@@ -52,6 +54,19 @@ async function CheckLogin(req, res) {
 async function Login(req, res) {
   try {
     const { UserName, Password } = req.body;
+
+    // Same guard as staff login, and checked before the lookup for the same
+    // reason: an early return is measurably faster than findAllDetail plus
+    // bcrypt.compare, so doing it later would leak whether the account exists.
+    const Guard = await LoginGuard.Check({ UserType: 'patient', UserName });
+    if (Guard.Locked) {
+      return res.send({
+        Success: false,
+        Message: LoginGuard.LockedMessage(Guard.RetryAfterSec),
+        Data: { token: null, LogedUser: null },
+      });
+    }
+
     //const AppId = req.headers["app"];
     const patientUserDatas = await Models.PatientUsers.findAllDetail({
       where: { UserName, RoleId: 4 },
@@ -62,12 +77,30 @@ async function Login(req, res) {
       if (patientUserData) {
         const isPasswordMatch = await bcrypt.compare(Password, patientUserData.Password);
         if (!isPasswordMatch) {
+          const Fail = await LoginGuard.RecordFailure({
+            UserType: 'patient',
+            UserName,
+            UserId: patientUserData.Id,
+            Reason: 'BAD_PASSWORD',
+            Req: req,
+          });
+          if (Fail.ShouldNotify) {
+            await LoginGuard.Notify({ Email: patientUserData.Email, UserName, Req: req });
+          }
           return res.send({
             Success: false,
-            Message: 'Login name or password is incorrect',
+            Message: Fail.Locked
+              ? LoginGuard.LockedMessage(Flags.LoginLockoutMinutes * 60)
+              : 'Login name or password is incorrect',
             Data: { token: null, LogedUser: null },
           });
         }
+        await LoginGuard.RecordSuccess({
+          UserType: 'patient',
+          UserName,
+          UserId: patientUserData.Id,
+          Req: req,
+        });
         delete patientUserData.Password;
         if (patientUserData.RoleId + '' === '4') {
           const Patient = await Models.Patient.findOne({
@@ -87,6 +120,12 @@ async function Login(req, res) {
         }
       }
     } else {
+      await LoginGuard.RecordFailure({
+        UserType: 'patient',
+        UserName,
+        Reason: 'NO_USER',
+        Req: req,
+      });
       return res.send({
         Success: false,
         Message: 'Нэвтрэх нэр эсвэл нууц үг буруу байна',

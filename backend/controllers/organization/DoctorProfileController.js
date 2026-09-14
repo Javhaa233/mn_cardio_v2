@@ -7,6 +7,7 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const { PasswordRegex } = require('../../helper/PasswordPolicy');
+const { CheckContact } = require('../../helper/ContactValidation');
 
 // routes
 router.post('/GetByUserId', GetByUserId);
@@ -57,6 +58,13 @@ async function CustomCreate(req, res) {
     var result = { Success: true, Message: 'Successfully saved', Data: {} };
     const LogedUser = req.LogedUser;
     let Data = JSON.parse(req.body.Data);
+
+    // A new doctor account must carry both - see helper/ContactValidation.
+    const ContactError = CheckContact(Data, { Required: true });
+    if (ContactError) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+    }
+
     Data = await SetDictNames(Data);
 
     if (Data && LogedUser) {
@@ -88,6 +96,13 @@ async function CustomUpdate(req, res) {
     var result = { Success: true, Message: 'Successfully saved', Data: {} };
     const LogedUser = req.LogedUser;
     let Data = JSON.parse(req.body.Data);
+
+    // Only changed fields arrive; a sent email/phone must be valid and not blank.
+    const ContactError = CheckContact(Data, { Required: false });
+    if (ContactError) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+    }
+
     Data = await SetDictNames(Data);
     if (Data && LogedUser) {
       const Result = await BaseControllerHelper.BaseUpdate({

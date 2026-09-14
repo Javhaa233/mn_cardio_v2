@@ -11,6 +11,12 @@ import BaseCustomForm from "customComponents/Forms/BaseCustomForm";
 import BaseTab from "baseComponents/BaseTab";
 // helper
 import Helper from "helper";
+import {
+  NormalizeEmail,
+  NormalizePhone,
+  ValidateEmail,
+  ValidatePhone,
+} from "helper/ContactValidation";
 //import Organization from "view/Organization";
 
 class DoctorsProfileForm extends BaseCustomForm {
@@ -102,8 +108,47 @@ class DoctorsProfileForm extends BaseCustomForm {
     }
   };
 
+  // Email and phone are required on a NEW account; on an edit only a changed
+  // value is judged (legacy accounts without them can still be edited). Runs
+  // before the Users call, so a bad phone cannot leave a Users row with no
+  // profile behind it. Returns translated messages; normalises in place.
+  ContactErrors = () => {
+    const { t, DataId } = this.props;
+    const IsNew = !DataId;
+    const Has = (Key) =>
+      Object.prototype.hasOwnProperty.call(this.ModifyObject, Key);
+    const Errors = [];
+
+    if (IsNew || Has("email")) {
+      const Error = ValidateEmail(this.ModifyObject.email);
+      if (Error) Errors.push(t(Error));
+      else this.ModifyObject.email = NormalizeEmail(this.ModifyObject.email);
+    }
+    if (IsNew || Has("telephone")) {
+      const Error = ValidatePhone(this.ModifyObject.telephone);
+      if (Error) Errors.push(t(Error));
+      else
+        this.ModifyObject.telephone = NormalizePhone(
+          this.ModifyObject.telephone,
+        );
+    }
+    return Errors;
+  };
+
   SaveUser = async (callback) => {
     const { EditObject } = this.state;
+
+    const ContactErrors = this.ContactErrors();
+    if (ContactErrors.length > 0) {
+      const alert = Helper.BaseCrudHelper.ShowAlert(
+        ContactErrors.join(". "),
+        false,
+        () => this.setState({ Alert: null }),
+      );
+      this.setState({ Alert: alert });
+      callback && callback(null);
+      return;
+    }
 
     var UserData = {};
     UserData["UserName"] = this.UserData.UserName
@@ -127,12 +172,10 @@ class DoctorsProfileForm extends BaseCustomForm {
       UserData.AppId = this.ModifyObject.AppId;
     }
 
+    // Users.Email is what password reset mails. The phone lives only on the
+    // profile (Users has no phone column), so it goes with SaveDoctor.
     if (this.ModifyObject.email) {
       UserData.Email = this.ModifyObject.email;
-    }
-
-    if (this.ModifyObject.telephone) {
-      UserData.telephone = this.ModifyObject.telephone;
     }
 
     if (UserData.UserName && validationFields.includes("UserName")) {

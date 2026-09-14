@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const { Models, Op } = require('../config/DB');
+const Flags = require('./FeatureFlags');
 
 // Simple in-memory cache for user data (reduces DB calls)
 const userCache = new Map();
@@ -29,6 +30,12 @@ class Authorization {
       { expiresIn: '36000s' },
       (err, token) => callback && callback(token)
     );
+  }
+
+  // Drop one user's cached request data, so a change to their own account is
+  // visible on the next request instead of up to CACHE_TTL later.
+  clearUserCache(roleId, userId) {
+    userCache.delete(cacheKey(roleId, userId));
   }
 
   getUserData = (token, callback) => {
@@ -169,6 +176,7 @@ class Authorization {
             'lastname',
             'firstname',
             'email',
+            'telephone',
             'skype',
             'OrganizationId',
             'addr_prov_city',
@@ -209,7 +217,12 @@ class Authorization {
       const bearerToken = bearer[1];
       req.token = bearerToken;
 
-      const isDev = process.env.NODE_ENV === 'development';
+      // NODE_ENV alone is not enough. A host that comes up without NODE_ENV
+      // set is not 'development', but one that comes up WITH it - a test box
+      // someone copied a dev .env onto - used to accept any unsigned token.
+      // The second condition defaults to false, so the bypass is now something
+      // a developer opts into rather than something a deployment can fall into.
+      const isDev = process.env.NODE_ENV === 'development' && Flags.AllowInsecureDevAuth;
 
       const handleAuthData = async (authData) => {
         try {

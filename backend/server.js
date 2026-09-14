@@ -91,6 +91,9 @@ try {
 const cors = require('cors');
 const helmet = require('helmet');
 const Auth = require('./helper/Auth');
+const Flags = require('./helper/FeatureFlags');
+const SchemaProbe = require('./helper/SchemaProbe');
+const RateLimit = require('./helper/RateLimit');
 const sequelize = require('./config/DbConnection');
 
 const app = express();
@@ -337,8 +340,42 @@ const registerRoutes = (routes, secure = false) => {
 app.use(express.static(__dirname + '/public'));
 
 // Body parsing - Express 5 has built-in body parser
-app.use(express.json({ limit: '100mb' }));
-app.use(express.urlencoded({ extended: true, limit: '100mb', parameterLimit: 100000 }));
+//
+// JSON_BODY_LIMIT defaults to '100mb', i.e. exactly what this was, because the
+// real ceiling is not guessable from the code: the registry forms post base64
+// images through BaseObject/create, and lowering this blind would reject a
+// clinical save rather than an attack. The middleware below records what
+// actually arrives so the limit can be set from data instead of a guess.
+app.use(express.json({ limit: Flags.JsonBodyLimit }));
+app.use(
+  express.urlencoded({ extended: true, limit: Flags.JsonBodyLimit, parameterLimit: 100000 })
+);
+
+// Size instrumentation, not enforcement. Runs after the parsers so a body that
+// was already refused does not also produce a log line.
+app.use((req, res, next) => {
+  const Len = Number(req.headers['content-length'] || 0);
+  if (Len > Flags.BodySizeWarnBytes) {
+    // console.error: console.log is silenced in production, and this is a
+    // production measurement.
+    console.error(
+      `[BodySize] ${req.method} ${req.originalUrl} ${Math.round(Len / 1024)}KB`
+    );
+  }
+  return next();
+});
+
+// nginx terminates TLS and the server binds 127.0.0.1 in production, so without
+// this every request appears to come from the proxy and any per-IP logic would
+// treat the whole internet as one client.
+app.set('trust proxy', 1);
+
+// Rate limiting. Registered before every route table so it covers the mobile
+// mounts, the 49 legacy prefixes and the generic /api layer alike. Both buckets
+// COUNT ONLY until RATE_LIMIT_ENABLED is set - the first deploy is there to
+// find out what a hospital shift actually looks like, not to start refusing.
+app.use(RateLimit.Global());
+app.use(RateLimit.AuthPaths());
 
 // Request logging middleware
 if (isDevelopment) {
@@ -438,6 +475,18 @@ async function startServer() {
     console.log(`  Host: ${process.env.SQL_HOST}`);
     console.log(`  User: ${process.env.SQL_USER}`);
     console.log('');
+
+    // One line naming every behaviour switch and its resolved value. A
+    // deployment sitting in the wrong mode - password checks off, rate limiting
+    // off, licence enforcement on - is far cheaper to spot here than to
+    // diagnose later from behaviour.
+    Flags.LogResolved();
+
+    // Read the schema once, now that the connection is up, so every feature
+    // whose DDL script has not been run yet can answer "dark" instead of
+    // throwing at the first caller. Prints which ones those are.
+    await SchemaProbe.Warm();
+    SchemaProbe.LogPending();
 
     // Start services
     AppController.runService();

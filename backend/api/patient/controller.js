@@ -115,7 +115,7 @@ exports.listJournal = async (req, res) => {
 
 exports.createJournal = async (req, res) => {
   try {
-    const { date, time, blood_pressure, pulse, weight, inr, comment } = req.body;
+    const { date, time, blood_pressure, blood_pressure2, pulse, weight, inr, comment } = req.body;
 
     if (!date) return fail(res, 'DATE_REQUIRED', 'Огноо оруулна уу');
 
@@ -130,7 +130,12 @@ exports.createJournal = async (req, res) => {
         patient_registration: req.Patient.PatRegNo,
         date,
         time: time || null,
+        // Systolic and diastolic are a pair. listJournal returns both and
+        // journalSummary plots both, so a create that accepted only the
+        // systolic value left the patient unable to record their own
+        // diastolic pressure at all.
         blood_pressure: blood_pressure || null,
+        blood_pressure2: blood_pressure2 || null,
         pulse: pulse || null,
         weight: weight || null,
         inr: inr || null,

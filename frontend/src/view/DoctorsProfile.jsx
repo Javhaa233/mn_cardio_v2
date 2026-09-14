@@ -19,6 +19,32 @@ import Helper from "helper";
 
 import { useBaseObjectConfig } from "queries/baseObject";
 
+/**
+ * The column layout the customer signed off for the doctor register export:
+ * organisation and its three address levels, then the person, then the date
+ * the record was created. Order matters - the .xlsx is delivered in exactly
+ * this shape.
+ *
+ * These are ModelConfig field names (backend/ModelConfigs/DoctorsProfileConfig.js),
+ * not column names, so the headers stay server-side and translated. The
+ * organisation address comes from the ORGANISATION, not from the doctor's own
+ * addr_* columns - the two disagree often enough to matter.
+ */
+const EXPORT_FIELDS = [
+  "Organization.Name",
+  "Organization.DictProvinceCity.name",
+  "Organization.DictSoumDistrict.name",
+  "Organization.DictBagKhoroo.name",
+  "position",
+  "lastname",
+  "firstname",
+  "telephone",
+  "personal_number",
+  "email",
+  "date_creation",
+  "user_mod",
+];
+
 export default function DoctorsProfile() {
   const { t } = useTranslation();
   const dialogRef = useRef(null);
@@ -237,11 +263,18 @@ export default function DoctorsProfile() {
         ObjectName: "DoctorsProfile",
         Url: "/BaseObject/ExportExcel",
         SearchOption: searchOption,
-        FileName: "DoctorsProfile.xlsx",
+        FileName: "EmchiinBurtgel.xlsx",
+        ExportFields: EXPORT_FIELDS,
       },
       (resData) => {
-        doctorCrudActionsRef.current?.setState &&
-          doctorCrudActionsRef.current.setState({ exportLoading: false });
+        // The toolbar is wrapped by withTranslation({withRef:true}), so the ref
+        // can be either the wrapper or the instance depending on how the HOC
+        // resolved - unwrap the same way the save and password paths do, or the
+        // button stays spinning forever after a download.
+        const actions = doctorCrudActionsRef.current?.getWrappedInstance
+          ? doctorCrudActionsRef.current.getWrappedInstance()
+          : doctorCrudActionsRef.current;
+        actions?.setState && actions.setState({ exportLoading: false });
         const Success = !!(resData && resData.Success);
         const Alert = Helper.BaseCrudHelper.ShowAlert(
           Success
@@ -308,7 +341,6 @@ export default function DoctorsProfile() {
           SearchText={onSearchText}
           OnChangePassword={openChangePasswordDialog}
           noHorizontalPadding
-          HideExport={true}
         />
         <GridContainer sx={{ margin: 0, width: "100%", maxWidth: "100%" }}>
           <GridItem md={8} xs={12} sx={{ padding: 0 }}>

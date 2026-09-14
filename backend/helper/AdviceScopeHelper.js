@@ -93,11 +93,14 @@ async function GetLogedOrganization(LogedUser) {
  * ticket in the feed to look at the X-ray on it. The feed is a consult board:
  * reading each other's tickets is the entire point.
  *
- * So this mirrors GetTicket: same AppId, not deleted. GetTicket does not apply
- * BuildAdviceScope either (see the comment on it - a known visibility gap held
- * for the security review), and matching it here is deliberate: an attachment
- * must never be refused on a ticket whose page the same session can open. When
- * that review tightens GetTicket, tighten this with it, in this file.
+ * So this mirrors GetTicket, and that mirroring is the point: an attachment
+ * must never be refused on a ticket whose page the same session can open, and
+ * must never be served on one it cannot.
+ *
+ * Tightened 2026-09-14, in the same commit as GetTicket, as the older comment
+ * here asked. Both now apply BuildAdviceScope. Previously both authorized on
+ * AppId alone, so any authenticated session could pull an attachment off any
+ * ticket by guessing an id.
  *
  * Patients are the exception and are checked positively: only the ticket that is
  * about them, by the same `adv_id_patient` column PatientScope uses elsewhere.
@@ -131,7 +134,23 @@ async function MayReadAdviceAttachment({ LinkedObjectName, LinkedObjectId, Loged
     return String(Advice.adv_id_patient) === String(Owner);
   }
 
-  return true;
+  // Staff: the ticket must be inside the same scope that decides whether they
+  // could open its page at all. Re-queried rather than evaluated in JS so that
+  // there is exactly one implementation of the rule - this scope object is
+  // built for a WHERE clause, and reimplementing its Op.or branch by hand is
+  // how the two copies would drift.
+  //
+  // id_data first, scope second: BuildAdviceScope denies with { id_data: -1 },
+  // and spreading it last is what lets that deny survive the merge.
+  const { Organization } = await GetLogedOrganization(LogedUser);
+  const Scope = BuildAdviceScope({ LogedUser, Organization });
+  const Visible = await Models.Advice.findOne({
+    where: { id_data: AdviceId, ...Scope },
+    attributes: ['id_data'],
+    raw: true,
+  });
+
+  return !!Visible;
 }
 
 module.exports = { BuildAdviceScope, GetLogedOrganization, MayReadAdviceAttachment };

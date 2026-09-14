@@ -6,6 +6,7 @@ import React, { useEffect, useState, useRef } from "react";
 import Chat from "customComponents/Chat/Chat.jsx";
 import ChatProvider from "customComponents/Chat/ChatProvider.jsx";
 import PageTabs from "customComponents/PageTabs";
+import ContactInfoPrompt from "customComponents/Profile/ContactInfoPrompt";
 
 // core components
 import AdminNavbar from "components/Navbars/AdminNavbar.jsx";
@@ -88,9 +89,11 @@ const MainPanel = styled("div", {
 }));
 
 const Content = styled("div")(({ theme }) => ({
-  padding: "6px 10px 10px 10px",
+  // No top padding: the tab strip is always the first thing here and owns its
+  // own top spacing, so the tabs sit right under the bar.
+  padding: "0 10px 10px 10px",
   [theme.breakpoints.down("sm")]: {
-    padding: "6px 6px 6px 6px",
+    padding: "0 6px 6px 6px",
   },
   boxSizing: "border-box",
   // The canvas behind every admin route, declared once. Four different greys
@@ -222,6 +225,9 @@ export default function Admin(props) {
           </Content>
         </MainPanel>
         <Chat />
+        {/* Asks a staff user with no email/phone to add them. Renders nothing
+            otherwise. Role 4 never reaches this layout. */}
+        <ContactInfoPrompt />
       </Wrapper>
     </ChatProvider>
   );

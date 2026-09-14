@@ -33,15 +33,15 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 
 | Бүлэг | Тайлбар | Угтвар | Endpoint |
 |---|---|---|---|
-| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 27 |
-| — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 11 |
+| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 29 |
+| — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
 | protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 250 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 37 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 39 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **316** |
+| **Нийт** |  |  | **320** |
 
-api-layer задаргаа: `/api/patient` 16 · `/api/doctor` 12 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 16 · `/api/doctor` 14 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -68,46 +68,48 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `GET` | `/api/Test/print` | public | `TestController.js:16` | Renders the АМ-1Б template with no data - a layout smoke test. |
-| `GET` | `/api/Test/printNew` | public | `TestController.js:17` |  |
-| `PUT` | `/api/Test/uploadFile` | public | `TestController.js:18` |  |
-| `GET` | `/api/Test/ApiSendMail` | public | `TestController.js:19` |  |
-| `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:20` |  |
-| `POST` | `/api/Test/RegexTest` | public | `TestController.js:21` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:22` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:23` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:24` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:25` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:26` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:27` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:28` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:29` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:30` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:31` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:32` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:33` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:34` | The same export as tab-separated text. |
+| `GET` | `/api/Test/print` | public | `TestController.js:17` | Renders the АМ-1Б template with no data - a layout smoke test. |
+| `GET` | `/api/Test/printNew` | public | `TestController.js:18` |  |
+| `PUT` | `/api/Test/uploadFile` | public | `TestController.js:19` |  |
+| `GET` | `/api/Test/ApiSendMail` | public | `TestController.js:20` |  |
+| `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:21` |  |
+| `POST` | `/api/Test/RegexTest` | public | `TestController.js:22` |  |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:38` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:39` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:40` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:41` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:42` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:43` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:44` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:45` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:46` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:47` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:48` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:49` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:50` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
 
-Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 20 endpoint.
+Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 22 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/User/Login` | public | `UserController.js:15` |  |
-| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:21` |  |
-| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:22` |  |
-| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:23` |  |
-| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:24` |  |
-| `POST` | `/api/User/ResetPassword` | public | `UserController.js:25` | Martsan password sergeeh |
-| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:26` | Password shinechleh |
-| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:27` |  |
-| `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:47` |  |
-| `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:48` |  |
-| `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:49` |  |
-| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:50` |  |
-| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:51` |  |
+| `POST` | `/api/User/Login` | public | `UserController.js:16` |  |
+| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:22` |  |
+| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:23` |  |
+| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:24` |  |
+| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:25` |  |
+| `POST` | `/api/User/ResetPassword` | public | `UserController.js:26` | Martsan password sergeeh |
+| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:27` | Password shinechleh |
+| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:28` |  |
+| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:29` |  |
+| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:30` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
+| `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:45` |  |
+| `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:46` |  |
+| `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:47` |  |
+| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:48` |  |
+| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:49` |  |
 | `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:15` |  |
 | `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:16` |  |
 | `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:17` |  |
@@ -147,12 +149,12 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/Advice/GetTicket` | token | `AdviceController.js:24` | One ticket, enriched exactly the way a feed card is. |
 | `POST` | `/api/Advice/GetStats` | token | `AdviceController.js:25` |  |
 | `POST` | `/api/Advice/CustomSaveAndPublish` | token | `AdviceController.js:26` | Create a ticket and publish it in one action. |
-| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:12` |  |
-| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:13` |  |
-| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:14` |  |
-| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:15` |  |
-| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:16` |  |
-| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:17` | Password shinechleh |
+| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:13` |  |
+| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:14` |  |
+| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:15` |  |
+| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:16` |  |
+| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:17` |  |
+| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:18` | Password shinechleh |
 | `POST` | `/api/Organization/CustomSave` | token | `OrganizationController.js:10` |  |
 | `GET` | `/api/Organization/GetOne/:id` | token | `OrganizationController.js:11` |  |
 | `POST` | `/api/Organization/MergePreview` | token | `OrganizationController.js:12` |  |
@@ -483,18 +485,20 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:64` | Tracker #51: vital signs around a session. |
 | `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:65` |  |
 | `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:66` | Tracker #50: the latest risk / exercise-tolerance assessment. |
-| `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:40` |  |
-| `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:43` | 28 Миний үзлэгүүд |
-| `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:44` | One examination in full. |
-| `GET` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:47` | 29 Миний хяналт |
-| `POST` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:48` | Take a patient into personal monitoring. |
-| `DELETE` | `/api/doctor/monitoring/:patientId` | token (staff only) | `api/doctor/index.js:49` |  |
-| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:50` | A monitored patient's journal, as rows plus the chart series. |
-| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:53` | 30 Миний зөвлөгөө |
-| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:54` | One of the doctor's own tickets, with its replies. |
-| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:57` | 31 Миний тайлан |
-| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:60` | 32 Read access to the patient side |
-| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:61` | A patient card: profile, recent examinations, journal series, monitoring state. |
+| `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:42` |  |
+| `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:45` | 28 Миний үзлэгүүд |
+| `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:46` | One examination in full. |
+| `GET` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:49` | 29 Миний хяналт |
+| `POST` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:50` | Take a patient into personal monitoring. |
+| `DELETE` | `/api/doctor/monitoring/:patientId` | token (staff only) | `api/doctor/index.js:51` |  |
+| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:52` | A monitored patient's journal, as rows plus the chart series. |
+| `GET` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:53` | The question thread of a patient this doctor monitors. |
+| `POST` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:54` | A doctor's answer. |
+| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:57` | 30 Миний зөвлөгөө |
+| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:58` | One of the doctor's own tickets, with its replies. |
+| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:61` | 31 Миний тайлан |
+| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:64` | 32 Read access to the patient side |
+| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:65` | A patient card: profile, recent examinations, journal series, monitoring state. |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 
@@ -559,4 +563,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-11. Нийт endpoint: 316._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-11. Нийт endpoint: 320._

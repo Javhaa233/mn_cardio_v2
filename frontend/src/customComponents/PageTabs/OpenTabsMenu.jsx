@@ -2,8 +2,8 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSelector } from "react-redux";
 
-import Badge from "@mui/material/Badge";
 import Box from "@mui/material/Box";
+import ButtonBase from "@mui/material/ButtonBase";
 import ClickAwayListener from "@mui/material/ClickAwayListener";
 import Divider from "@mui/material/Divider";
 import Grow from "@mui/material/Grow";
@@ -20,6 +20,7 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/components/adminNavbarLinksStyle.js";
 import { colors } from "@/theme/colors";
+import { motion, radius } from "@/theme/tokens";
 import useTabActions from "./useTabActions";
 
 /**
@@ -59,45 +60,45 @@ export default function OpenTabsMenu({
   return (
     <>
       {confirm}
+      {/* A labelled pill - "6 ▾" - instead of a bare chevron with a tiny
+          badge squeezed onto its corner. The count is a plain number in the
+          control itself, so it cannot be mistaken for an unread-alert badge. */}
       <Tooltip title={t("Нээлттэй цонхнууд")} placement="bottom">
-        <Badge
-          badgeContent={items.length}
-          color="primary"
-          // A permanent "1" is noise; the count only says something at two.
-          invisible={items.length < 2}
-          overlap="circular"
+        <ButtonBase
+          aria-label={`${t("Нээлттэй цонхнууд")}: ${items.length}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={(event) => setAnchor(open ? null : event.currentTarget)}
           sx={{
-            "& .MuiBadge-badge": {
-              height: 15,
-              minWidth: 15,
-              fontSize: 10,
-              fontWeight: 600,
-              border: `2px solid ${colors.background.primary}`,
-              transform: "scale(1) translate(30%, -25%)",
+            height: size,
+            minWidth: size,
+            padding: "0 4px 0 8px",
+            gap: "2px",
+            borderRadius: radius.sm,
+            border: `1px solid ${open ? colors.brand.cyanDeep : colors.brand.hairlineStrong}`,
+            backgroundColor: open ? colors.brand.tint : colors.brand.surface,
+            color: open ? colors.brand.cyanInk : colors.brand.inkMuted,
+            typography: "body2",
+            fontWeight: 600,
+            transition: `background-color ${motion.fast}, border-color ${motion.fast}`,
+            "&:hover": {
+              backgroundColor: colors.brand.tint,
+              color: colors.brand.ink,
+            },
+            "&.Mui-focusVisible": {
+              outline: `2px solid ${colors.brand.focus}`,
+              outlineOffset: "1px",
+            },
+            "& .MuiSvgIcon-root": {
+              fontSize: 18,
+              transition: `transform ${motion.fast}`,
+              transform: open ? "rotate(180deg)" : "none",
             },
           }}
         >
-          <IconButton
-            size="small"
-            aria-label={t("Нээлттэй цонхнууд")}
-            aria-haspopup="menu"
-            aria-expanded={open}
-            onClick={(event) => setAnchor(open ? null : event.currentTarget)}
-            sx={{
-              width: size,
-              height: size,
-              borderRadius: "7px",
-              color: open ? colors.button.primary : colors.brand.inkMuted,
-              backgroundColor: open
-                ? colors.background.selected
-                : "transparent",
-              "&:hover": { backgroundColor: colors.brand.tint },
-              "& .MuiSvgIcon-root": { fontSize: 18 },
-            }}
-          >
-            <ExpandMoreIcon />
-          </IconButton>
-        </Badge>
+          {items.length}
+          <ExpandMoreIcon />
+        </ButtonBase>
       </Tooltip>
 
       <Popper
@@ -138,7 +139,7 @@ export default function OpenTabsMenu({
                                 ? colors.background.selected
                                 : undefined,
                               color: isActive
-                                ? colors.button.primary
+                                ? colors.brand.cyanInk
                                 : undefined,
                               "&::before": isActive
                                 ? {
@@ -149,7 +150,7 @@ export default function OpenTabsMenu({
                                     bottom: 6,
                                     width: "3px",
                                     borderRadius: "2px",
-                                    backgroundColor: colors.button.primary,
+                                    backgroundColor: colors.brand.cyanInk,
                                   }
                                 : undefined,
                             }}
@@ -177,7 +178,7 @@ export default function OpenTabsMenu({
                                   height: 6,
                                   mr: "4px",
                                   borderRadius: "50%",
-                                  backgroundColor: colors.button.primary,
+                                  backgroundColor: colors.brand.cyanInk,
                                 }}
                               />
                             ) : null}

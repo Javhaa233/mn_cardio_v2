@@ -1134,10 +1134,18 @@ async function GetFeed(req, res) {
  * and the detail page can never disagree about the same ticket, and no new
  * media code exists to drift.
  *
- * Access is deliberately what GetList already allowed: the AppId and the id.
- * BuildAdviceScope is NOT applied to a fetch by id here or anywhere else, which
- * is a real visibility gap - but tightening it would remove access somebody may
- * rely on today, so it belongs in the security review, not in a UI change.
+ * Access is BuildAdviceScope - the same scope the feed runs. Tightened
+ * 2026-09-14; this used to authorize on AppId and the id alone, so any
+ * authenticated session could read any ticket by guessing an id_data. Nothing
+ * gains access from this change and nothing the feed shows loses it: a ticket
+ * you can see on the feed is by definition inside the scope, so it still
+ * opens. What stops working is a direct link to a ticket outside your
+ * organization's reach, which is the hole being closed.
+ *
+ * MayReadAdviceAttachment in helper/AdviceScopeHelper.js mirrors this rule on
+ * purpose and was tightened in the same commit. Change one without the other
+ * and you either leave the hole open through the file route, or 403 an
+ * attachment on a ticket the same session can open.
  */
 async function GetTicket(req, res) {
   try {
@@ -1151,8 +1159,15 @@ async function GetTicket(req, res) {
       );
     }
 
+    const { Organization } = await GetLogedOrganization(LogedUser);
+    const Scope = BuildAdviceScope({ LogedUser, Organization });
+
+    // id_data FIRST, scope second. BuildAdviceScope denies by returning
+    // { id_data: -1 }, so spreading it last is what lets that sentinel win.
+    // Merged the other way round, a caller's AdviceId would overwrite the
+    // deny and hand back exactly the ticket the scope meant to refuse.
     const Rows = await Models.Advice.findAllFeed({
-      where: { id_data: AdviceId, AppId: LogedUser.AppId, rec_status: { [Op.ne]: '2' } },
+      where: { id_data: AdviceId, ...Scope },
       limit: 1,
     });
 

@@ -57,6 +57,9 @@ import { radius, motion } from "@/theme/tokens";
  * - not from a grid of vertical borders plus zebra stripes. At 13px with 15+
  * columns those compete with the hover and selected states and win, which is
  * exactly backwards: the row you are pointing at should be the loudest thing.
+ *
+ * The header uses `tintSolid`, never `tint`: DataGrid keeps it sticky while rows
+ * scroll underneath, and the 7.5%-alpha `tint` let every row show through it.
  */
 const StyledDataGrid = styled(DataGrid)(
   ({ theme, dense, rowHeight, showFilterRow }) => ({
@@ -77,7 +80,7 @@ const StyledDataGrid = styled(DataGrid)(
     },
     "& .MuiDataGrid-columnHeaders, & .MuiDataGrid-columnHeaderContainer": {
       zIndex: "105 !important",
-      backgroundColor: `${colors.brand.tint} !important`,
+      backgroundColor: `${colors.brand.tintSolid} !important`,
       backgroundImage: "none !important",
       borderBottom: `1px solid ${colors.brand.hairline}`,
       minHeight: "var(--header-height, 40px) !important",
@@ -86,16 +89,16 @@ const StyledDataGrid = styled(DataGrid)(
       color: `${colors.text.heading} !important`,
     },
     "& .MuiDataGrid-columnHeadersInner, & .MuiDataGrid-columnHeaderRow": {
-      backgroundColor: `${colors.brand.tint} !important`,
+      backgroundColor: `${colors.brand.tintSolid} !important`,
     },
     "& .MuiDataGrid-columnHeaders .MuiDataGrid-filler": {
-      backgroundColor: `${colors.brand.tint} !important`,
+      backgroundColor: `${colors.brand.tintSolid} !important`,
     },
     "& .MuiDataGrid-filler, & [class*='MuiDataGrid-filler']": {
       backgroundColor: `${colors.brand.surface} !important`,
     },
     "& .MuiDataGrid-scrollbarFiller--header": {
-      backgroundColor: `${colors.brand.tint} !important`,
+      backgroundColor: `${colors.brand.tintSolid} !important`,
     },
     "& .MuiDataGrid-columnHeaderTitle": {
       fontWeight: 600,
@@ -108,7 +111,7 @@ const StyledDataGrid = styled(DataGrid)(
       wordBreak: "break-word",
     },
     "& .MuiDataGrid-columnHeader": {
-      backgroundColor: `${colors.brand.tint} !important`,
+      backgroundColor: `${colors.brand.tintSolid} !important`,
       padding: "0 10px !important",
       borderRight: "none",
       color: `${colors.text.heading} !important`,
@@ -259,6 +262,31 @@ const footerLabelSx = {
   whiteSpace: "nowrap",
 };
 
+/**
+ * The MIT DataGrid THROWS for any page size above 100 -
+ * `gridPaginationUtils.throwIfPageSizeExceedsTheLimit`, which is why 500 and an
+ * "all rows" page are not offerable here without a DataGridPro licence. Options
+ * above the cap are dropped rather than left in the menu to crash the grid.
+ */
+export const MUI_MAX_PAGE_SIZE = 100;
+
+const DEFAULT_PAGE_SIZE_OPTIONS = [5, 10, 20, 30, 50, 100];
+
+/** Numbers in, {value,label} pairs out, with anything over the cap removed. */
+export const NormalizePageSizeOptions = (Options) => {
+  const Source =
+    Array.isArray(Options) && Options.length > 0
+      ? Options
+      : DEFAULT_PAGE_SIZE_OPTIONS;
+
+  const Valid = Source.map((Option) => Number(Option)).filter(
+    (Size) => Number.isFinite(Size) && Size > 0 && Size <= MUI_MAX_PAGE_SIZE,
+  );
+
+  const Final = Valid.length > 0 ? Valid : DEFAULT_PAGE_SIZE_OPTIONS;
+  return Final.map((Size) => ({ value: Size, label: String(Size) }));
+};
+
 const CustomPagination = React.forwardRef(
   function CustomPagination(props, ref) {
     const { t } = useTranslation();
@@ -325,13 +353,18 @@ const CustomPagination = React.forwardRef(
               },
             }}
           >
-            {[5, 10, 20, 30, 50, 100].map((size) => (
+            {(props.pageSizeOptions &&
+            Array.isArray(props.pageSizeOptions) &&
+            props.pageSizeOptions.length > 0
+              ? props.pageSizeOptions
+              : NormalizePageSizeOptions(DEFAULT_PAGE_SIZE_OPTIONS)
+            ).map((Option) => (
               <MenuItem
-                key={size}
-                value={size}
+                key={Option.value}
+                value={Option.value}
                 sx={{ fontSize: "12.5px", minHeight: "30px" }}
               >
-                {size}
+                {Option.label}
               </MenuItem>
             ))}
           </Select>
@@ -502,6 +535,9 @@ export default function BaseGrid(props) {
     ColumnActions = [],
     Option,
     PageSize = 20,
+    // Page-size choices for the footer, e.g. [30, 50, 100]. 100 is the ceiling
+    // the MIT DataGrid allows - see MUI_MAX_PAGE_SIZE above.
+    PageSizeOptions,
     Page,
     ChangePage,
     RowNumber,
@@ -548,6 +584,14 @@ export default function BaseGrid(props) {
   const titleHeight = finalHeaderRowHeight;
   const filterHeight = 36;
   const totalHeaderHeight = titleHeight + filterHeight;
+
+  // Page-size choices for the footer. Screens that hold a lot of rows pass
+  // their own, e.g. [30, 50, 100, 500, "all"]; everything else keeps the
+  // previous [5, 10, 20, 30, 50, 100].
+  const normalizedPageSizeOptions = useMemo(
+    () => NormalizePageSizeOptions(PageSizeOptions),
+    [PageSizeOptions],
+  );
 
   const [rowSelectionModel, setRowSelectionModel] = useState({
     type: "include",
@@ -1050,7 +1094,7 @@ export default function BaseGrid(props) {
             columns={columns}
             paginationModel={paginationModel}
             onPaginationModelChange={handlePaginationModelChange}
-            pageSizeOptions={[5, 10, 20, 30, 50, 100]}
+            pageSizeOptions={normalizedPageSizeOptions.map((o) => o.value)}
             checkboxSelection={!HideCheck}
             disableRowSelectionOnClick={!RowClickSelect}
             rowSelectionModel={rowSelectionModel}
@@ -1081,6 +1125,7 @@ export default function BaseGrid(props) {
                 dense: Dense,
                 headerRowHeight: finalHeaderRowHeight,
               },
+              pagination: { pageSizeOptions: normalizedPageSizeOptions },
               noRowsOverlay: { message: NoRowsText, action: NoRowsAction },
             }}
             sx={{

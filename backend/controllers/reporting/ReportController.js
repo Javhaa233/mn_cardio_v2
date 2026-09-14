@@ -1,13 +1,19 @@
+const fs = require('fs');
+const path = require('path');
 const express = require('express');
 const router = express.Router();
 
 const { Models, Op, sequelize } = require('../../config/DB');
 
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const DoctorExamReport = require('../../helper/DoctorExamReportHelper');
 
 // routes
 router.post('/GetReport', GetReport);
 router.post('/GetProvinceData', GetProvinceData);
+router.post('/GetDoctorExamReport', GetDoctorExamReport);
+router.post('/DoctorExamReportExcel', DoctorExamReportExcel);
+router.post('/DoctorExamReportText', DoctorExamReportText);
 
 async function GetProvinceData(req, res) {
   try {
@@ -96,5 +102,110 @@ async function GetReport(req, res) {
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
   }
 }
+
+// #region Эмчийн нэгдсэн үзлэгийн тайлан
+
+/** Хүсэлтээс шүүлтийг гаргаж авна. Утгуудыг helper дотор хатуу цэвэрлэдэг. */
+function GetReportFilter(req) {
+  const Body = req.body || {};
+  return {
+    StartDate: Body.StartDate,
+    EndDate: Body.EndDate,
+    OrganizationId: Body.OrganizationId,
+    addr_prov_city: Body.addr_prov_city,
+    addr_soum_dist: Body.addr_soum_dist,
+    addr_bag_khoroo: Body.addr_bag_khoroo,
+    SearchText: Body.SearchText,
+  };
+}
+
+async function GetDoctorExamReport(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!LogedUser) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    }
+
+    const { Data, Total, Summary } = await DoctorExamReport.GetData({
+      LogedUser,
+      Filter: GetReportFilter(req),
+    });
+
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        Message: '',
+        Data,
+        Option: { Total, Summary, Columns: DoctorExamReport.COLUMNS },
+      })
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+/**
+ * Файлыг илгээсний дараа устгана - CVDReportController нь тогтмол зам руу бичээд
+ * цэвэрлэдэггүй тул зэрэг татсан хоёр хүн бие биеийнхээ мөрийг авдаг. Энд
+ * ExportFilePath давхцахгүй нэр өгч, download-ийн дараа устгана.
+ */
+function SendAndCleanup(res, filePath, contentType) {
+  res.set('Content-Type', contentType);
+  return res.download(filePath, (err) => {
+    err && console.log('DoctorExamReport download error:', err.message);
+    fs.unlink(path.resolve(filePath), () => {});
+  });
+}
+
+async function DoctorExamReportExcel(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!LogedUser) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    }
+
+    const { filePath } = await DoctorExamReport.ExportExcel({
+      LogedUser,
+      Filter: GetReportFilter(req),
+    });
+    if (!filePath) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    }
+
+    return SendAndCleanup(
+      res,
+      filePath,
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+async function DoctorExamReportText(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!LogedUser) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    }
+
+    const { filePath } = await DoctorExamReport.ExportText({
+      LogedUser,
+      Filter: GetReportFilter(req),
+    });
+    if (!filePath) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    }
+
+    return SendAndCleanup(res, filePath, 'text/plain; charset=utf-8');
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+// #endregion
 
 module.exports = router;
