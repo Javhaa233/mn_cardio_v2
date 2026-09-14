@@ -557,6 +557,8 @@ const PATIENT_ALLOWED_DICOS = [
   'rehab_category',
   'rehab_risk',
   'rehab_phase',
+  'patient_reminder_type',
+  'patient_reminder_freq',
 ];
 
 exports.listOptions = async (req, res) => {
@@ -989,5 +991,243 @@ exports.listDevices = async (req, res) => {
     return ok(res, rows, { total: rows.length });
   } catch (ex) {
     return serverError(res, ex, 'listDevices');
+  }
+};
+
+/* ----------------------------------------------- Сануулга (reminders) */
+
+const HHMM = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+const MAX_TIMES_PER_DAY = 6;
+
+/**
+ * Validate and normalise the parts of a reminder that the dispatcher depends on.
+ *
+ * TimesOfDay and DaysOfWeek are stored as CSV and read every minute by
+ * services/ReminderDispatcher.js, which does a plain string comparison against
+ * the current local 'HH:mm'. So '8:00' would never match '08:00' and would
+ * simply never fire - silently, with no error anywhere. Normalising and
+ * rejecting here is what keeps that from happening.
+ */
+function ParseReminderInput(body, existing) {
+  const out = {};
+  const cur = existing || {};
+
+  if (body.reminder_type !== undefined) out.ReminderType = body.reminder_type;
+  if (body.title !== undefined) out.Title = body.title;
+  if (body.body !== undefined) out.Body = body.body;
+  if (body.link_object_name !== undefined) out.LinkObjectName = body.link_object_name;
+  if (body.link_object_id !== undefined) out.LinkObjectId = body.link_object_id;
+  if (body.is_active !== undefined) out.IsActive = !!body.is_active;
+
+  if (body.frequency !== undefined) out.Frequency = body.frequency;
+
+  if (body.times_of_day !== undefined) {
+    const raw = Array.isArray(body.times_of_day)
+      ? body.times_of_day
+      : String(body.times_of_day || '').split(',');
+    const times = raw.map((t) => String(t).trim()).filter(Boolean);
+
+    if (!times.length) return { Error: ['TIMES_REQUIRED', 'Цагаа сонгоно уу'] };
+    if (times.length > MAX_TIMES_PER_DAY) {
+      return { Error: ['TOO_MANY_TIMES', 'Өдөрт хамгийн ихдээ 6 удаа сануулж болно'] };
+    }
+    for (const t of times) {
+      if (!HHMM.test(t)) {
+        return { Error: ['INVALID_TIME', 'Цаг HH:mm хэлбэртэй байх ёстой: ' + t] };
+      }
+    }
+    // Sorted and de-duplicated: two identical times would claim the same
+    // (ReminderId, DueAt) and the second would be discarded by the unique index
+    // anyway, so storing it would only mislead whoever read the row.
+    out.TimesOfDay = [...new Set(times)].sort().join(',');
+  }
+
+  if (body.days_of_week !== undefined) {
+    if (body.days_of_week === null || body.days_of_week === '') {
+      out.DaysOfWeek = null; // every day
+    } else {
+      const raw = Array.isArray(body.days_of_week)
+        ? body.days_of_week
+        : String(body.days_of_week).split(',');
+      const days = raw.map((d) => parseInt(String(d).trim(), 10));
+      if (days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
+        return { Error: ['INVALID_DAYS', 'Гараг 1-7 (1=Даваа) байна'] };
+      }
+      out.DaysOfWeek = [...new Set(days)].sort().join(',');
+    }
+  }
+
+  if (body.start_date !== undefined) out.StartDate = body.start_date || null;
+  if (body.end_date !== undefined) out.EndDate = body.end_date || null;
+
+  const start = out.StartDate !== undefined ? out.StartDate : cur.StartDate;
+  const end = out.EndDate !== undefined ? out.EndDate : cur.EndDate;
+  if (start && end && String(end) < String(start)) {
+    return { Error: ['INVALID_RANGE', 'Дуусах огноо эхлэх огнооноос өмнө байна'] };
+  }
+
+  return { Data: out };
+}
+
+const shapeReminder = (r, typeLabels, freqLabels) => ({
+  Id: r.Id,
+  ReminderType: r.ReminderType,
+  ReminderTypeLabel: typeLabels ? typeLabels.get(String(r.ReminderType)) || null : null,
+  Title: r.Title,
+  Body: r.Body,
+  Frequency: r.Frequency,
+  FrequencyLabel: freqLabels ? freqLabels.get(String(r.Frequency)) || null : null,
+  TimesOfDay: r.TimesOfDay,
+  DaysOfWeek: r.DaysOfWeek,
+  StartDate: r.StartDate,
+  EndDate: r.EndDate,
+  LinkObjectName: r.LinkObjectName,
+  LinkObjectId: r.LinkObjectId,
+  IsActive: !!r.IsActive,
+  CreateDate: r.CreateDate,
+  UpdateDate: r.UpdateDate,
+});
+
+exports.listReminders = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+    const where = { PatientId: req.Patient.PatientId };
+
+    if (req.query.type) where.ReminderType = String(req.query.type);
+    // Inactive reminders are hidden by default - a completed one-off should not
+    // clutter the list - but remain fetchable with ?include_inactive=1.
+    if (String(req.query.include_inactive) !== '1') where.IsActive = true;
+
+    const { rows, count } = await Models.PatientReminder.findAndCountAll({
+      where,
+      order: [['Id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    const [typeLabels, freqLabels] = await Promise.all([
+      DicoLabels.GetLabelMap('patient_reminder_type'),
+      DicoLabels.GetLabelMap('patient_reminder_freq'),
+    ]);
+
+    return ok(res, rows.map((r) => shapeReminder(r, typeLabels, freqLabels)), {
+      total: count,
+      limit,
+      offset,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'listReminders');
+  }
+};
+
+exports.createReminder = async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.title || !String(body.title).trim()) {
+      return fail(res, 'TITLE_REQUIRED', 'Гарчгаа бичнэ үү');
+    }
+    if (body.times_of_day === undefined) {
+      return fail(res, 'TIMES_REQUIRED', 'Цагаа сонгоно уу');
+    }
+
+    const parsed = ParseReminderInput(body, null);
+    if (parsed.Error) return fail(res, parsed.Error[0], parsed.Error[1]);
+
+    // Validated against the dictionary only when it has been seeded, so the
+    // endpoint behaves the same on a database without it - the fail-soft rule
+    // DicoLabels follows everywhere.
+    const typeLabels = await DicoLabels.GetLabelMap('patient_reminder_type');
+    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+      return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
+    }
+    const freqLabels = await DicoLabels.GetLabelMap('patient_reminder_freq');
+    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+      return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.PatientReminder.create(
+      Object.assign(
+        {
+          // Both keys, from the SESSION, never from the body. PatientId is what
+          // the notification and push layers address; PatRegNo is what the
+          // rehab-era tables join on.
+          PatientId: req.Patient.PatientId,
+          PatRegNo: req.Patient.PatRegNo,
+          Frequency: 'daily',
+          IsActive: true,
+          CreateDate: Now,
+          UpdateDate: Now,
+          CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+        },
+        parsed.Data
+      )
+    );
+
+    return ok(res, shapeReminder(created.toJSON(), typeLabels, freqLabels));
+  } catch (ex) {
+    return serverError(res, ex, 'createReminder');
+  }
+};
+
+exports.updateReminder = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const existing = await Models.PatientReminder.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+      raw: true,
+    });
+    if (!existing) return fail(res, 'NOT_FOUND', 'Сануулга олдсонгүй', 404);
+
+    const parsed = ParseReminderInput(req.body || {}, existing);
+    if (parsed.Error) return fail(res, parsed.Error[0], parsed.Error[1]);
+
+    const [typeLabels, freqLabels] = await Promise.all([
+      DicoLabels.GetLabelMap('patient_reminder_type'),
+      DicoLabels.GetLabelMap('patient_reminder_freq'),
+    ]);
+    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+      return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
+    }
+    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+      return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
+    }
+
+    parsed.Data.UpdateDate = ObjectHelper.getDateYMDHMS();
+    // PatientId stays in the WHERE, so an id belonging to somebody else simply
+    // matches nothing rather than being checked and refused.
+    await Models.PatientReminder.update(parsed.Data, {
+      where: { Id, PatientId: req.Patient.PatientId },
+    });
+
+    const after = await Models.PatientReminder.findOne({ where: { Id }, raw: true });
+    return ok(res, shapeReminder(after, typeLabels, freqLabels));
+  } catch (ex) {
+    return serverError(res, ex, 'updateReminder');
+  }
+};
+
+/**
+ * Soft delete. The reminder stops firing but its PatientReminderLog history
+ * stays meaningful - "why did I get this on Tuesday" has to remain answerable,
+ * and a hard delete would orphan those rows.
+ */
+exports.deleteReminder = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const [count] = await Models.PatientReminder.update(
+      { IsActive: false, UpdateDate: ObjectHelper.getDateYMDHMS() },
+      { where: { Id, PatientId: req.Patient.PatientId } }
+    );
+    if (!count) return fail(res, 'NOT_FOUND', 'Сануулга олдсонгүй', 404);
+
+    return ok(res, { Id, IsActive: false });
+  } catch (ex) {
+    return serverError(res, ex, 'deleteReminder');
   }
 };

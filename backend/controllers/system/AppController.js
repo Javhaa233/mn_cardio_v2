@@ -1,6 +1,7 @@
 const schedule = require('node-schedule');
 
 const { Models, sequelize } = require('../../config/DB');
+const ReminderDispatcher = require('../../services/ReminderDispatcher');
 
 class AppController {
   ScheduleBackUp = () => {
@@ -44,6 +45,10 @@ class AppController {
     this.ScheduleBackUp();
     this.ScheduleUpdateAdvice();
     this.ScheduleUpdateNotification();
+    // Patient reminders - medication, exercise, follow-up. Unlike the three
+    // above this runs every minute, which is why it carries its own
+    // re-entrancy guard; see services/ReminderDispatcher.js.
+    ReminderDispatcher.Start();
   }
 }
 

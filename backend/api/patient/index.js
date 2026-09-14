@@ -76,9 +76,20 @@ router.post('/devices', gate, c.registerDevice);
 router.post('/devices/unregister', gate, c.unregisterDevice);
 router.get('/devices', gate, c.listDevices);
 
+// Сануулга - medication, exercise and follow-up reminders the patient sets
+// themselves. Fired by services/ReminderDispatcher.js, which converts to
+// Asia/Ulaanbaatar explicitly because the server runs UTC
+router.get('/reminders', gate, c.listReminders);
+router.post('/reminders', gate, c.createReminder);
+router.patch('/reminders/:id', gate, c.updateReminder);
+// Soft delete: stops firing, keeps the history answerable
+router.delete('/reminders/:id', gate, c.deleteReminder);
+
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
-// Inert until scripts/add_rehabilitation_tables.sql has been run against the
-// database - the tables do not exist yet, and DDL is a DBA request here.
+// Live on MnCardio_test: the tables exist and the catalogue holds 39 rows. They
+// are PLACEHOLDERS - the real exercise names are clinical content ЗСҮТ enter
+// through /BaseObject. Videos are served by /api/Media; see helper/MediaRef.js
+// for how the hosting decision stays a database value.
 router.get('/rehab/exercises', gate, c.listExercises);
 router.get('/rehab/progress', gate, c.listRehabProgress);
 router.post('/rehab/progress', gate, c.createRehabProgress);

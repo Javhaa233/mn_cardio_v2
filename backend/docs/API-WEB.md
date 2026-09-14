@@ -37,11 +37,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
 | protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 253 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 58 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 62 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **338** |
+| **Нийт** |  |  | **342** |
 
-api-layer задаргаа: `/api/patient` 26 · `/api/doctor` 23 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 30 · `/api/doctor` 23 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -488,12 +488,16 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:74` | Push registration. |
 | `POST` | `/api/patient/devices/unregister` | token (RoleId 4 only) | `api/patient/index.js:76` | POST, not DELETE /:token - an FCM token is ~163 chars and contains ':' |
 | `GET` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:77` | The caller's own devices. |
-| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:82` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
-| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:83` | What this patient has completed, so the catalogue can show progress. |
-| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:84` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
-| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:85` | Tracker #51: vital signs around a session. |
-| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:86` |  |
-| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:87` | Tracker #50: the latest risk / exercise-tolerance assessment. |
+| `GET` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:82` | Сануулга - medication, exercise and follow-up reminders the patient sets themselves. |
+| `POST` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:83` |  |
+| `PATCH` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:84` |  |
+| `DELETE` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:86` | Soft delete: stops firing, keeps the history answerable |
+| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:93` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
+| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:94` | What this patient has completed, so the catalogue can show progress. |
+| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:95` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
+| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:96` | Tracker #51: vital signs around a session. |
+| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:97` |  |
+| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:98` | Tracker #50: the latest risk / exercise-tolerance assessment. |
 | `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:42` |  |
 | `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:45` | 28 Миний үзлэгүүд |
 | `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:46` | One examination in full. |
@@ -591,4 +595,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 338._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 342._
