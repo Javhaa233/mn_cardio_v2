@@ -37,11 +37,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
 | protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 253 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 62 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 66 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **342** |
+| **Нийт** |  |  | **346** |
 
-api-layer задаргаа: `/api/patient` 30 · `/api/doctor` 23 · `/api/auth` 2 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 31 · `/api/doctor` 23 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -91,16 +91,16 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/User/Login` | public | `UserController.js:18` |  |
-| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:19` |  |
-| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:20` |  |
-| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:21` |  |
-| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:22` |  |
-| `POST` | `/api/User/ResetPassword` | public | `UserController.js:23` | Martsan password sergeeh |
-| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:24` | Password shinechleh |
-| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:25` |  |
-| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:26` |  |
-| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:27` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
+| `POST` | `/api/User/Login` | public | `UserController.js:19` |  |
+| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:20` | Logout that actually logs out. |
+| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:21` |  |
+| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:22` |  |
+| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:23` |  |
+| `POST` | `/api/User/ResetPassword` | public | `UserController.js:24` | Martsan password sergeeh |
+| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:25` | Password shinechleh |
+| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:26` |  |
+| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:27` |  |
+| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:28` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
 | `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:45` |  |
 | `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:46` |  |
 | `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:47` |  |
@@ -492,12 +492,13 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:83` |  |
 | `PATCH` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:84` |  |
 | `DELETE` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:86` | Soft delete: stops firing, keeps the history answerable |
-| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:93` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
-| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:94` | What this patient has completed, so the catalogue can show progress. |
-| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:95` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
-| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:96` | Tracker #51: vital signs around a session. |
-| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:97` |  |
-| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:98` | Tracker #50: the latest risk / exercise-tolerance assessment. |
+| `GET` | `/api/patient/access-log` | token (RoleId 4 only) | `api/patient/index.js:91` | Хандалтын түүх (tracker 24) - who looked at my record. |
+| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:98` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
+| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:99` | What this patient has completed, so the catalogue can show progress. |
+| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:100` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
+| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:101` | Tracker #51: vital signs around a session. |
+| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:102` |  |
+| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:103` | Tracker #50: the latest risk / exercise-tolerance assessment. |
 | `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:42` |  |
 | `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:45` | 28 Миний үзлэгүүд |
 | `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:46` | One examination in full. |
@@ -523,6 +524,9 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:86` | Record an assessment. |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
+| `POST` | `/api/auth/logout` | self-authenticating | `api/auth/index.js:21` | End this session. |
+| `GET` | `/api/auth/sessions` | self-authenticating | `api/auth/index.js:23` | Where am I signed in? |
+| `POST` | `/api/auth/logout-all` | self-authenticating | `api/auth/index.js:25` | The "I lost my phone" button - ends every session for this identity |
 
 ## 7. Шинэ давхарга — `/api/base`, `/api/report`
 
@@ -595,4 +599,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 342._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 346._

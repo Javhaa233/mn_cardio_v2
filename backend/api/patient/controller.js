@@ -5,6 +5,8 @@ const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const PushHelper = require('../../helper/PushHelper');
+const Flags = require('../../helper/FeatureFlags');
+const SchemaProbe = require('../../helper/SchemaProbe');
 
 /**
  * Handlers for /api/patient/*.
@@ -1229,5 +1231,91 @@ exports.deleteReminder = async (req, res) => {
     return ok(res, { Id, IsActive: false });
   } catch (ex) {
     return serverError(res, ex, 'deleteReminder');
+  }
+};
+
+/* ------------------------------------ Access log (tracker 24, read side) */
+
+/**
+ * Who looked at my record.
+ *
+ * BEHIND FEATURE_ACCESS_LOG_API, and the flag is not ceremony. UserActionHistory
+ * holds ~637,000 rows on the test database alone; without
+ * IX_UserActionHistory_PatientId this query scans all of them, on a phone
+ * launch, potentially for many patients at once. Refusing is better than taking
+ * the server down, so the endpoint checks for the index rather than trusting
+ * that somebody remembered to run the script.
+ *
+ * WHAT IT DELIBERATELY DOES NOT RETURN: the accessing account's UserName or id.
+ * A patient is entitled to know that a named clinician at a named hospital
+ * opened their record - that is the point of the tender requirement - not to be
+ * handed staff login names.
+ *
+ * The log starts from the day the write side deployed. Historical rows carry no
+ * PatientId and cannot be given one; the information was never captured, and
+ * inventing it would be worse than a short history.
+ */
+exports.listAccessLog = async (req, res) => {
+  try {
+    if (!Flags.AccessLogApi) {
+      return fail(
+        res,
+        'FEATURE_DISABLED',
+        'Хандалтын түүх одоогоор идэвхгүй байна',
+        503
+      );
+    }
+
+    await SchemaProbe.Warm();
+    if (!SchemaProbe.HasColumn('UserActionHistory', 'IpAddress')) {
+      return fail(res, 'FEATURE_DISABLED', 'Хандалтын түүх одоогоор идэвхгүй байна', 503);
+    }
+
+    const { limit, offset } = readPaging(req);
+    const where = Object.assign(
+      { PatientId: req.Patient.PatientId },
+      readDateRange(req, 'LogDate')
+    );
+
+    const { rows, count } = await Models.UserActionHistory.findAndCountAll({
+      where,
+      attributes: ['Id', 'LogDate', 'Action', 'LinkObjectName', 'DoctorId'],
+      include: [
+        {
+          model: Models.DoctorsProfile,
+          as: 'DoctorsProfile',
+          attributes: ['id_data', 'lastname', 'firstname'],
+          required: false,
+          include: [
+            {
+              model: Models.Organization,
+              as: 'Organization',
+              attributes: ['Id', 'Name'],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [['LogDate', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const data = rows.map((r) => {
+      const row = r.toJSON();
+      const D = row.DoctorsProfile || null;
+      return {
+        Id: row.Id,
+        LogDate: row.LogDate,
+        Action: row.Action,
+        ObjectName: row.LinkObjectName,
+        DoctorName: D ? [D.lastname, D.firstname].filter(Boolean).join(' ') : null,
+        OrganizationName: D && D.Organization ? D.Organization.Name : null,
+      };
+    });
+
+    return ok(res, data, { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listAccessLog');
   }
 };

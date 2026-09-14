@@ -13,6 +13,7 @@ const { PasswordRegex, IsBcryptHash } = require('../../helper/PasswordPolicy');
 const { CheckContact } = require('../../helper/ContactValidation');
 const Flags = require('../../helper/FeatureFlags');
 const LoginGuard = require('../../helper/LoginGuard');
+const SessionStore = require('../../helper/SessionStore');
 
 // routes
 router.post('/Login', Login);
@@ -139,10 +140,31 @@ async function UpdateMyContact(req, res) {
 
 //#endregion
 
+/**
+ * Logout that actually logs out.
+ *
+ * This returned success without doing anything: the token stayed valid for its
+ * full ten hours, so "log out" was cosmetic and a lost phone could not be cut
+ * off. It now revokes THIS session by the jti verifyToken put on the request -
+ * the caller sends nothing identifying it, so one session cannot be used to end
+ * another.
+ *
+ * The response shape is unchanged, deliberately. frontend/src/helper/AuthHelper.js
+ * already calls this with the bearer token and already clears localStorage on
+ * Success: true, so the web client starts genuinely invalidating sessions with
+ * no frontend change at all.
+ *
+ * Does nothing while TOKEN_REVOCATION_ENABLED is off, which is the default.
+ */
 async function LogOut(req, res) {
-  const result = { Data: {}, Success: true, Message: 'Logout Success' };
-  console.log('[UserController/LogOut] Response:', JSON.stringify(result));
-  return res.send(result);
+  try {
+    if (req.TokenJti) await SessionStore.Revoke(req.TokenJti, 'logout');
+  } catch (ex) {
+    // A failure here must not stop the client clearing its own state - the
+    // worst case is the old behaviour, which is what shipped for years.
+    console.error('[UserController/LogOut] revoke failed: ' + ex.message);
+  }
+  return res.send({ Data: {}, Success: true, Message: 'Logout Success' });
 }
 
 async function Save(req, res) {
@@ -427,17 +449,23 @@ async function Login(req, res) {
       });
 
       // Generate JWT token
-      Auth.login(userData, function (token) {
-        const result = {
-          Success: true,
-          Message: 'Successfully logged in',
-          Data: { token, LogedUser: userData },
-        };
-        // The response carries a bearer token and the full user record. Log
-        // that a login succeeded, not what was handed out.
-        console.log('[UserController/Login] SUCCESS for', userData.UserName);
-        return res.send(result);
-      });
+      // req is passed so the session row records the originating IP - useful
+      // when a user asks which devices are signed in.
+      Auth.login(
+        userData,
+        function (token) {
+          const result = {
+            Success: true,
+            Message: 'Successfully logged in',
+            Data: { token, LogedUser: userData },
+          };
+          // The response carries a bearer token and the full user record. Log
+          // that a login succeeded, not what was handed out.
+          console.log('[UserController/Login] SUCCESS for', userData.UserName);
+          return res.send(result);
+        },
+        req
+      );
     } else {
       // DEVELOPMENT/TESTING CODE - TREAT UserName AS Id (NO PASSWORD VALIDATION)
       // Require UserName (which will be treated as UserId)

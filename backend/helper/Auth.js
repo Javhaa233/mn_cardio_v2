@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { Models, Op } = require('../config/DB');
 const Flags = require('./FeatureFlags');
+const SessionStore = require('./SessionStore');
 
 // Simple in-memory cache for user data (reduces DB calls)
 const userCache = new Map();
@@ -13,7 +14,7 @@ const cacheKey = (roleId, userId) => String(roleId) + ':' + String(userId);
 
 class Authorization {
   // Store only essential user data in JWT to keep token small
-  login(user, callback) {
+  login(user, callback, req) {
     // Clear cache for this user on login (ensures fresh data)
     userCache.delete(cacheKey(user.RoleId, user.Id));
     // Extract only essential fields for the JWT token
@@ -24,11 +25,35 @@ class Authorization {
       OrganizationId: user.Doctor?.OrganizationId || user.OrganizationId || null,
     };
 
+    /*
+     * jti - a token id, so ONE session can be cancelled.
+     *
+     * Without it, revoking a session meant rotating JWT_PASS and logging
+     * everyone out, and LogOut was a stub: a stolen phone could not be cut off.
+     *
+     * Always minted, even when revocation is disabled. It costs nothing, and it
+     * means that when the feature IS turned on, tokens issued from that moment
+     * are already revocable - rather than having to wait ten hours for the
+     * jti-less ones to drain.
+     */
+    const jti = SessionStore.NewJti();
+
     jwt.sign(
-      { user: tokenPayload },
+      { user: tokenPayload, jti },
       process.env.JWT_PASS,
       { expiresIn: '36000s' },
-      (err, token) => callback && callback(token)
+      (err, token) => {
+        // Best-effort and not awaited: recording a session must never delay or
+        // fail a login. SessionStore swallows its own errors.
+        SessionStore.Record({
+          UserType: String(user.RoleId) === '4' ? 'patient' : 'staff',
+          UserId: user.Id,
+          Jti: jti,
+          ExpiresInSec: Authorization.ACCESS_TTL_SECONDS,
+          Req: req,
+        });
+        return callback && callback(token);
+      }
     );
   }
 
@@ -262,6 +287,23 @@ class Authorization {
             console.log({ 'auth error': errorObject });
             return res.send(errorObject);
           } else {
+            /*
+             * A signature-valid token can still have been cancelled - a logout,
+             * a lost phone, an administrator ending a session. IsRevoked is
+             * synchronous against an in-memory set and costs nothing per
+             * request; see helper/SessionStore.js for why it is not a query.
+             *
+             * Returns false for everything while TOKEN_REVOCATION_ENABLED is
+             * off, which is the default.
+             */
+            if (SessionStore.IsRevoked(authData.jti)) {
+              req.LogedUser = null;
+              console.log({ 'auth error': 'token revoked' });
+              return res.send(errorObject);
+            }
+            // Carried so LogOut can revoke exactly this session without the
+            // caller having to send anything identifying it.
+            req.TokenJti = authData.jti || null;
             await handleAuthData(authData);
           }
         });

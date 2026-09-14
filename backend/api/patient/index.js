@@ -85,6 +85,11 @@ router.patch('/reminders/:id', gate, c.updateReminder);
 // Soft delete: stops firing, keeps the history answerable
 router.delete('/reminders/:id', gate, c.deleteReminder);
 
+// Хандалтын түүх (tracker 24) - who looked at my record. Behind
+// FEATURE_ACCESS_LOG_API: UserActionHistory holds ~637k rows and this query
+// needs IX_UserActionHistory_PatientId to be affordable
+router.get('/access-log', gate, c.listAccessLog);
+
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
 // Live on MnCardio_test: the tables exist and the catalogue holds 39 rows. They
 // are PLACEHOLDERS - the real exercise names are clinical content ЗСҮТ enter
