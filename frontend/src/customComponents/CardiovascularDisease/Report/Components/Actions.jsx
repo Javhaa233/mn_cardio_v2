@@ -26,7 +26,7 @@ class Actions extends Component {
           }}
         />
         <BaseLoadButton
-          ButtonText={t("Refresh")}
+          ButtonText={t("Сэргээх")}
           Color="primary"
           Icon={RefreshIcon}
           onClick={async (callback) => {

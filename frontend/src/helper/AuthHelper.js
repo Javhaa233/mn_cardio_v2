@@ -42,6 +42,93 @@ class AuthHelper {
     return null;
   };
 
+  // --- Own contact details (the post-login prompt) --------------------------
+  //
+  // `Users.Email` is what password reset mails, and a staff account's only
+  // phone is `DoctorsProfile.telephone`. Patients (role 4) never get the prompt:
+  // their details come from ХУР/ДАН.
+
+  ShouldCheckContact = () => {
+    const LogedUser = this.GetLogedUserLocal();
+    if (!LogedUser || !LogedUser.Id || LogedUser.RoleId + "" === "4")
+      return false;
+    if (this.IsContactPromptSnoozed(LogedUser)) return false;
+    const Doctor = LogedUser.Doctor || {};
+    return (
+      !String(LogedUser.Email || "").trim() ||
+      !String(Doctor.telephone || "").trim()
+    );
+  };
+
+  // "Later" holds until the next login - Login clears it.
+  IsContactPromptSnoozed = (LogedUser) => {
+    try {
+      return (
+        !!LogedUser &&
+        localStorage.getItem("ContactPromptSnoozed") === String(LogedUser.Id)
+      );
+    } catch (ex) {
+      return false;
+    }
+  };
+
+  SnoozeContactPrompt = () => {
+    const LogedUser = this.GetLogedUserLocal();
+    if (LogedUser)
+      localStorage.setItem("ContactPromptSnoozed", String(LogedUser.Id));
+  };
+
+  // Keeps the stored user in step with the server, so a session saved before
+  // `telephone` was sent at login does not look like a missing phone forever.
+  StoreContact = (Email, Phone) => {
+    const LogedUser = this.GetLogedUserLocal();
+    if (!LogedUser) return;
+    LogedUser.Email = Email || "";
+    LogedUser.Doctor = { ...(LogedUser.Doctor || {}), telephone: Phone || "" };
+    if (Email) LogedUser.Doctor.email = Email;
+    localStorage.LogedUser = JSON.stringify(LogedUser);
+  };
+
+  // After the user edits their own profile: the navbar reads Doctor.firstname.
+  StoreDoctorFields = (Fields) => {
+    const LogedUser = this.GetLogedUserLocal();
+    if (!LogedUser) return;
+    LogedUser.Doctor = { ...(LogedUser.Doctor || {}), ...Fields };
+    if (Fields.firstname !== undefined) LogedUser.FirstName = Fields.firstname;
+    if (Fields.lastname !== undefined) LogedUser.LastName = Fields.lastname;
+    localStorage.LogedUser = JSON.stringify(LogedUser);
+  };
+
+  // callback(Data | null), Data = { Email, Phone, Missing: { Email, Phone } }
+  RefreshContact = async (callback) => {
+    await Helper.BaseCrudHelper.CallService(
+      "/User/GetMyContact",
+      {},
+      (resData) => {
+        if (resData && resData.Success && resData.Data) {
+          const Data = resData.Data;
+          this.StoreContact(Data.Missing.Email ? "" : Data.Email, Data.Phone);
+          callback && callback(Data);
+        } else {
+          callback && callback(null);
+        }
+      },
+    );
+  };
+
+  UpdateMyContact = async ({ Email, Phone }, callback) => {
+    await Helper.BaseCrudHelper.CallService(
+      "/User/UpdateMyContact",
+      { Email, Phone },
+      (resData) => {
+        if (resData && resData.Success && resData.Data) {
+          this.StoreContact(resData.Data.Email, resData.Data.Phone);
+        }
+        callback && callback(resData);
+      },
+    );
+  };
+
   GetLogedUserServer = (callback) => {
     const strData = localStorage.getItem("LogedUser");
     callback && callback(JSON.parse(strData));
@@ -85,6 +172,8 @@ class AuthHelper {
                 JSON.stringify(resData.Data.LogedUser),
               );
               localStorage.setItem("MnCardioToken", resData.Data.token);
+              // A fresh login brings the contact prompt back if still needed.
+              localStorage.removeItem("ContactPromptSnoozed");
               callback &&
                 callback(
                   true,

@@ -139,7 +139,8 @@ const CustomColumnHeaders = React.forwardRef(function CustomColumnHeaders(
             minHeight: titleRowHeight,
             maxHeight: titleRowHeight,
             borderBottom: `1px solid ${colors.brand.hairline}`,
-            backgroundColor: colors.brand.tint,
+            // Opaque: rows scroll underneath this sticky header.
+            backgroundColor: colors.brand.tintSolid,
           }}
         >
           {columns.map((col) => {
@@ -162,8 +163,10 @@ const CustomColumnHeaders = React.forwardRef(function CustomColumnHeaders(
                   userSelect: "none",
                   transition: `background-color ${motion.fast}`,
                   ...(sortable && {
+                    // !important: BaseGrid's skin sets the header background
+                    // with !important, which silently cancelled this hover.
                     "&:hover": {
-                      backgroundColor: colors.brand.hairline,
+                      backgroundColor: `${colors.brand.tintSolidHover} !important`,
                     },
                   }),
                   // Ensure the height matches exactly

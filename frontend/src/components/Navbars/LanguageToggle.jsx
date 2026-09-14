@@ -23,7 +23,10 @@ export default function LanguageToggle() {
   // and no setState-in-effect.
   const [Language, setLanguage] = useState(() => {
     const User = Helper.AuthHelper.GetLogedUserLocal();
-    return User && User.Language ? User.Language : "en";
+    // Default Mongolian, not English - an account with no Language set is a
+    // Mongolian clinician, and this effect calls changeLanguage() on mount, so
+    // an "en" default actively forced the whole shell into English.
+    return User && User.Language ? User.Language : "mn";
   });
 
   useEffect(() => {

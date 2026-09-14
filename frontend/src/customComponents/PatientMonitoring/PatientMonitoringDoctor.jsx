@@ -252,6 +252,8 @@ class PatientMonitoringDoctor extends React.Component {
           <MonitorQuestion
             PatientId={RowData.patient_id}
             Patient={RowData.Patient}
+            // The dialog is modal; close it so the chat dock is not under its backdrop.
+            onChatOpened={() => this.setState({ CommentDialog: null })}
           />
         </BaseDialog>
       ),

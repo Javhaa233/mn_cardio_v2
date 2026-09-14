@@ -18,7 +18,7 @@ import { colors } from "@/theme/colors";
 import { radius, space, elevation } from "@/theme/tokens";
 
 /**
- * "Шинэ тасалбар" - the composer at the head of the feed.
+ * "Шинэ асуумж" - the composer at the head of the feed.
  *
  * Every field is driven by the server's Advice config (labels, control types
  * and the patient lookup's own configuration all come from
@@ -114,7 +114,7 @@ export default function PostComposer({ onPublished }) {
           setOpen(false);
           setNotice({
             severity: "success",
-            text: t("Тасалбар нийтлэгдлээ."),
+            text: t("Асуумж нийтлэгдлээ."),
           });
           onPublished && onPublished(DataId);
         });
@@ -225,7 +225,7 @@ export default function PostComposer({ onPublished }) {
             },
           }}
         >
-          {t("Шинэ тасалбар бичих…")}
+          {t("Шинэ асуумж бичих…")}
         </Box>
       </Box>
 
@@ -290,7 +290,7 @@ export default function PostComposer({ onPublished }) {
                 <InfoOutlinedIcon sx={{ fontSize: 16 }} />
                 <Typography variant="caption">
                   {t(
-                    "Нийтэлсэн тасалбар бусад эмч нарт шууд харагдана. Ноорог зөвхөн танд харагдана.",
+                    "Нийтэлсэн асуумж бусад эмч нарт шууд харагдана. Ноорог зөвхөн танд харагдана.",
                   )}
                 </Typography>
               </Box>

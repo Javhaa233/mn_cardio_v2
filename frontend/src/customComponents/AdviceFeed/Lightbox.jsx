@@ -32,6 +32,7 @@ export default function Lightbox({
   const [index, setIndex] = useState(StartIndex);
   const [fullSrc, setFullSrc] = useState(null);
   const [loadingFull, setLoadingFull] = useState(false);
+  const [failure, setFailure] = useState("");
 
   const count = Files.length;
   const file = Files[index];
@@ -39,6 +40,7 @@ export default function Lightbox({
   const go = useCallback(
     (delta) => {
       setFullSrc(null);
+      setFailure("");
       setIndex((i) => (i + delta + count) % count);
     },
     [count],
@@ -69,12 +71,16 @@ export default function Lightbox({
 
     Helper.BaseCrudHelper.BaseDownloadFileBlob(
       file,
-      (blob) => {
+      (blob, message) => {
         clearTimeout(flag);
         if (cancelled || !blob) {
+          // Say why. Without this the reader stares at a permanently blurred
+          // thumbnail with no idea the original is missing from the server.
+          if (!cancelled) setFailure(message || "");
           setLoadingFull(false);
           return;
         }
+        setFailure("");
         revoked = URL.createObjectURL(blob);
         setFullSrc(revoked);
         setLoadingFull(false);
@@ -191,6 +197,7 @@ export default function Lightbox({
       >
         {fileName(file)}
         {count > 1 ? `  ·  ${index + 1} / ${count}` : ""}
+        {failure ? `  ·  ${failure}` : ""}
       </Typography>
     </Box>
   );

@@ -36,6 +36,8 @@ function UsersConfig() {
         Type: 'Text',
         md: 6,
         Position: 1,
+        // Enforced on create in BaseController via helper/ContactValidation.
+        Required: true,
         EditField: true,
       },
 

@@ -54,6 +54,17 @@ const FILE_DENY = [
 // so dropping it would go unnoticed until someone deployed from the export.
 const FILE_ALLOW = [/^Config-Template\.env$/i];
 
+// Directories at the repo root are allowlisted for the same reason the loose
+// files below are. This was a real gap: root FILES were allowlisted but root
+// DIRECTORIES were walked unconditionally, so a `docs/` folder of app
+// screenshots - full names, national registration numbers, home addresses and
+// ICD diagnoses for real patients, since the test database is a restore of
+// production - was copied straight into an export bound for a repo shared with
+// an outside developer. verify-no-secrets.js did not catch it: it looks for
+// credentials, not for patient data. Add a directory here only after checking
+// what is inside it.
+const ROOT_DIR_ALLOW = new Set(['backend', 'frontend', 'mobile', 'deploy', 'tests']);
+
 // Loose files at the repo root are allowlisted, so nothing new rides along.
 const ROOT_FILE_ALLOW = new Set([
   'CLAUDE.md',
@@ -79,6 +90,10 @@ function walk(absDir, rel) {
     const childRel = rel ? rel + '/' + name : name;
 
     if (!rel && entry.isFile() && !ROOT_FILE_ALLOW.has(name)) {
+      skipped.push(childRel);
+      continue;
+    }
+    if (!rel && entry.isDirectory() && !ROOT_DIR_ALLOW.has(name)) {
       skipped.push(childRel);
       continue;
     }

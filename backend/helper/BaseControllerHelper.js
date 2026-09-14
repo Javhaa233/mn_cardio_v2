@@ -239,7 +239,26 @@ class BaseControllerHelper {
           (Data.UserData && Data.UserData.UserName);
         if (newUserName && newUserName !== user.UserName) updateData.UserName = newUserName;
 
-        if (Data.email && Data.email !== user.Email) updateData.Email = Data.email;
+        if (Data.email && Data.email !== user.Email) {
+          // Same case-insensitive rule as Users.updateNew. This path writes
+          // Users.Email directly, so without it two accounts could end up
+          // sharing one reset address.
+          const Email = String(Data.email).trim();
+          const EmailTaken = await Models.Users.count({
+            where: {
+              [Op.and]: [
+                sequelize.where(sequelize.fn('LOWER', sequelize.col('Email')), Email.toLowerCase()),
+                { Id: { [Op.ne]: user.Id } },
+              ],
+            },
+          });
+          if (EmailTaken > 0) {
+            const error = new Error('The email address is a duplicate');
+            error.Message = 'The email address is a duplicate';
+            throw error;
+          }
+          updateData.Email = Email;
+        }
         if (Data.lastname && Data.lastname !== user.LastName) updateData.LastName = Data.lastname;
         if (Data.firstname && Data.firstname !== user.FirstName)
           updateData.FirstName = Data.firstname;
@@ -373,7 +392,9 @@ class BaseControllerHelper {
     // JWT-only path (Auth.js, when the DB lookup fails) carries it flat. Read
     // both, or scoping silently falls open on the degraded path.
     const OrganizationId =
-      (LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : null) || LogedUser.OrganizationId || null;
+      (LogedUser.Doctor ? LogedUser.Doctor.OrganizationId : null) ||
+      LogedUser.OrganizationId ||
+      null;
     if (!OrganizationId) return;
 
     // Get child organization IDs
@@ -854,6 +875,14 @@ class BaseControllerHelper {
     }
   };
 
+  // PatientId is optional and additive. The UserActionHistory table and model
+  // have always declared it - and the model even associates it to Patient - but
+  // this helper never wrote it, so every row landed with a NULL subject. That
+  // made the table useless as the access log the tender requires (tracker row
+  // 24): you could see that someone did something, not whose record it was to.
+  //
+  // The six existing call sites pass no PatientId and keep writing NULL, which
+  // is exactly their previous behaviour.
   CreateUserActionHistory = async function ({
     LinkObjectName,
     LinkObjectId,
@@ -861,6 +890,7 @@ class BaseControllerHelper {
     LogedUser,
     Notes,
     NotesMn,
+    PatientId,
   }) {
     if (LogedUser && Action && LinkObjectName) {
       const ModelConfig = await this.GetConfigData('UserActionHistory');
@@ -876,6 +906,7 @@ class BaseControllerHelper {
         Notes: Notes,
         NotesMn: NotesMn,
         DoctorId: DoctorId,
+        PatientId: PatientId === undefined ? null : PatientId,
       };
       await ModHelper.SaveRoot(ModelConfig, Data, true);
     }
@@ -901,6 +932,31 @@ class BaseControllerHelper {
     }
 
     return resolvedPath;
+  };
+
+  /**
+   * Whether the bytes behind a File row are on THIS host.
+   *
+   * A File row and its bytes can part company: the test environment restored the
+   * production database but never received ALLFILE_DIR, so ~14.8k rows describe
+   * files that are only on the production box. The client used to learn this
+   * one dead click at a time, as a 404 on downloadFile. Reporting it with the
+   * row lets the UI mark the attachment instead of offering it.
+   *
+   * One existsSync per file, next to the stat these functions already do for
+   * images.
+   */
+  FileOnDisk = function (FileRow) {
+    try {
+      const Validated = this.ValidateFilePath(FileRow && FileRow.generated_name);
+      if (!fs.existsSync(Validated)) return false;
+      // Older uploads are a DIRECTORY holding a single file called `file`.
+      return fs.statSync(Validated).isDirectory()
+        ? fs.existsSync(path.join(Validated, 'file'))
+        : true;
+    } catch (ex) {
+      return false;
+    }
   };
 
   GetFileSrc = async function (Files) {
@@ -935,7 +991,11 @@ class BaseControllerHelper {
       } else {
         File.Type = '';
       }
-      File.FileInfo = { ...Files[i], Name: Files[i].original_name };
+      File.FileInfo = {
+        ...Files[i],
+        Name: Files[i].original_name,
+        Available: this.FileOnDisk(Files[i]),
+      };
       ResultFiles.push(File);
     }
     return ResultFiles;
@@ -974,7 +1034,7 @@ class BaseControllerHelper {
           Result.push({
             FileSrc: fs.readFileSync(CachePath, 'utf8'),
             Type: 'image/' + Src.ext,
-            FileInfo: { ...Src, Name: Src.original_name },
+            FileInfo: { ...Src, Name: Src.original_name, Available: this.FileOnDisk(Src) },
           });
           continue;
         }
@@ -1034,7 +1094,11 @@ class BaseControllerHelper {
       } else {
         File.Type = '';
       }
-      File.FileInfo = { ...Files[i], Name: Files[i].original_name };
+      File.FileInfo = {
+        ...Files[i],
+        Name: Files[i].original_name,
+        Available: this.FileOnDisk(Files[i]),
+      };
       ResultFiles.push(File);
     }
     return ResultFiles;
@@ -1091,7 +1155,7 @@ class BaseControllerHelper {
    *
    * Returns null when the caller is not allowed to export this object at all.
    */
-  BuildExport = async function ({ ObjectName, LogedUser, Option }) {
+  BuildExport = async function ({ ObjectName, LogedUser, Option, ExportFields }) {
     // Otherwise export becomes a bulk extraction route around the read guards.
     const Guard = PatientScope.ApplyPatientFilter({ ObjectName, LogedUser, Option });
     if (!Guard.Allowed) return null;
@@ -1140,9 +1204,22 @@ class BaseControllerHelper {
     }
     Data = JSON.parse(JSON.stringify(Data));
 
-    const columns = ListFields.filter(
-      (s) => s.Name && (!s.GridField || s.GridField === true) && s.GridField !== false
-    );
+    // A caller can ask for an exact column set in an exact order - the doctor
+    // register is delivered to the customer with a fixed 11-column layout that
+    // has nothing to do with which fields the list grid happens to show.
+    // Requested names are resolved against the model config, so this selects
+    // among declared fields and cannot reach a column or association the
+    // config does not already expose. No ExportFields means the old
+    // GridField behaviour, which every other screen still relies on.
+    const Requested = Array.isArray(ExportFields)
+      ? ExportFields.filter((s) => typeof s === 'string' && s.length > 0)
+      : [];
+    const columns =
+      Requested.length > 0
+        ? Requested.map((Name) => ListFields.find((s) => s.Name === Name)).filter(Boolean)
+        : ListFields.filter(
+            (s) => s.Name && (!s.GridField || s.GridField === true) && s.GridField !== false
+          );
 
     const rows =
       Array.isArray(Data) && columns.length > 0
@@ -1204,9 +1281,9 @@ class BaseControllerHelper {
     );
   };
 
-  ExportExcel = async function ({ ObjectName, LogedUser, Option }) {
+  ExportExcel = async function ({ ObjectName, LogedUser, Option, ExportFields }) {
     try {
-      const Export = await this.BuildExport({ ObjectName, LogedUser, Option });
+      const Export = await this.BuildExport({ ObjectName, LogedUser, Option, ExportFields });
       if (!Export) return { filePath: null };
 
       const { headers, rows, provenance } = Export;
@@ -1256,17 +1333,16 @@ class BaseControllerHelper {
    * containing commas, and UTF-8 with a BOM because that is what makes Excel on
    * Windows open Cyrillic correctly instead of as mojibake.
    */
-  ExportText = async function ({ ObjectName, LogedUser, Option }) {
+  ExportText = async function ({ ObjectName, LogedUser, Option, ExportFields }) {
     try {
-      const Export = await this.BuildExport({ ObjectName, LogedUser, Option });
+      const Export = await this.BuildExport({ ObjectName, LogedUser, Option, ExportFields });
       if (!Export) return { filePath: null };
 
       const { headers, rows, provenance } = Export;
       const filePath = this.ExportFilePath(Export.safeName, 'txt');
 
       // A tab or newline inside a value would break the column alignment.
-      const cell = (v) =>
-        (v === undefined || v === null ? '' : v + '').replace(/[\t\r\n]+/g, ' ');
+      const cell = (v) => (v === undefined || v === null ? '' : v + '').replace(/[\t\r\n]+/g, ' ');
 
       const lines = []
         .concat(provenance.map((p) => '# ' + p))
@@ -1280,7 +1356,6 @@ class BaseControllerHelper {
       return { filePath: null, Message: ex && ex.ExportTooLarge ? ex.Message : null };
     }
   };
-
 
   fitToColumn = function (workSheetData) {
     // get maximum character of each column

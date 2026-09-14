@@ -48,8 +48,8 @@ function UserRequestsConfig() {
         Type: 'Text',
         GridField: false,
       },
-      { Name: 'Email', Label: 'Email', Type: 'Text' },
-      { Name: 'Telephone', Label: 'Telephone', Type: 'Text' },
+      { Name: 'Email', Label: 'Email', Type: 'Text', Required: true },
+      { Name: 'Telephone', Label: 'Telephone', Type: 'Text', Required: true },
       {
         Name: 'OrgName',
         Label: 'Organization name',

@@ -16,6 +16,24 @@ Users.init(
 
     UserName: { type: Sequelize.STRING },
     Email: { type: Sequelize.STRING },
+
+    /*
+     * Login lockout (tracker 20), added by
+     * scripts/add_login_attempt_tracking.sql.
+     *
+     * helper/LoginGuard.js counts in memory when these are absent and persists
+     * when they are present - but only if Sequelize knows about them. An
+     * undeclared column on a WRITE is discarded silently, so persistence would
+     * have appeared to work while storing nothing.
+     *
+     * LockedUntil is a timestamp, never a boolean: a permanent lock on a
+     * username an attacker can guess is a denial-of-service against the real
+     * doctor, on a system used for clinical work.
+     */
+    FailedLoginCount: { type: Sequelize.INTEGER },
+    LastFailedLogin: { type: Sequelize.DATE },
+    LockedUntil: { type: Sequelize.DATE },
+    LockNotifiedDate: { type: Sequelize.DATE },
     LastName: { type: Sequelize.STRING },
     FirstName: { type: Sequelize.STRING },
     Password: { type: Sequelize.STRING },

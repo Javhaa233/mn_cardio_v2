@@ -92,5 +92,36 @@ export default function useTabActions(homePath) {
     );
   }, [items, dispatch, navigate, homePath, t]);
 
-  return { requestClose, requestCloseAll, confirm };
+  // Close several at once - "close others", "close to the right". One confirm
+  // for the set if any of them has unsaved changes. If the page being viewed is
+  // among them, land on `keepKey` (the tab the action was invoked on).
+  const requestCloseMany = useCallback(
+    (toClose, keepKey) => {
+      if (!toClose || toClose.length === 0) return;
+      const finish = () => {
+        const closingActive = toClose.some((tab) => tab.key === activeKey);
+        toClose.forEach((tab) => dispatch(closeTab(tab.key)));
+        if (!closingActive) return;
+        const keep = items.find((s) => s.key === keepKey);
+        navigate(keep ? keep.url : homePath);
+      };
+      if (!toClose.some((s) => s.dirty)) {
+        finish();
+        return;
+      }
+      setConfirm(
+        Helper.BaseCrudHelper.ShowConfirm(
+          t("Хадгалагдаагүй өөрчлөлттэй цонх байна. Хаах уу?"),
+          () => {
+            setConfirm(null);
+            finish();
+          },
+          () => setConfirm(null),
+        ),
+      );
+    },
+    [items, activeKey, dispatch, navigate, homePath, t],
+  );
+
+  return { requestClose, requestCloseAll, requestCloseMany, confirm };
 }

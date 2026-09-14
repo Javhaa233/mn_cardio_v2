@@ -38,6 +38,18 @@ export function partitionFiles(files) {
   };
 }
 
+/**
+ * Whether the server told us this attachment's bytes are not on the host.
+ *
+ * `Available` is set by BaseControllerHelper when it shapes the File row. A
+ * server that does not send it leaves the flag undefined, which reads as
+ * available - so an older backend behaves exactly as before.
+ */
+export function isMissing(file) {
+  const info = (file && file.FileInfo) || {};
+  return info.Available === false;
+}
+
 /** Best available display name for an attachment. */
 export function fileName(file) {
   const info = (file && file.FileInfo) || {};

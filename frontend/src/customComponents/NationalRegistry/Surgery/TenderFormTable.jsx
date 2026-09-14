@@ -11,6 +11,7 @@ import GridToolbar, { ToolbarField } from "customComponents/GridToolbar";
 import BaseDialog from "customComponents/BaseDialog";
 import DivLoading from "customComponents/DivLoading";
 import BaseNoData from "customComponents/BaseNoData";
+import { colors } from "@/theme/colors";
 import CustomTextField from "customComponents/Forms/Components/CustomTextField";
 import ShowPatient from "customComponents/FieldActions/ShowPatient";
 
@@ -167,7 +168,9 @@ class TenderFormTable extends BaseList {
           Close={TryClose}
           Title={FormTitle}
           MaxWidth="md"
-          ShowSave={true}
+          // A confirmed record is locked (tender 3.1 L8599-8605): no footer
+          // Save. The form's own bar offers "new record from previous".
+          ShowSave={!(row && row.Status === 1)}
           Save={(stopLoading) => {
             if (FormRef.current && FormRef.current.Save) {
               FormRef.current.Save((ok) => {
@@ -329,7 +332,13 @@ class TenderFormTable extends BaseList {
                   handler is supplied - without one the boxes accept typing and
                   silently do nothing, which is what every list did before. */}
               {!isLoading && (!Data || Data.length === 0) ? (
-                <BaseNoData Text="Бүртгэл олдсонгүй" />
+                // An empty result is information, not an error: neutral
+                // brand colours rather than BaseNoData's salmon default.
+                <BaseNoData
+                  Text="Бүртгэл олдсонгүй"
+                  BgColor={colors.brand.cyan}
+                  IconColor={colors.brand.cyanInk}
+                />
               ) : (
                 <BaseGrid
                   PK={"Id"}

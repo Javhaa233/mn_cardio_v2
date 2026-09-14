@@ -146,6 +146,15 @@ const HfAmbulanceTreatmentConfig = require('./HeartFailure/HfAmbulanceTreatmentC
 const HfHospitalizationConfig = require('./HeartFailure/HfHospitalizationConfig');
 
 const RemoteVisitConfig = require('./RemoteVisitConfig');
+
+// Rehabilitation (mobile tender 2.7). Registered so /BaseObject gives the
+// customer list, edit and Excel export over the exercise catalogue - which is
+// how the real 39 exercises get entered, since their names are clinical
+// content we must not invent.
+const RehabExerciseConfig = require('./RehabExerciseConfig');
+const RehabAssessmentConfig = require('./RehabAssessmentConfig');
+const RehabVitalSignConfig = require('./RehabVitalSignConfig');
+const RehabProgressConfig = require('./RehabProgressConfig');
 const PatientTransferConfig = require('./Patient/PatientTransferConfig');
 const LaboratoryTestConfig = require('./LaboratoryTestConfig');
 
@@ -332,6 +341,12 @@ function MainConfig() {
     new HfTreatmentDischargeConfig(),
 
     new RemoteVisitConfig(),
+
+    // Rehabilitation
+    new RehabExerciseConfig(),
+    new RehabAssessmentConfig(),
+    new RehabVitalSignConfig(),
+    new RehabProgressConfig(),
     new PatientTransferConfig(),
 
     new CVDHistoryConfig(),

@@ -20,6 +20,7 @@ import SingleSelect from "customComponents/Register/SingleSelect";
 import UserNameText from "customComponents/Register/UserNameText";
 // helper
 import Helper from "helper";
+import { CheckContact } from "helper/ContactValidation";
 // history
 import customHistory from "customHistory";
 // styles
@@ -74,6 +75,17 @@ class RegisterPage extends Component {
   };
 
   Register = async () => {
+    // Required on every new request: an account without them can neither
+    // reset its password nor be contacted. The server checks the same.
+    const ContactError = CheckContact(this.ModifyObject, {
+      EmailKey: "Email",
+      PhoneKey: "Telephone",
+      Required: true,
+    });
+    if (ContactError) {
+      this.ShowAlert(ContactError, false);
+      return;
+    }
     this.setState({ Loading: true });
     await Helper.BaseCrudHelper.CallService(
       "/UserRequest/Register",
@@ -175,8 +187,8 @@ class RegisterPage extends Component {
       { Name: "UserName", Label: t("User name") },
       { Name: "LastName", Label: t("Last name") },
       { Name: "FirstName", Label: t("First name") },
-      { Name: "Email", Label: t("Email") },
-      { Name: "Telephone", Label: t("Telephone") },
+      { Name: "Email", Label: t("Email"), Required: true },
+      { Name: "Telephone", Label: t("Telephone"), Required: true },
       { Name: "OrgName", Label: t("Organization name"), Type: "Text" },
       { Name: "addr_prov_city", Label: t("Province/city") },
       { Name: "addr_soum_dist", Label: t("Soum/district") },

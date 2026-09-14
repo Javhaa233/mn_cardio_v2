@@ -80,7 +80,9 @@ export const layout = {
   // (`calc(100% - Npx)`).
   drawerWidth: 260,
   drawerMiniWidth: 80,
-  topBarHeight: 60,
+  // 48, was 60: one row of 32px controls needs no more, and the extra 12px was
+  // empty chrome above every page. The sidebar header matches it.
+  topBarHeight: 48,
 
   // The width the temporary (mobile/tablet-portrait) drawer opens to. Capped
   // against the viewport so a 360px phone does not get a 260px drawer with a

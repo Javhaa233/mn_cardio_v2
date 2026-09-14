@@ -10,6 +10,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const ChatHelper = require('../../helper/ChatHelper');
 const ChatIdentity = require('../../helper/ChatIdentity');
+const CareTeam = require('../../helper/CareTeam');
 const ChatSocket = require('../../WebSockets/ChatSocket');
 
 /**
@@ -835,26 +836,23 @@ async function CanReach(Me, Target) {
  * The Users.Id of every doctor with an existing clinical relationship to this
  * patient.
  *
- * DoctorsTeamPatient(patient_id) -> team_id -> LookupDoctorTeam(doctor_id)
- * -> DoctorsProfile.id_data -> DoctorsProfile.UserId (the DB column `id`).
+ * Two relationships count:
+ *
+ *   - the care team: DoctorsTeamPatient(patient_id) -> team_id ->
+ *     LookupDoctorTeam(doctor_id) -> DoctorsProfile.id_data ->
+ *     DoctorsProfile.UserId (the DB column `id`);
+ *   - a doctor who actively monitors the patient (PatientMonitoringDoctor,
+ *     is_active '1') - the doctor app's "Миний хяналт". Care teams alone left
+ *     a monitored patient unable to reach the doctor watching their journal.
  *
  * rec_status 2 is soft-deleted throughout the legacy generation.
  */
 async function GetCareTeamUserIds(PatientId) {
-  const Rows = await sequelize.query(
-    `SELECT DISTINCT dp.id AS UserId
-       FROM [DoctorsTeamPatient] dtp
-       JOIN [LookupDoctorTeam] ldt
-         ON ldt.team_id = dtp.team_id AND ISNULL(ldt.rec_status, 0) <> 2
-       JOIN [DoctorsProfile] dp
-         ON dp.id_data = ldt.doctor_id AND ISNULL(dp.rec_status, 0) <> 2
-      WHERE dtp.patient_id = :PatientId
-        AND ISNULL(dtp.rec_status, 0) <> 2
-        AND dp.id IS NOT NULL`,
-    { type: Sequelize.QueryTypes.SELECT, replacements: { PatientId } }
-  );
-
-  return Rows.map((R) => R.UserId);
+  // Delegated to helper/CareTeam.js. The query is unchanged; it moved because
+  // the rehabilitation write path, the e-visit triage queue and the access
+  // audit all need the same answer, and a security boundary kept in two files
+  // is one that will eventually disagree with itself.
+  return CareTeam.GetCareTeamUserIds(PatientId);
 }
 
 /**

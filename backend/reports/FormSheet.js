@@ -29,13 +29,8 @@ function Esc(Value) {
 
 /* ---------- values ------------------------------------------------------- */
 
-/** Conditional reveal, matching the editor's rule exactly (TenderForm.jsx). */
-function IsVisible(Field, Values) {
-  if (!Field.ParentField) return true;
-  const Parent = Values ? Values[Field.ParentField] : undefined;
-  if (Parent === undefined || Parent === null || Parent === '') return false;
-  return Parent + '' === Field.ParentValue + '';
-}
+/** Conditional reveal - the shared rule, matching the editor (TenderForm.jsx) exactly. */
+const { IsVisible } = require('../helper/TenderFormVisibility');
 
 function OptionLabel(Field, Raw) {
   if (Field.Data && Field.Data.length) {
@@ -122,9 +117,16 @@ function FindChecklistFamily(Fields, Forced) {
   const Minimum = Forced === 'checklist' ? 1 : 3;
   if (Candidates.length < Minimum) return null;
 
+  // An option is its CODE and its LABEL together. Codes alone are not enough:
+  // the generated tender forms number every option set o1, o2, o3..., so on 3.1
+  // a Y/N/? question counted as a subset of "Non-smoker / current smoker /
+  // former smoker / ?" and printed under those headings. Two option sets belong
+  // together only when their shared codes also mean the same thing.
   const Families = [];
   Candidates.forEach((Field) => {
-    const Values = (Field.Data || []).map((o) => o.Value + '');
+    const Values = (Field.Data || []).map(
+      (o) => o.Value + ' | ' + String(o.Label == null ? '' : o.Label).trim().toLowerCase()
+    );
     const Family = Families.find(
       (fam) => IsSubset(Values, fam.Values) || IsSubset(fam.Values, Values)
     );
@@ -426,9 +428,15 @@ function FormSheet({ Title, Sections, Values, Labels, Meta, Options }) {
   const Vals = Blank ? {} : Values || {};
   const Lbls = Blank ? {} : Labels || {};
 
+  // every field by code, so visibility can follow a chain of parents
+  const ByName = new Map();
+  (Sections || []).forEach((s) => (s.Fields || []).forEach((f) => ByName.set(f.Name, f)));
+
   const Body = (Sections || [])
     .map((Section) => {
-      const Fields = (Section.Fields || []).filter((f) => Blank || IsVisible(f, Vals));
+      const Fields = (Section.Fields || []).filter(
+        (f) => Blank || IsVisible(f, Vals, ByName)
+      );
       if (!Fields.length) return '';
 
       const Blocks = PickBlocks(Fields)

@@ -237,11 +237,12 @@ List `data` → array of `id_data, date, time, blood_pressure, blood_pressure2, 
 weight, inr, comment`, newest first.
 
 Create body: `date` **required** (else 400 `DATE_REQUIRED`); optional `time`,
-`blood_pressure`, `pulse`, `weight`, `inr`, `comment`. Returns `{id_data}`.
+`blood_pressure`, `blood_pressure2`, `pulse`, `weight`, `inr`, `comment`. Returns `{id_data}`.
 
-> **Asymmetry to know about:** reads return `blood_pressure2` (diastolic) but **create does
-> not accept it** (`controller.js:115-140`). A patient cannot currently record diastolic
-> pressure through the API, though the chart plots it. Flagged in READINESS.
+> **Changed 2026-09-14:** create now accepts `blood_pressure2` (diastolic). Until then reads
+> and the summary chart returned it but create silently dropped it, so a patient could not
+> record diastolic pressure at all. Send both halves of a blood-pressure reading;
+> `blood_pressure` is systolic.
 
 Summary `data` → `{labels: [date...], series: {blood_pressure, blood_pressure2, pulse,
 weight}}`, ascending, capped at 365 points. Built server-side so you just plot it.
@@ -283,17 +284,74 @@ patient is a clinical safety problem, not a rounding error.
 
 ### 2.6 Цахим үзлэг
 
-```
-GET  /api/patient/evisits    ?limit &offset
-POST /api/patient/evisits    { "Comment": "..." }
-```
-`data` → array of `Id, Comment, CreateDate`.
+**Rewritten 2026-09-14.** This was a complaint box; it is now the full flow — request,
+appointment, examination. Verified end to end against `MnCardio_test`.
 
-> **Two traps.** First, these field names are **PascalCase inside the lowercase envelope**,
-> because `RemoteVisit` is a newer-generation table — do not assume the envelope's casing
-> reaches the fields. Second, this is a complaint box, not a booking system: there is no
-> scheduling, no status, no doctor assignment and no video call anywhere in the backend. The
-> tender's full цахим үзлэг flow is unbuilt. See [READINESS.md](READINESS.md).
+```
+GET  /api/patient/evisits            ?limit &offset &status &from &to
+POST /api/patient/evisits            { "Comment": "..."*, "RequestedDate": "2026-09-20 10:00:00" }
+GET  /api/patient/evisits/:id
+POST /api/patient/evisits/:id/cancel { "Reason": "..." }
+GET  /api/patient/options/:dico
+```
+
+Row shape:
+
+```json
+{ "Id": 41, "Comment": "Цээж базлах шинжтэй",
+  "RequestedDate": "2026-09-20 10:00:00", "ScheduledDate": "2026-09-21 14:30:00",
+  "Status": "scheduled", "StatusLabel": "Цаг товлосон",
+  "DoctorId": 512, "DoctorName": "Батболд Оюун",
+  "MeetingUrl": "https://...", "CreateDate": "...", "UpdateDate": "..." }
+```
+
+Statuses are `requested → scheduled → completed`, with `cancelled` reachable from either open
+state. `completed` and `cancelled` are **terminal for everyone, including an admin** — a
+repeat consultation is a new request. A move that is not legal answers `409
+INVALID_TRANSITION`.
+
+> **`MeetingUrl` is only present while `Status` is `scheduled`.** It is null before and after,
+> deliberately: a join link is a bearer credential for a clinical conversation, so it is not
+> handed out while a request is still pending nor left reachable once the visit is over.
+
+`RequestedDate` is **optional** — sending `{ Comment }` alone still works, which is what the
+shipped Dart client does. A date in the past is refused with `400 DATE_IN_PAST`.
+
+A patient may hold **three open requests** at once; a fourth answers `409
+TOO_MANY_OPEN_REQUESTS`. Field names stay PascalCase inside the lowercase envelope, because
+`RemoteVisit` is a newer-generation table.
+
+**`GET /api/patient/options/:dico`** serves the dropdown lists — allowlisted to
+`remotevisit_status`, `rehab_category`, `rehab_risk`, `rehab_phase`; anything else is `404
+DICO_NOT_ALLOWED`. Use it rather than hardcoding the Mongolian: **this wording is drafted by
+ITsystem and not yet approved by ЗСҮТ**, so it will change, and when it does it changes as a
+database row with no app release. An empty array means the dictionary has not been seeded on
+that server — show "not configured", not an error.
+
+> **Still missing, and not ours to fix:** the patient is not *notified* when a slot is
+> confirmed — there is no push anywhere yet — so poll `GET /evisits`. And `MeetingUrl` carries
+> a link to whatever platform ЗСҮТ choose; that choice is still open, so the column is there
+> and empty.
+
+### 2.6b What the doctor app gets
+
+```
+GET  /api/doctor/evisits              ?scope=mine|unassigned|all &status &from &to
+GET  /api/doctor/evisits/:id
+POST /api/doctor/evisits/:id/schedule { "ScheduledDate": "..."*, "MeetingUrl": "https://..." }
+POST /api/doctor/evisits/:id/complete { "Comment": "..." }
+POST /api/doctor/evisits/:id/cancel   { "Reason": "..." }
+```
+
+`scope=mine` is the default and needs a resolved doctor profile (`403
+DOCTOR_PROFILE_NOT_RESOLVED` otherwise). `scope=unassigned` is **care-team scoped** — you see
+only unassigned requests from patients you are on the team for or monitoring; `scope=all` is
+admin-only. Ordering is oldest-first, which is triage order.
+
+`MeetingUrl` must be `https://` (`400 INVALID_URL`). The doctor is always assigned from the
+token — **there is no way to assign a request to a different doctor through this API**; that
+is done from the web. An id you may not act on returns `404`, never `403`, so the endpoint
+cannot be used to discover which requests exist.
 
 ### 2.7 Сэргээн засах, дасгал хөдөлгөөн
 
@@ -310,15 +368,55 @@ GET  /api/patient/rehab/assessment
 `scripts/add_rehabilitation_tables.sql` has been run against `MnCardio_test`, so the four
 tables exist and the handlers work. `POST rehab/vitals` returns a real `{Id}`.
 
-Two caveats before you treat the module as finished:
+**Updated 2026-09-14. The catalogue now has 39 rows** on `MnCardio_test`, and each carries a
+`CategoryLabel` and a parsed `media` object:
 
-- **`GET rehab/exercises` returns `{"data":[],"total":0}`.** The catalogue has no rows. The
-  exercise list, its categories and the 39 videos are customer decisions still open in
-  [BLOCKERS.md](BLOCKERS.md) §1. An empty list is the correct response today, not a fault —
-  build the screen and it will fill.
+```json
+{ "Id": 1, "Code": "EX-01", "Name": "Дасгал №1 — нэр батлагдаагүй",
+  "CategoryCode": "warmup", "CategoryLabel": "Бэлтгэл дасгал",
+  "DurationSec": null, "OrderNo": 1,
+  "MediaRef": null, "media": { "kind": null, "ref": null, "url": null } }
+```
+
+> **Those 39 rows are PLACEHOLDERS and say so on every row.** The real names, categories and
+> durations are clinical content ЗСҮТ own, and filming has not started. They exist so you have
+> real ids, real ordering, real categories to group by and a real "no video" state to build
+> against — not so they can be shown to a patient. ЗСҮТ enter the real ones through the web.
+
+> **Never parse `MediaRef`. Branch on `media.kind`**, and treat `media.url === null` as "no
+> video yet" rather than as an error:
+>
+> | `media.kind` | meaning | what to do |
+> |---|---|---|
+> | `null` | no video recorded yet | show the exercise without a player |
+> | `"file"` | hosted on the MnCardio server | play `media.url` once it is non-null |
+> | `"url"` | cloud or CDN | play `media.url` |
+> | `"asset"` | bundled in the app | play your local asset named `media.ref` |
+>
+> Where the 39 videos will live is still an open customer question, and this is what keeps
+> that answer from costing an app release: it becomes a database value.
+
 - **Production has not had the script run.** This is an environment difference, so the DDL
   stays on the outstanding list in [READINESS.md](READINESS.md) §3. Do not read "works on
   test" as "shipped".
+
+**New — what the doctor app gets:**
+
+```
+GET  /api/doctor/rehab/exercises                   same shape as the patient's
+GET  /api/doctor/patients/:id/rehab                { assessment, progress, vitals }
+GET  /api/doctor/patients/:id/rehab/assessment     ?limit &offset
+POST /api/doctor/patients/:id/rehab/assessment     { AssessmentDate, RiskLevel, ToleranceScore, ToleranceUnit, Notes }
+```
+
+That POST closes a real gap: `GET /api/patient/rehab/assessment` could only ever read, and
+nothing anywhere could write the row, so the patient's assessment screen was permanently
+empty. All four are gated by care-team membership — a doctor who is not on the patient's team
+or monitoring them gets `403 NO_PATIENT_ACCESS`. A patient with no register number answers
+`409 NO_REGISTRATION`, because `PatRegNo` is the only key these tables have.
+
+**Nothing is scored.** `RiskLevel` is a dictionary value and `ToleranceScore` is stored exactly
+as entered — the risk methodology is a ЗСҮТ deliverable (tracker 38).
 
 Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 
@@ -327,9 +425,139 @@ Note `rehab/exercises` takes no `limit`/`offset`, unlike its siblings.
 - vitals → `{rows[{Id, MeasuredAt, Phase, Pulse, BloodPressure, Spo2, Borg}], labels, series{pulse, spo2}}`
 - assessment → latest row or `null`
 
-`MediaRef` is a placeholder for the 39 exercise videos. **There is no video delivery path** —
-the file layer serves `POST` + `Content-Disposition: attachment`, which no video player can
-stream. That endpoint has to be built.
+### 2.7b Playing an exercise video — `/api/Media/*`
+
+**New 2026-09-14.** There is now a delivery path; the file layer's `POST` +
+`Content-Disposition: attachment` never was one.
+
+```
+GET  /api/Media/exercise/:exerciseId     the video for one exercise
+HEAD /api/Media/exercise/:exerciseId     size only, no body
+GET  /api/Media/stream/:generatedName    any attachment you are allowed to read
+```
+
+Full response is `200` with `Accept-Ranges: bytes` and `Content-Disposition: inline`. Send a
+`Range` and you get `206` with `Content-Range`; an unsatisfiable range gives `416`. Suffix
+ranges work (`bytes=-500` is the **last** 500 bytes). So the player can seek.
+
+> **Use `media.url` from the catalogue — do not build this path yourself.** For a file-hosted
+> video `media.url` is already `/api/Media/exercise/{Id}`; for a cloud-hosted one it is the
+> CDN address; for a bundled one it is `null` and `media.kind` is `"asset"`.
+
+> **Send the token as a header.** `VideoPlayerController.networkUrl(..., httpHeaders: {...})`
+> takes one. Do **not** ask for a `?token=` variant — a token in a URL lands in nginx access
+> logs and anywhere the URL gets copied.
+
+What the exercise route answers, by `media.kind`:
+
+| kind | response |
+|---|---|
+| `file` | `200`/`206`, the bytes |
+| `url` | `302` to the real address |
+| `asset` | `409 MEDIA_BUNDLED` with `data.asset` — you already have it locally |
+| `null` | `404` — not filmed yet, which is every row today |
+
+An id you may not read, or one that does not exist, both answer `404`. No token gives a real
+`401` (not the legacy HTTP-200 `AuthError` envelope — that was deliberately avoided here,
+because a player would try to decode it as video).
+
+### 2.8 Мэдэгдэл — notifications
+
+**New 2026-09-14.** Patients were previously denied every notification row.
+
+```
+GET  /api/patient/notifications              ?limit &offset &unread=1
+GET  /api/patient/notifications/unread-count
+POST /api/patient/notifications/:id/read
+POST /api/patient/notifications/read-all
+```
+
+```json
+{ "Id": 137960, "NotesMn": "Эмч таны асуултад хариулсан байна",
+  "Notes": "Doctor replied to your question", "Action": "ReplyQuestion",
+  "LinkObjectName": "VisitComments", "LinkObjectId": 138,
+  "Url": null, "Seen": false, "SeenDate": null, "CreateDate": "..." }
+```
+
+`NotesMn` is what you show the patient; `Notes` is an English developer label and is not for
+display. `Seen` is a **boolean** here even though the column underneath is a string — the app
+never has to know that. `LinkObjectName` + `LinkObjectId` are the deep link: route
+`VisitComments` to the questions thread, `RemoteVisit` to the e-visit, `Advice` to the advice
+item.
+
+Marking a notification you do not own returns `404`, the same as one that does not exist.
+
+**Producers wired today:** a doctor answering a question (`ReplyQuestion`), and an e-visit
+slot being confirmed (`EvisitScheduled`). More will follow; branch on `Action` and fall back
+to showing `NotesMn` for anything you do not recognise.
+
+### 2.9 Push registration
+
+```
+POST /api/patient/devices             { "token": "...", "platform": "android|ios|web",
+                                        "device_id": "...", "app_version": "...", "locale": "mn" }
+POST /api/patient/devices/unregister  { "token": "..." }
+GET  /api/patient/devices
+```
+
+The doctor app has the identical three under `/api/doctor/devices`.
+
+> **This works right now, with no Firebase project and no Apple key.** With nothing
+> configured the server runs a log driver that records what it would have sent and reports
+> success — so build and test your whole registration and logout flow today. Nothing about
+> your client changes when ЗСҮТ supply credentials; a device simply starts buzzing.
+
+> **Register on every launch, not only on first install.** FCM and APNs both rotate tokens.
+> Re-sending a token you already registered is an upsert, not a duplicate — and if the token
+> is known under a different account it is **moved** to yours, which is what stops a shared
+> device from delivering the previous user's clinical notifications to you.
+
+**Unregister on logout**, passing the token. It is `POST .../unregister` rather than `DELETE
+/devices/:token` on purpose: an FCM token runs ~163 characters and contains `:` and `-`,
+which is fragile in a path segment and ends up in access logs.
+
+`GET /devices` never returns the token itself, deliberately — a push token lets its holder
+send a notification that appears to come from MnCardio.
+
+### 2.10 Сануулга — reminders
+
+**New 2026-09-14.** Medication, exercise and follow-up reminders the patient sets themselves.
+
+```
+GET    /api/patient/reminders          ?limit &offset &type &include_inactive=1
+POST   /api/patient/reminders          { title*, times_of_day*, reminder_type, frequency,
+                                         body, days_of_week, start_date, end_date }
+PATCH  /api/patient/reminders/:id      partial — send only what changed
+DELETE /api/patient/reminders/:id      soft: stops firing, keeps the history
+```
+
+```json
+{ "Id": 12, "Title": "Эм уух цаг", "ReminderType": "medication",
+  "ReminderTypeLabel": "Эм уух сануулга", "Frequency": "daily",
+  "FrequencyLabel": "Өдөр бүр", "TimesOfDay": "08:00,20:00",
+  "DaysOfWeek": null, "StartDate": null, "EndDate": null, "IsActive": true }
+```
+
+> **`times_of_day` must be zero-padded 24-hour `HH:mm`.** `"8:00"` is rejected with `400
+> INVALID_TIME`, on purpose: the dispatcher compares it as a string against the current local
+> minute, so `"8:00"` would never match `"08:00"` and the reminder would simply never fire —
+> silently, with nothing in any log. Send an array or a CSV; duplicates are removed and the
+> result is sorted. Maximum six a day.
+
+`days_of_week` is `1`–`7` with **1 = Monday**, as an array or CSV; `null` means every day.
+`frequency` defaults to `daily`; `once` fires on its `start_date` and then deactivates itself.
+
+**Times are local wall-clock, and that is deliberate.** `"08:00"` means eight in the morning
+where the patient is, on every day it applies — not a fixed instant. The server runs UTC and
+converts to Asia/Ulaanbaatar itself, so do **not** send a UTC time or an offset.
+
+A reminder arrives as an ordinary notification (§2.8) with `Action: "Reminder"`, plus a push
+if a device is registered. It is delivered **exactly once per occurrence** even across a
+server restart, so you never need to de-duplicate on the client.
+
+Types and frequencies come from `GET /api/patient/options/patient_reminder_type` and
+`.../patient_reminder_freq` — the wording is drafted and not yet approved, so read it from
+there rather than hardcoding it.
 
 ---
 
@@ -380,6 +608,8 @@ GET    /monitoring                          ?limit &offset
 POST   /monitoring                          { "PatientId": 123 }
 DELETE /monitoring/:patientId
 GET    /monitoring/:patientId/journal       ?from &to
+GET    /monitoring/:patientId/questions     ?limit &offset
+POST   /monitoring/:patientId/questions     { "comment": "..." }
 ```
 
 The list returns `{ id_data, since, patient, latestReading }` per row — the most recent
@@ -387,6 +617,13 @@ journal reading is included, so the screen needs no second call per patient.
 
 `journal` returns `{ rows, labels, series{blood_pressure, blood_pressure2, pulse, weight} }`
 and refuses a patient you do not monitor with `403 NOT_MONITORED`.
+
+`questions` is the doctor's side of 2.3 (added 2026-09-11). `GET` returns exactly the shape of
+the patient's `GET /api/patient/questions` — `{ id_data, comment, is_doctor, date_creation,
+doctor_name }`, newest first — so the client reuses one model. `POST` answers as the doctor in
+the token (`is_doctor 1`, the same row the web's `MonitorQuestion` writes) and returns
+`{ id_data }`; an empty comment is `400 COMMENT_REQUIRED`. Both refuse an unmonitored patient
+with `403 NOT_MONITORED`.
 
 > Add and remove take the doctor **from the token**. The legacy equivalents
 > (`/api/PatientMonitoring/SavePatient`, `RemovePatient`) read `UserId` and `DoctorId` from the
@@ -525,11 +762,21 @@ in `ALLFILE_DIR` under a generated name; a `File` row records the original.
 > web form signals removal. Send the `{id_data}` marker for every file you intend to keep,
 > or an edit will quietly delete attachments.
 
-### Do not call `POST /api/BaseObject/downloadFile`
+### `POST /api/BaseObject/downloadFile` — authorized, but prefer a purpose-built route
 
-It has **no ownership check at all** — anyone holding a `generated_name` and `ext` gets the
-bytes (`helper/BaseControllerHelper.js:1011-1050`). Chat deliberately does not use it. Use a
-purpose-built authorized route, and if the file type you need has none, ask for one.
+**Corrected 2026-09-14.** Earlier versions of this document said this endpoint had no
+ownership check. That is no longer true and has not been true for some time.
+`downloadFile` (`controllers/system/BaseController.js:738`) resolves the client's handle to
+the stored `File` row and authorizes *that* row through `MayDownload` (`:422-491`), which
+refuses soft-deleted rows, routes Advice and AdviceComment through
+`AdviceScopeHelper.MayReadAdviceAttachment`, applies `MayAttachTo`, and adds an explicit
+`PatientScope` check. A refusal is a real **403**. The client does not get to pick the path.
+
+Still prefer a purpose-built route where one exists — chat uses its own membership-checked
+`Chat/DownloadAttachment`, and rehabilitation media uses `/api/Media/*`. Two reasons: they
+return a streamable `GET` rather than a `POST` attachment download, and `MayAttachTo` ends in
+a permissive default for any object it does not name, so an object with no explicit branch is
+authorized only by the generic checks around it.
 
 ---
 
@@ -544,12 +791,12 @@ Do not spend a sprint discovering these.
 | `/api/patient/evisits` | complaint box; no booking, status, doctor or video |
 | `/api/Notification/GetListData` | **patients are denied every row** — `Notification` is not in `PatientScope`; no mark-read route exists. Still open. |
 | `/api/RemoteVisit/GetList` | read-only over 4 columns; booking columns unrun **and** unwired |
-| `/api/BaseObject/downloadFile` | no ownership check — do not use |
+| `/api/BaseObject/downloadFile` | ~~no ownership check~~ — **corrected**: it authorizes via `MayDownload` and 403s. Residual gap is `MayAttachTo`'s permissive default for unnamed objects. |
 | `/api/Advice/GetTicket` | bypasses `BuildAdviceScope`; a known visibility gap |
 | `/api/base/*`, `/api/report/*` | mounted with **no authentication** (`server.js:389`) |
-| `/api/Test/*` | **public**, and `PUT /api/Test/uploadFile` is an unauthenticated 1 GB file upload into the patient attachment directory |
+| `/api/Test/*` | ~~public 1 GB unauthenticated upload~~ — **fixed 2026-09-14**. `uploadFile`, `ApiSendMail`, `print` and `printNew` were deleted. Two pure string-validation routes remain public. |
 | ~~doctor module~~ | **Built 2026-09-10** — `/api/doctor/*`, §4 |
 
-The four rows from `downloadFile` to `/api/Test/*` are security findings, already recorded in
+The rows from `GetTicket` to `/api/Test/*` are security findings, already recorded in
 `CLAUDE.md §10` for the contract's mandated audit. They are listed here so you do not mistake
 them for features.

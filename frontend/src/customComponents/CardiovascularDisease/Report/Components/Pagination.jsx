@@ -35,6 +35,9 @@ export default function Pagination(props) {
       page={PageNumber}
       onPageChange={ChangePageNumber}
       onRowsPerPageChange={ChangePageSize}
+      // Without this MUI prints its own English default, "Rows per page:",
+      // which is the only English left on an otherwise Mongolian report.
+      labelRowsPerPage={t("Мөр харуулах")}
       labelDisplayedRows={({ from, to, count }) =>
         `${from}-${to} ${t("Total")}: ${count}`
       }

@@ -115,7 +115,9 @@ export default function HomeNotifications() {
               color: colors.text.primary,
             }}
           >
-            {item.Notes}
+            {/* Notes is an English key; the bell and AllNotifications translate
+                it the same way. */}
+            {t(item.Notes + "")}
           </Box>
           <Box sx={{ fontSize: "11px", color: colors.text.muted, mt: "2px" }}>
             {item.CreateDoctorsProfile

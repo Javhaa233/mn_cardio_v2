@@ -11,11 +11,24 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const BaseHelper = require('../../helper/BaseHelper');
 const ImageHelper = require('../../helper/ImageHelper');
-// Chat attachments ride this generic upload endpoint rather than getting a
-// table of their own; MayAttachTo needs both to authorize them.
-const ChatIdentity = require('../../helper/ChatIdentity');
-const ChatHelper = require('../../helper/ChatHelper');
-const PatientScope = require('../../helper/PatientScope');
+// Flags, ChatIdentity, ChatHelper, PatientScope and AdviceScopeHelper moved to
+// helper/FileAccessHelper.js with the two functions that used them.
+const { CheckContact } = require('../../helper/ContactValidation');
+
+// Email/phone rules for the account objects that pass through this generic
+// controller. Create is strict (a new Users row needs an email); update only
+// judges keys that were sent, so an edit that leaves them alone is never refused.
+// UserRequest/Confirm creates accounts via BaseControllerHelper directly, not
+// through here, so approving an old sign-up request is unaffected.
+function AccountContactError(ObjectName, Data, IsCreate) {
+  if (ObjectName === 'Users') {
+    return CheckContact(Data, { EmailKey: 'Email', PhoneKey: null, Required: IsCreate });
+  }
+  if (ObjectName === 'DoctorsProfile' && !IsCreate) {
+    return CheckContact(Data, { Required: false });
+  }
+  return null;
+}
 
 // routes
 router.post('/getData', getData);
@@ -156,6 +169,10 @@ async function create(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && Data && LogedUser) {
+      const ContactError = AccountContactError(ObjectName, Data, true);
+      if (ContactError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+      }
       const Result = await BaseControllerHelper.BaseCreate({
         ObjectName,
         Data,
@@ -191,6 +208,10 @@ async function update(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && Data && LogedUser) {
+      const ContactError = AccountContactError(ObjectName, Data, false);
+      if (ContactError) {
+        return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
+      }
       const Result = await BaseControllerHelper.BaseUpdate({
         ObjectName,
         Data,
@@ -285,6 +306,30 @@ const MAX_UPLOAD_CEILING = MAX_UPLOAD_BYTES_CHAT;
 const UploadCapFor = (LinkedObjectName) =>
   LinkedObjectName === 'ChatMessages' ? MAX_UPLOAD_BYTES_CHAT : MAX_UPLOAD_BYTES;
 
+/**
+ * Video, allowed for the rehabilitation catalogue and NOWHERE ELSE.
+ *
+ * ALLOWED_UPLOAD_EXT below is shared by all eight models this endpoint serves,
+ * and its own comment says widening it widens uploads app-wide - which is why
+ * this is per-object, the same way UploadCapFor makes the size cap per-object,
+ * rather than six more entries on the global list.
+ *
+ * NOTE: MAX_UPLOAD_CEILING is deliberately NOT raised for this. formidable
+ * fixes maxFileSize before LinkedObjectInfo has been parsed, so a bigger
+ * ceiling would mean EVERY upload is read that far before the per-object cap
+ * can reject it - a denial-of-service regression against the current 10 MB
+ * default, in exchange for videos this endpoint will probably never carry.
+ * The 39 exercise videos are far more likely to arrive by URL or bundled in
+ * the app (helper/MediaRef.js), and if they do come through here, 50 MB of
+ * short instructional clip is enough.
+ */
+const ALLOWED_UPLOAD_EXT_VIDEO = ['mp4', 'm4v', 'mov', 'webm'];
+
+const AllowedExtFor = (LinkedObjectName) =>
+  LinkedObjectName === 'RehabExercise'
+    ? ALLOWED_UPLOAD_EXT.concat(ALLOWED_UPLOAD_EXT_VIDEO)
+    : ALLOWED_UPLOAD_EXT;
+
 // Extensions this endpoint will store. Everything else is rejected outright.
 // There was no check at all before, so a .exe renamed .jpg was stored and
 // served straight back to the next viewer.
@@ -319,134 +364,11 @@ const ALLOWED_UPLOAD_EXT = [
   'webm',
 ];
 
-/**
- * May this user attach to / replace the files of this object?
- *
- * The endpoint is generic and shared by 8 models, so this deliberately gates
- * only what it can check with certainty and leaves everything else at the
- * previous behaviour. Widening it is a separate, per-model decision - silently
- * denying an existing clinical file flow would be worse than the hole it closes.
- */
-async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser }) {
-  // ABOVE the admin short-circuit on purpose: an administrator is not a chat
-  // participant, and must not be able to plant a file on someone else's
-  // conversation. This is also the specific closure of the `return true`
-  // fallthrough at the bottom of this function for chat - without it,
-  // LinkedObjectName 'ChatMessages' would have been permitted with no check at
-  // all.
-  if (LinkedObjectName === 'ChatMessages') {
-    const Message = await Models.ChatMessages.findByPk(LinkedObjectId, {
-      attributes: ['Id', 'ChatRoomId', 'UserId', 'UserType', 'Status'],
-      raw: true,
-    });
-    if (!Message) return false;
-
-    const Me = ChatIdentity.Me(LogedUser);
-    if (!Me) return false;
-
-    // Author only.
-    if (!ChatIdentity.Same(Me, { UserType: Message.UserType, UserId: Message.UserId })) {
-      return false;
-    }
-    // Files may only be bolted onto a message that is still pending delivery -
-    // never onto one recipients have already seen.
-    if (Message.Status !== 'P') return false;
-
-    // ...and you must still be in the room.
-    return !!(await ChatHelper.IsMember(Me, Message.ChatRoomId));
-  }
-
-  if (String(LogedUser.RoleId) === '1') return true;
-
-  if (LinkedObjectName === 'Advice') {
-    const Advice = await Models.Advice.findOne({
-      where: { id_data: LinkedObjectId },
-      attributes: ['id_data', 'id'],
-      raw: true,
-    });
-    // Unknown id: refuse rather than let it create orphan File rows.
-    if (!Advice) return false;
-    return String(Advice.id) === String(LogedUser.Id);
-  }
-
-  if (LinkedObjectName === 'AdviceComment') {
-    const Comment = await Models.AdviceComment.findOne({
-      where: { id_data: LinkedObjectId },
-      attributes: ['id_data', 'id'],
-      raw: true,
-    });
-    if (!Comment) return false;
-    return String(Comment.id) === String(LogedUser.Id);
-  }
-
-  return true;
-}
-
-/**
- * Whether LogedUser may read the file the client is asking for.
- *
- * downloadFile used to pass the client-supplied FileInfo straight to
- * BaseDownloadFile, which only resolves a path on disk. Nothing tied the
- * handle back to a record, so any authenticated session could name any
- * generated_name and fetch it - proven by a patient token downloading a file
- * attached to a doctor's record.
- *
- * So: resolve the handle to its File row first, then authorize the record it
- * hangs off. Returns the stored row (never the client's copy) or null.
- */
-async function MayDownload({ FileInfo, LogedUser }) {
-  if (!FileInfo || !FileInfo.generated_name) return null;
-
-  const Stored = await Models.File.findOne({
-    where: { generated_name: FileInfo.generated_name },
-    attributes: [
-      'id_data',
-      'LinkedObjectName',
-      'LinkedObjectId',
-      'FieldName',
-      'ext',
-      'generated_name',
-      'original_name',
-      'rec_status',
-    ],
-    raw: true,
-  });
-
-  // No row, or soft-deleted: the handle is not a live attachment.
-  if (!Stored || String(Stored.rec_status) === '2') return null;
-
-  const LinkedObjectName = Stored.LinkedObjectName;
-  const LinkedObjectId = Stored.LinkedObjectId;
-  if (!LinkedObjectName || !LinkedObjectId) return null;
-
-  // Same rule that governs attaching a file to this record.
-  const Allowed = await MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser });
-  if (!Allowed) return null;
-
-  // MayAttachTo ends in `return true` for object types it does not name, which
-  // is the right default for staff but not for patients - it is what let a
-  // patient token through to a doctor's attachment. Patients get the explicit
-  // scope check as well.
-  if (PatientScope.IsPatient(LogedUser)) {
-    const scope = PatientScope.SCOPE_BY_OBJECT[LinkedObjectName];
-    if (!scope) return null;
-
-    const Owner = LogedUser[scope.From];
-    if (Owner === undefined || Owner === null || Owner === '') return null;
-
-    const ModelConfig = await BaseControllerHelper.GetConfigData(LinkedObjectName);
-    if (!ModelConfig || !ModelConfig.Model) return null;
-
-    const Row = await ModelConfig.Model.findOne({
-      where: { [ModelConfig.PK]: LinkedObjectId },
-      attributes: [ModelConfig.PK, scope.Field],
-      raw: true,
-    });
-    if (!Row || String(Row[scope.Field]) !== String(Owner)) return null;
-  }
-
-  return Stored;
-}
+// MayAttachTo and MayDownload moved to helper/FileAccessHelper.js on
+// 2026-09-14, unchanged. MediaController streams the same files and must ask
+// the same question; a second copy of an authorization rule is how the two
+// drift until one is wrong. Same reason AdviceScopeHelper and CareTeam exist.
+const { MayAttachTo, MayDownload } = require('../../helper/FileAccessHelper');
 
 async function uploadFile(req, res) {
   try {
@@ -466,213 +388,210 @@ async function uploadFile(req, res) {
 
     if (ObjectName && LogedUser) {
       PromiseData = await new Promise(function (resolve, reject) {
-        form.parse(req, async function (err, fields, files) {
-          // formidable ignores the promise this async callback returns, so
-          // anything thrown in here used to escape the surrounding Promise: it
-          // never settled, no response was sent, and the client sat until its
-          // own timeout. A mobile chat upload with FileInfo = {} did exactly
-          // that on FileInfo.Name.replace. Every failure is now a rejection,
-          // which the outer catch answers.
-          try {
-            if (err) return reject(err);
-            // Files the loop below throws away. Without this the handler answered
-            // "Successfully saved" for a file it had just discarded, so the user
-            // believed an attachment existed that was never stored.
-            const Rejected = [];
-            const LinkedObjectInfo = JSON.parse(fields['LinkedObjectInfo']);
-            const LinkedObjectId = LinkedObjectInfo.LinkedObjectId;
-            const LinkedObjectName = LinkedObjectInfo.LinkedObjectName;
-            const FieldName = LinkedObjectInfo.FieldName;
+        // formidable ignores the promise its callback returns, so anything
+        // thrown inside an async callback escaped this Promise: it never
+        // settled, no response was sent, and the client sat until its own
+        // timeout (a mobile upload with FileInfo = {} did exactly that).
+        // OnParsed's rejection is routed to reject, which the outer catch answers.
+        const OnParsed = async function (err, fields, files) {
+          if (err) return reject(err);
+          // Files the loop below throws away. Without this the handler answered
+          // "Successfully saved" for a file it had just discarded, so the user
+          // believed an attachment existed that was never stored.
+          const Rejected = [];
+          const LinkedObjectInfo = JSON.parse(fields['LinkedObjectInfo']);
+          const LinkedObjectId = LinkedObjectInfo.LinkedObjectId;
+          const LinkedObjectName = LinkedObjectInfo.LinkedObjectName;
+          const FieldName = LinkedObjectInfo.FieldName;
 
-            if (LinkedObjectId && LinkedObjectName) {
-              const Allowed = await MayAttachTo({
+          if (LinkedObjectId && LinkedObjectName) {
+            const Allowed = await MayAttachTo({
+              LinkedObjectName,
+              LinkedObjectId,
+              LogedUser,
+            });
+            if (!Allowed) {
+              console.log(
+                '[BaseController/uploadFile] DENIED',
+                LogedUser.Id,
                 LinkedObjectName,
-                LinkedObjectId,
-                LogedUser,
-              });
-              if (!Allowed) {
-                console.log(
-                  '[BaseController/uploadFile] DENIED',
-                  LogedUser.Id,
-                  LinkedObjectName,
-                  LinkedObjectId
-                );
-                return resolve({ Denied: true });
-              }
+                LinkedObjectId
+              );
+              return resolve({ Denied: true });
+            }
 
-              const ListOldFiles = await Models.File.findAll({
-                attributes: ['id', 'id_data', 'LinkedObjectName', 'LinkedObjectId', 'FieldName'],
-                where: {
-                  LinkedObjectName: LinkedObjectName,
-                  LinkedObjectId: LinkedObjectId,
-                  FieldName: FieldName,
-                  rec_status: '9',
-                },
-                raw: true,
-              });
+            const ListOldFiles = await Models.File.findAll({
+              attributes: ['id', 'id_data', 'LinkedObjectName', 'LinkedObjectId', 'FieldName'],
+              where: {
+                LinkedObjectName: LinkedObjectName,
+                LinkedObjectId: LinkedObjectId,
+                FieldName: FieldName,
+                rec_status: '9',
+              },
+              raw: true,
+            });
 
-              var NotDelete = [];
-              var FileCount = 0;
-              for (var Field in fields) {
-                if (Field !== 'LinkedObjectInfo' && Field.indexOf('Info') > -1) {
-                  FileCount++;
-                  var FileInfo = JSON.parse(fields[Field]);
-                  //not change file
-                  if (FileInfo.id_data) {
-                    if (ListOldFiles.filter((s) => s.id_data === FileInfo.id_data).length === 1) {
-                      NotDelete.push(FileInfo.id_data);
-                    }
-                  } else {
-                    //new file
-                    const key = Field.replace('Info', '');
-                    let NewFile = files[key];
-                    if (Array.isArray(NewFile)) {
-                      NewFile = NewFile[0];
-                    }
-
-                    if (NewFile) {
-                      const OldPath = NewFile.filepath || NewFile.path;
-                      const FileNameOriginal = NewFile.originalFilename || NewFile.name;
-                      const FileType = ImageHelper.getType(FileNameOriginal);
-
-                      if (ALLOWED_UPLOAD_EXT.indexOf(String(FileType).toLowerCase()) === -1) {
-                        console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
-                        Rejected.push({
-                          Name: FileNameOriginal,
-                          Reason: 'ext',
-                          Message: 'Зөвшөөрөгдөөгүй өргөтгөлтэй файл: ' + FileType,
-                        });
-                        try {
-                          await fsPromises.unlink(OldPath);
-                        } catch (e) {
-                          /* temp file may already be gone */
-                        }
-                        continue;
-                      }
-
-                      // Per-object size cap. formidable admitted anything up to
-                      // MAX_UPLOAD_CEILING because the object was not known yet;
-                      // this is where the stricter default is applied to
-                      // everything that is not chat.
-                      const SizeCap = UploadCapFor(LinkedObjectName);
-                      if (NewFile.size > SizeCap) {
-                        console.log(
-                          '[BaseController/uploadFile] REJECTED size:',
-                          NewFile.size,
-                          '>',
-                          SizeCap,
-                          LinkedObjectName
-                        );
-                        Rejected.push({
-                          Name: FileNameOriginal,
-                          Reason: 'size',
-                          Message:
-                            'Файлын хэмжээ хэтэрсэн: ' +
-                            Math.round(NewFile.size / 1048576) +
-                            ' МБ, зөвшөөрөх дээд хэмжээ ' +
-                            Math.round(SizeCap / 1048576) +
-                            ' МБ',
-                        });
-                        try {
-                          await fsPromises.unlink(OldPath);
-                        } catch (e) {
-                          /* temp file may already be gone */
-                        }
-                        continue;
-                      }
-
-                      // getDateNumbers() has one-second resolution, so two
-                      // concurrent requests from the same user in the same second
-                      // used to generate the same name and silently overwrite each
-                      // other. The random suffix costs nothing and removes that.
-                      const FileName =
-                        BaseHelper.getDateNumbers() +
-                        '_' +
-                        LogedUser.Id +
-                        '_' +
-                        FileCount +
-                        '_' +
-                        Math.random().toString(36).slice(2, 6);
-                      const FilePath = path.join(process.env.ALLFILE_DIR, FileName);
-
-                      // Move file with proper error handling (copy then delete to handle cross-device moves)
-                      try {
-                        await fsPromises.copyFile(OldPath, FilePath);
-                        await fsPromises.unlink(OldPath);
-                      } catch (error) {
-                        console.error('File move error:', error);
-                        throw new Error(`Failed to save file: ${error.message}`);
-                      }
-
-                      // Create database record after file is successfully moved
-                      await BaseControllerHelper.BaseCreate({
-                        ObjectName: 'File',
-                        Data: {
-                          LinkedObjectName: LinkedObjectName,
-                          LinkedObjectId: LinkedObjectId,
-                          FieldName: FieldName,
-                          ext: FileType,
-                          size: NewFile.size,
-                          generated_name: FileName,
-                          // A client that omits Name still gets a sensible
-                          // original_name rather than a TypeError.
-                          original_name: (FileInfo.Name || FileNameOriginal || '').replace(
-                            '.' + FileType,
-                            ''
-                          ),
-                        },
-                        LogedUser,
-                        SaveLog: true,
-                      });
-                    }
+            var NotDelete = [];
+            var FileCount = 0;
+            for (var Field in fields) {
+              if (Field !== 'LinkedObjectInfo' && Field.indexOf('Info') > -1) {
+                FileCount++;
+                var FileInfo = JSON.parse(fields[Field]);
+                //not change file
+                if (FileInfo.id_data) {
+                  if (ListOldFiles.filter((s) => s.id_data === FileInfo.id_data).length === 1) {
+                    NotDelete.push(FileInfo.id_data);
                   }
-                }
-              }
+                } else {
+                  //new file
+                  const key = Field.replace('Info', '');
+                  let NewFile = files[key];
+                  if (Array.isArray(NewFile)) {
+                    NewFile = NewFile[0];
+                  }
 
-              // This loop implements replace-the-whole-field: anything not named
-              // in the request is soft-deleted. That means a request carrying no
-              // file-info fields at all used to wipe every file on the object.
-              // Combined with the missing ownership check above, that was a
-              // one-request "delete all photos on any ticket" primitive.
-              //
-              // A payload with zero file-info fields is now treated as "no
-              // change" rather than "remove everything". Genuinely clearing a
-              // field is what /BaseObject/deleteFile is for, and a caller that
-              // really means it can still say so explicitly.
-              const AllowRemoveAll = LinkedObjectInfo.AllowRemoveAll === true;
-              if (FileCount === 0 && !AllowRemoveAll) {
-                return resolve({ Skipped: 'empty payload' });
-              }
+                  if (NewFile) {
+                    const OldPath = NewFile.filepath || NewFile.path;
+                    const FileNameOriginal = NewFile.originalFilename || NewFile.name;
+                    const FileType = ImageHelper.getType(FileNameOriginal);
 
-              // Stop before the replace-the-whole-field delete below if anything
-              // was rejected. A rejected file never made it into NotDelete, so
-              // running that loop would soft-delete the attachments already on
-              // the record - the caller would be told the save failed AND lose
-              // the files it already had.
-              if (Rejected.length > 0) {
-                return resolve({ Rejected });
-              }
+                    if (AllowedExtFor(LinkedObjectName).indexOf(String(FileType).toLowerCase()) === -1) {
+                      console.log('[BaseController/uploadFile] REJECTED ext:', FileType);
+                      Rejected.push({
+                        Name: FileNameOriginal,
+                        Reason: 'ext',
+                        Message: 'Зөвшөөрөгдөөгүй өргөтгөлтэй файл: ' + FileType,
+                      });
+                      try {
+                        await fsPromises.unlink(OldPath);
+                      } catch (e) {
+                        /* temp file may already be gone */
+                      }
+                      continue;
+                    }
 
-              //delete file
-              for (var i = 0; i < ListOldFiles.length; i++) {
-                if (NotDelete.filter((s) => s + '' === ListOldFiles[i].id_data + '').length === 0) {
-                  await BaseControllerHelper.BaseUpdate({
-                    ObjectName: 'File',
-                    Data: {
-                      id_data: ListOldFiles[i].id_data,
-                      rec_status: '2',
-                    },
-                    LogedUser,
-                    SaveLog: true,
-                  });
+                    // Per-object size cap. formidable admitted anything up to
+                    // MAX_UPLOAD_CEILING because the object was not known yet;
+                    // this is where the stricter default is applied to
+                    // everything that is not chat.
+                    const SizeCap = UploadCapFor(LinkedObjectName);
+                    if (NewFile.size > SizeCap) {
+                      console.log(
+                        '[BaseController/uploadFile] REJECTED size:',
+                        NewFile.size,
+                        '>',
+                        SizeCap,
+                        LinkedObjectName
+                      );
+                      Rejected.push({
+                        Name: FileNameOriginal,
+                        Reason: 'size',
+                        Message:
+                          'Файлын хэмжээ хэтэрсэн: ' +
+                          Math.round(NewFile.size / 1048576) +
+                          ' МБ, зөвшөөрөх дээд хэмжээ ' +
+                          Math.round(SizeCap / 1048576) +
+                          ' МБ',
+                      });
+                      try {
+                        await fsPromises.unlink(OldPath);
+                      } catch (e) {
+                        /* temp file may already be gone */
+                      }
+                      continue;
+                    }
+
+                    // getDateNumbers() has one-second resolution, so two
+                    // concurrent requests from the same user in the same second
+                    // used to generate the same name and silently overwrite each
+                    // other. The random suffix costs nothing and removes that.
+                    const FileName =
+                      BaseHelper.getDateNumbers() +
+                      '_' +
+                      LogedUser.Id +
+                      '_' +
+                      FileCount +
+                      '_' +
+                      Math.random().toString(36).slice(2, 6);
+                    const FilePath = path.join(process.env.ALLFILE_DIR, FileName);
+
+                    // Move file with proper error handling (copy then delete to handle cross-device moves)
+                    try {
+                      await fsPromises.copyFile(OldPath, FilePath);
+                      await fsPromises.unlink(OldPath);
+                    } catch (error) {
+                      console.error('File move error:', error);
+                      throw new Error(`Failed to save file: ${error.message}`);
+                    }
+
+                    // Create database record after file is successfully moved
+                    await BaseControllerHelper.BaseCreate({
+                      ObjectName: 'File',
+                      Data: {
+                        LinkedObjectName: LinkedObjectName,
+                        LinkedObjectId: LinkedObjectId,
+                        FieldName: FieldName,
+                        ext: FileType,
+                        size: NewFile.size,
+                        generated_name: FileName,
+                        // A client that omits Name must not crash the upload.
+                        original_name: (FileInfo.Name || FileNameOriginal || '').replace(
+                          '.' + FileType,
+                          ''
+                        ),
+                      },
+                      LogedUser,
+                      SaveLog: true,
+                    });
+                  }
                 }
               }
             }
 
-            resolve({ Rejected });
-          } catch (ex) {
-            reject(ex);
+            // This loop implements replace-the-whole-field: anything not named
+            // in the request is soft-deleted. That means a request carrying no
+            // file-info fields at all used to wipe every file on the object.
+            // Combined with the missing ownership check above, that was a
+            // one-request "delete all photos on any ticket" primitive.
+            //
+            // A payload with zero file-info fields is now treated as "no
+            // change" rather than "remove everything". Genuinely clearing a
+            // field is what /BaseObject/deleteFile is for, and a caller that
+            // really means it can still say so explicitly.
+            const AllowRemoveAll = LinkedObjectInfo.AllowRemoveAll === true;
+            if (FileCount === 0 && !AllowRemoveAll) {
+              return resolve({ Skipped: 'empty payload' });
+            }
+
+            // Stop before the replace-the-whole-field delete below if anything
+            // was rejected. A rejected file never made it into NotDelete, so
+            // running that loop would soft-delete the attachments already on
+            // the record - the caller would be told the save failed AND lose
+            // the files it already had.
+            if (Rejected.length > 0) {
+              return resolve({ Rejected });
+            }
+
+            //delete file
+            for (var i = 0; i < ListOldFiles.length; i++) {
+              if (NotDelete.filter((s) => s + '' === ListOldFiles[i].id_data + '').length === 0) {
+                await BaseControllerHelper.BaseUpdate({
+                  ObjectName: 'File',
+                  Data: {
+                    id_data: ListOldFiles[i].id_data,
+                    rec_status: '2',
+                  },
+                  LogedUser,
+                  SaveLog: true,
+                });
+              }
+            }
           }
+
+          resolve({ Rejected });
+        };
+        form.parse(req, (err, fields, files) => {
+          OnParsed(err, fields, files).catch(reject);
         });
       });
 
@@ -730,8 +649,11 @@ async function downloadFile(req, res) {
         res.set('Content-Type', downloadFile.ContentType);
         return res.download(downloadFile.Path);
       } else {
+        // The row exists but the bytes do not - the usual cause is a database
+        // restored onto a host that never received ALLFILE_DIR. Say it in
+        // Mongolian: this text is what the doctor reads in the alert.
         return res.status(404).send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('File not found'))
+          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Файл серверт олдсонгүй'))
         );
       }
     } else {
@@ -828,6 +750,9 @@ async function ExportExcel(req, res) {
         ObjectName,
         LogedUser,
         Option,
+        // Optional fixed column set, in the order the caller asks for. Anything
+        // that is not a declared field of this ObjectName is dropped.
+        ExportFields: Array.isArray(req.body.ExportFields) ? req.body.ExportFields : undefined,
       });
 
       if (filePath && filePath !== null) {
@@ -883,6 +808,7 @@ async function ExportText(req, res) {
       ObjectName,
       LogedUser,
       Option,
+      ExportFields: Array.isArray(req.body.ExportFields) ? req.body.ExportFields : undefined,
     });
 
     if (!filePath) {

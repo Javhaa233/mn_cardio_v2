@@ -1,5 +1,13 @@
 const { Models, Op } = require('../../config/DB');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const DicoLabels = require('../../helper/DicoLabels');
+const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
+const MediaRef = require('../../helper/MediaRef');
+const PushHelper = require('../../helper/PushHelper');
+const Flags = require('../../helper/FeatureFlags');
+const SchemaProbe = require('../../helper/SchemaProbe');
+const Consent = require('../../helper/Consent');
 
 /**
  * Handlers for /api/patient/*.
@@ -114,30 +122,37 @@ exports.listJournal = async (req, res) => {
 
 exports.createJournal = async (req, res) => {
   try {
-    const { date, time, blood_pressure, pulse, weight, inr, comment } = req.body;
+    const { date, time, blood_pressure, blood_pressure2, pulse, weight, inr, comment } = req.body;
 
     if (!date) return fail(res, 'DATE_REQUIRED', 'Огноо оруулна уу');
 
-    const created = await Models.PatientMonitoring.create({
-      // Ownership is stamped from the session, not the body.
-      patient_id: req.Patient.PatientId,
-      patient_registration: req.Patient.PatRegNo,
-      date,
-      time: time || null,
-      blood_pressure: blood_pressure || null,
-      pulse: pulse || null,
-      weight: weight || null,
-      inr: inr || null,
-      comment: comment || null,
-      date_creation: ObjectHelper.getDateYMDHMS(),
-      // rec_status is an INTEGER column and Sequelize validates it: 'A' throws
-      // SequelizeValidationError before the INSERT ever runs. The schema's
-      // values are numeric - 1 active, 2 deleted, 9 draft - and every read
-      // filters `rec_status <> '2'`.
-      rec_status: 1,
+    // BaseCreate, not Model.create: the legacy table requires id, id_group,
+    // user_mod, date_modif and rec_status (int, 9 = live) with no defaults, and
+    // ModelHelper is what stamps them. A bare create failed on every save.
+    // PatientScope also stamps patient_id from the session, not the body.
+    const Id = await BaseControllerHelper.BaseCreate({
+      ObjectName: 'PatientMonitoring',
+      Data: {
+        patient_id: req.Patient.PatientId,
+        patient_registration: req.Patient.PatRegNo,
+        date,
+        time: time || null,
+        // Systolic and diastolic are a pair. listJournal returns both and
+        // journalSummary plots both, so a create that accepted only the
+        // systolic value left the patient unable to record their own
+        // diastolic pressure at all.
+        blood_pressure: blood_pressure || null,
+        blood_pressure2: blood_pressure2 || null,
+        pulse: pulse || null,
+        weight: weight || null,
+        inr: inr || null,
+        comment: comment || null,
+      },
+      LogedUser: req.LogedUser,
     });
+    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'createJournal');
 
-    return ok(res, { id_data: created.id_data });
+    return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'createJournal');
   }
@@ -228,20 +243,20 @@ exports.createQuestion = async (req, res) => {
       return fail(res, 'COMMENT_REQUIRED', 'Асуултаа бичнэ үү');
     }
 
-    const created = await Models.VisitComments.create({
-      patient_user_id: req.Patient.PatientUserId,
-      patient_id: req.Patient.PatientId,
-      comment,
-      is_doctor: '0',
-      date_creation: ObjectHelper.getDateYMDHMS(),
-      // rec_status is an INTEGER column and Sequelize validates it: 'A' throws
-      // SequelizeValidationError before the INSERT ever runs. The schema's
-      // values are numeric - 1 active, 2 deleted, 9 draft - and every read
-      // filters `rec_status <> '2'`.
-      rec_status: 1,
+    // Same reason as createJournal: ModelHelper stamps the legacy bookkeeping.
+    const Id = await BaseControllerHelper.BaseCreate({
+      ObjectName: 'VisitComments',
+      Data: {
+        patient_user_id: req.Patient.PatientUserId,
+        patient_id: req.Patient.PatientId,
+        comment,
+        is_doctor: 0,
+      },
+      LogedUser: req.LogedUser,
     });
+    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'createQuestion');
 
-    return ok(res, { id_data: created.id_data });
+    return ok(res, { id_data: Id });
   } catch (ex) {
     return serverError(res, ex, 'createQuestion');
   }
@@ -308,41 +323,262 @@ exports.listAdvice = async (req, res) => {
 
 /* ------------------------------------------------- e-visits (Цахим үзлэг) */
 
+/**
+ * Shape one RemoteVisit row for either surface.
+ *
+ * MeetingUrl is returned ONLY on a scheduled visit. A join link is a bearer
+ * credential for a clinical conversation - anyone holding it can walk into the
+ * consultation - so it is not handed out while a request is still pending, and
+ * not left reachable after the visit is over or cancelled.
+ */
+const shapeEvisit = (row, statusLabels) => {
+  const r = row.toJSON ? row.toJSON() : row;
+  const Doctor = r.Doctor || null;
+
+  return {
+    Id: r.Id,
+    Comment: r.Comment,
+    RequestedDate: r.RequestedDate,
+    ScheduledDate: r.ScheduledDate,
+    Status: r.Status,
+    // null when the dico has not been seeded - the client falls back to the
+    // code rather than showing nothing. See helper/DicoLabels.js.
+    StatusLabel: statusLabels ? statusLabels.get(String(r.Status)) || null : null,
+    DoctorId: r.DoctorId,
+    DoctorName: Doctor ? [Doctor.lastname, Doctor.firstname].filter(Boolean).join(' ') : null,
+    MeetingUrl: r.Status === RemoteVisitFlow.STATUS.SCHEDULED ? r.MeetingUrl || null : null,
+    CreateDate: r.CreateDate,
+    UpdateDate: r.UpdateDate,
+  };
+};
+
+const DOCTOR_INCLUDE = {
+  model: Models.DoctorsProfile,
+  as: 'Doctor',
+  attributes: ['id_data', 'lastname', 'firstname'],
+  required: false,
+};
+
 exports.listEvisits = async (req, res) => {
   try {
     const { limit, offset } = readPaging(req);
 
+    const where = Object.assign(
+      { PatientId: req.Patient.PatientId },
+      // Window on RequestedDate, which the DDL backfilled from CreateDate for
+      // every pre-existing row, so the filter is safe on historical data.
+      readDateRange(req, 'RequestedDate')
+    );
+
+    const { status } = req.query;
+    if (status) {
+      const wanted = String(status)
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => RemoteVisitFlow.IsStatus(s));
+      if (!wanted.length) return fail(res, 'INVALID_STATUS', 'Төлөв буруу байна');
+      where.Status = { [Op.in]: wanted };
+    }
+
+    // No raw:true - the Doctor include needs the association hydrated, so this
+    // maps toJSON the way listQuestions does.
     const { rows, count } = await Models.RemoteVisit.findAndCountAll({
-      where: { PatientId: req.Patient.PatientId },
-      attributes: ['Id', 'Comment', 'CreateDate'],
+      where,
+      include: [DOCTOR_INCLUDE],
       order: [['Id', 'DESC']],
       limit,
       offset,
-      raw: true,
     });
 
-    return ok(res, rows, { total: count, limit, offset });
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, rows.map((r) => shapeEvisit(r, labels)), { total: count, limit, offset });
   } catch (ex) {
     return serverError(res, ex, 'listEvisits');
   }
 };
 
+exports.getEvisit = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    // PatientId is in the WHERE, not a check after the fact: a row that is not
+    // this patient's is simply not found, which never reveals that it exists.
+    const row = await Models.RemoteVisit.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+      include: [DOCTOR_INCLUDE],
+    });
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, shapeEvisit(row, labels));
+  } catch (ex) {
+    return serverError(res, ex, 'getEvisit');
+  }
+};
+
+/** Max open (requested or scheduled) requests one patient may hold at once. */
+const MAX_OPEN_EVISITS = 3;
+
 exports.createEvisit = async (req, res) => {
   try {
-    const { Comment } = req.body;
+    const { Comment, RequestedDate } = req.body;
     if (!Comment || !String(Comment).trim()) {
       return fail(res, 'COMMENT_REQUIRED', 'Тайлбараа бичнэ үү');
     }
 
+    // RequestedDate is OPTIONAL, deliberately. The Dart client already shipped
+    // sending { Comment } alone (mobile/client/dart/patient_api.dart), and
+    // making it required here would break an app already in the field.
+    let When = null;
+    if (RequestedDate) {
+      const D = new Date(RequestedDate);
+      if (isNaN(D.getTime())) return fail(res, 'INVALID_DATE', 'Огноо буруу байна');
+      if (D.getTime() < Date.now()) {
+        return fail(res, 'DATE_IN_PAST', 'Өнгөрсөн огноо сонгох боломжгүй');
+      }
+      When = RequestedDate;
+    }
+
+    // A per-patient cap on OPEN requests. There is no rate limiting on
+    // authenticated writes, and each of these creates work for a clinician, so
+    // this is the cheap version of that control. It counts open requests rather
+    // than total, so a patient with a long history is never locked out.
+    const OpenCount = await Models.RemoteVisit.count({
+      where: {
+        PatientId: req.Patient.PatientId,
+        Status: { [Op.in]: RemoteVisitFlow.OPEN },
+      },
+    });
+    if (OpenCount >= MAX_OPEN_EVISITS) {
+      return fail(
+        res,
+        'TOO_MANY_OPEN_REQUESTS',
+        'Хариу хүлээж буй хүсэлт хэт олон байна. Өмнөх хүсэлтээ хүлээнэ үү.',
+        409
+      );
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
     const created = await Models.RemoteVisit.create({
       PatientId: req.Patient.PatientId,
       Comment,
-      CreateDate: ObjectHelper.getDateYMDHMS(),
+      // Defaulting RequestedDate to now keeps the column populated for every
+      // row, so the list's date window and the triage ordering never have to
+      // special-case a null.
+      RequestedDate: When || Now,
+      Status: RemoteVisitFlow.STATUS.REQUESTED,
+      CreateDate: Now,
+      UpdateDate: Now,
     });
 
-    return ok(res, { Id: created.Id });
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id: created.Id,
+      Status: RemoteVisitFlow.STATUS.REQUESTED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.REQUESTED) || null,
+      RequestedDate: When || Now,
+    });
   } catch (ex) {
     return serverError(res, ex, 'createEvisit');
+  }
+};
+
+/**
+ * A named transition, not a generic PATCH.
+ *
+ * A PATCH that took { Status } would have to validate the move anyway, and it
+ * would invite a client to set 'completed' on its own examination. Making the
+ * legal move the URL means the only thing a patient can do is withdraw.
+ *
+ * No PatientHistory audit row is written here, on purpose. ModelHelper stamps
+ * `id` from LogedUser.Id, and for a patient token that is a PatientUsers.Id,
+ * not a Users.Id - writing it into a column that means "staff user" would mix
+ * two id namespaces in an audit table. The cancellation is recorded on the row
+ * itself, by Status and UpdateDate.
+ */
+exports.cancelEvisit = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const row = await Models.RemoteVisit.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+    });
+    if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
+
+    if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.CANCELLED)) {
+      return fail(
+        res,
+        'INVALID_TRANSITION',
+        'Энэ хүсэлтийг цуцлах боломжгүй байна',
+        409
+      );
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const { Reason } = req.body || {};
+
+    await Models.RemoteVisit.update(
+      {
+        Status: RemoteVisitFlow.STATUS.CANCELLED,
+        UpdateDate: Now,
+        // Appended rather than replacing: Comment holds the patient's original
+        // complaint and overwriting it would destroy the reason they asked.
+        Comment: Reason
+          ? String(row.Comment || '') + '\n[Цуцалсан] ' + String(Reason).slice(0, 500)
+          : row.Comment,
+      },
+      { where: { Id, PatientId: req.Patient.PatientId } }
+    );
+
+    const labels = await DicoLabels.GetLabelMap('remotevisit_status');
+    return ok(res, {
+      Id,
+      Status: RemoteVisitFlow.STATUS.CANCELLED,
+      StatusLabel: labels.get(RemoteVisitFlow.STATUS.CANCELLED) || null,
+      UpdateDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'cancelEvisit');
+  }
+};
+
+/**
+ * The option lists the app renders dropdowns from.
+ *
+ * This exists so the drafted, unapproved Mongolian wording lives in exactly one
+ * place - the dictionary - instead of being hardcoded in the client. When ЗСҮТ
+ * approve different labels it is a row edit, not an app release.
+ *
+ * Allowlisted, not arbitrary. The legacy /api/base/OptionTypes route would also
+ * serve these, but it dumps every dictionary in the system and until today it
+ * carried no authentication at all. Do not point the app at it.
+ */
+const PATIENT_ALLOWED_DICOS = [
+  'remotevisit_status',
+  'rehab_category',
+  'rehab_risk',
+  'rehab_phase',
+  'patient_reminder_type',
+  'patient_reminder_freq',
+  'consent_purpose',
+];
+
+exports.listOptions = async (req, res) => {
+  try {
+    const dico = String(req.params.dico || '');
+    if (!PATIENT_ALLOWED_DICOS.includes(dico)) {
+      return fail(res, 'DICO_NOT_ALLOWED', 'Ийм жагсаалт байхгүй', 404);
+    }
+
+    // An empty array is a valid answer: it means the dictionary has not been
+    // seeded on this database yet. The client should show "not configured"
+    // rather than treat it as a failure.
+    const options = await DicoLabels.GetOptions(dico);
+    return ok(res, options, { dico, total: options.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listOptions');
   }
 };
 
@@ -411,7 +647,27 @@ exports.listExercises = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, rows, { total: rows.length });
+    const labels = await DicoLabels.GetLabelMap('rehab_category');
+
+    // MediaRef stays on the row verbatim for compatibility, with a parsed
+    // `media` object beside it.
+    //
+    // CONTRACT FOR THE CLIENT: never parse MediaRef. Branch on media.kind, and
+    // treat media.url === null as "no video yet" rather than as an error. Today
+    // every row is null - the catalogue is 39 placeholders and filming has not
+    // started - so that is the state to build against, and it is also what a
+    // file-hosted video will report until the streaming route exists.
+    const data = rows.map((r) =>
+      Object.assign({}, r, {
+        CategoryLabel: labels.get(String(r.CategoryCode)) || null,
+        // Describe, not Parse: for a file-hosted video this fills in the
+        // streaming route so the client never constructs a path. A url:
+        // entry keeps its own address and an asset: entry stays null.
+        media: MediaRef.Describe(r.MediaRef, '/api/Media/exercise/' + r.Id),
+      })
+    );
+
+    return ok(res, data, { total: data.length });
   } catch (ex) {
     return serverError(res, ex, 'listExercises');
   }
@@ -540,5 +796,719 @@ exports.getRehabAssessment = async (req, res) => {
     return ok(res, row || null);
   } catch (ex) {
     return serverError(res, ex, 'getRehabAssessment');
+  }
+};
+
+/* ------------------------------------------------ Мэдэгдэл (tracker row 48) */
+
+/**
+ * SEEN IS '1' OR NULL. Measured on MnCardio_test 2026-09-14 - those are the
+ * only two values in the column. Nothing in this repo writes it; the nightly
+ * EXEC spUpdateNotification does, and its body lives in the database rather
+ * than here. The web bell reads the same column, so this must not invent a
+ * third value like 'y' or 'true'.
+ */
+const SEEN = '1';
+
+const shapeNotification = (r) => ({
+  Id: r.Id,
+  Notes: r.Notes,
+  NotesMn: r.NotesMn,
+  Action: r.Action,
+  LinkObjectName: r.LinkObjectName,
+  LinkObjectId: r.LinkObjectId,
+  Url: r.Url,
+  Seen: r.Seen === SEEN,
+  SeenDate: r.SeenDate,
+  CreateDate: r.CreateDate,
+});
+
+exports.listNotifications = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+
+    const where = { ToPatientId: req.Patient.PatientId };
+    if (String(req.query.unread) === '1') {
+      // Unread is "not the seen value", which includes NULL. Op.ne alone would
+      // exclude NULL rows in SQL Server, and NULL is what an unread row
+      // actually holds - so that would return nothing at all.
+      where[Op.or] = [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }];
+    }
+
+    const { rows, count } = await Models.Notification.findAndCountAll({
+      where,
+      attributes: [
+        'Id',
+        'Notes',
+        'NotesMn',
+        'Action',
+        'LinkObjectName',
+        'LinkObjectId',
+        'Url',
+        'Seen',
+        'SeenDate',
+        'CreateDate',
+      ],
+      order: [['CreateDate', 'DESC'], ['Id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    return ok(res, rows.map(shapeNotification), { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listNotifications');
+  }
+};
+
+/** The badge. Its own endpoint so the app is not paging a list to count. */
+exports.unreadNotificationCount = async (req, res) => {
+  try {
+    const unread = await Models.Notification.count({
+      where: {
+        ToPatientId: req.Patient.PatientId,
+        [Op.or]: [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }],
+      },
+    });
+    return ok(res, { unread });
+  } catch (ex) {
+    return serverError(res, ex, 'unreadNotificationCount');
+  }
+};
+
+/**
+ * Ownership lives in the WHERE clause, never in a check beforehand.
+ *
+ * An UPDATE constrained by both Id and ToPatientId either matches the caller's
+ * own row or matches nothing. Zero rows becomes 404, which is the same answer
+ * an id that does not exist gets - so this cannot be used to discover whether
+ * somebody else's notification exists.
+ */
+exports.markNotificationRead = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: SEEN, SeenDate: Now },
+      { where: { Id, ToPatientId: req.Patient.PatientId } }
+    );
+
+    if (!count) return fail(res, 'NOT_FOUND', 'Мэдэгдэл олдсонгүй', 404);
+    return ok(res, { Id, Seen: true, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markNotificationRead');
+  }
+};
+
+exports.markAllNotificationsRead = async (req, res) => {
+  try {
+    const Now = ObjectHelper.getDateYMDHMS();
+    const [count] = await Models.Notification.update(
+      { Seen: SEEN, SeenDate: Now },
+      {
+        where: {
+          ToPatientId: req.Patient.PatientId,
+          [Op.or]: [{ Seen: null }, { Seen: { [Op.ne]: SEEN } }],
+        },
+      }
+    );
+    return ok(res, { marked: count, SeenDate: Now });
+  } catch (ex) {
+    return serverError(res, ex, 'markAllNotificationsRead');
+  }
+};
+
+/* ------------------------------------------------------ push registration */
+
+/**
+ * Register this device for push.
+ *
+ * The identity is the token's, not the body's: UserType 'P' and the PatientId
+ * from the session. A caller cannot register a token against somebody else.
+ *
+ * Works today with no FCM or APNs credentials - the log driver reports success,
+ * so the client's registration flow is testable now. See helper/PushHelper.js.
+ */
+exports.registerDevice = async (req, res) => {
+  try {
+    const { token, platform, device_id, app_version, locale } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const P = String(platform || '').toLowerCase();
+    if (!['android', 'ios', 'web'].includes(P)) {
+      return fail(res, 'INVALID_PLATFORM', 'platform нь android, ios, web байна');
+    }
+
+    const result = await PushHelper.Register({
+      UserType: 'P',
+      UserId: req.Patient.PatientId,
+      Token: token,
+      Platform: P,
+      DeviceId: device_id,
+      AppVersion: app_version,
+      Locale: locale,
+    });
+
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+
+    return ok(res, { Id: result.Id, moved: result.moved });
+  } catch (ex) {
+    return serverError(res, ex, 'registerDevice');
+  }
+};
+
+/**
+ * POST .../unregister rather than DELETE /devices/:token.
+ *
+ * An FCM token is around 163 characters and contains ':' and '-'. Putting one
+ * in a path segment is fragile through nginx and the router, and it lands in
+ * access logs. Keep it in the body. Do not "tidy" this into a DELETE.
+ */
+exports.unregisterDevice = async (req, res) => {
+  try {
+    const { token } = req.body || {};
+    if (!token) return fail(res, 'TOKEN_REQUIRED', 'Төхөөрөмжийн токен дутуу байна');
+
+    const result = await PushHelper.Unregister({
+      UserType: 'P',
+      UserId: req.Patient.PatientId,
+      Token: token,
+    });
+
+    if (!result) {
+      return fail(res, 'PUSH_UNAVAILABLE', 'Мэдэгдлийн үйлчилгээ бэлэн биш байна', 503);
+    }
+    return ok(res, { deactivated: result.deactivated });
+  } catch (ex) {
+    return serverError(res, ex, 'unregisterDevice');
+  }
+};
+
+/** The caller's own devices. Never returns the token itself. */
+exports.listDevices = async (req, res) => {
+  try {
+    const rows = await PushHelper.List({ UserType: 'P', UserId: req.Patient.PatientId });
+    return ok(res, rows, { total: rows.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listDevices');
+  }
+};
+
+/* ----------------------------------------------- Сануулга (reminders) */
+
+const HHMM = new RegExp('^([01][0-9]|2[0-3]):[0-5][0-9]$');
+const MAX_TIMES_PER_DAY = 6;
+
+/**
+ * Validate and normalise the parts of a reminder that the dispatcher depends on.
+ *
+ * TimesOfDay and DaysOfWeek are stored as CSV and read every minute by
+ * services/ReminderDispatcher.js, which does a plain string comparison against
+ * the current local 'HH:mm'. So '8:00' would never match '08:00' and would
+ * simply never fire - silently, with no error anywhere. Normalising and
+ * rejecting here is what keeps that from happening.
+ */
+function ParseReminderInput(body, existing) {
+  const out = {};
+  const cur = existing || {};
+
+  if (body.reminder_type !== undefined) out.ReminderType = body.reminder_type;
+  if (body.title !== undefined) out.Title = body.title;
+  if (body.body !== undefined) out.Body = body.body;
+  if (body.link_object_name !== undefined) out.LinkObjectName = body.link_object_name;
+  if (body.link_object_id !== undefined) out.LinkObjectId = body.link_object_id;
+  if (body.is_active !== undefined) out.IsActive = !!body.is_active;
+
+  if (body.frequency !== undefined) out.Frequency = body.frequency;
+
+  if (body.times_of_day !== undefined) {
+    const raw = Array.isArray(body.times_of_day)
+      ? body.times_of_day
+      : String(body.times_of_day || '').split(',');
+    const times = raw.map((t) => String(t).trim()).filter(Boolean);
+
+    if (!times.length) return { Error: ['TIMES_REQUIRED', 'Цагаа сонгоно уу'] };
+    if (times.length > MAX_TIMES_PER_DAY) {
+      return { Error: ['TOO_MANY_TIMES', 'Өдөрт хамгийн ихдээ 6 удаа сануулж болно'] };
+    }
+    for (const t of times) {
+      if (!HHMM.test(t)) {
+        return { Error: ['INVALID_TIME', 'Цаг HH:mm хэлбэртэй байх ёстой: ' + t] };
+      }
+    }
+    // Sorted and de-duplicated: two identical times would claim the same
+    // (ReminderId, DueAt) and the second would be discarded by the unique index
+    // anyway, so storing it would only mislead whoever read the row.
+    out.TimesOfDay = [...new Set(times)].sort().join(',');
+  }
+
+  if (body.days_of_week !== undefined) {
+    if (body.days_of_week === null || body.days_of_week === '') {
+      out.DaysOfWeek = null; // every day
+    } else {
+      const raw = Array.isArray(body.days_of_week)
+        ? body.days_of_week
+        : String(body.days_of_week).split(',');
+      const days = raw.map((d) => parseInt(String(d).trim(), 10));
+      if (days.some((d) => !Number.isInteger(d) || d < 1 || d > 7)) {
+        return { Error: ['INVALID_DAYS', 'Гараг 1-7 (1=Даваа) байна'] };
+      }
+      out.DaysOfWeek = [...new Set(days)].sort().join(',');
+    }
+  }
+
+  if (body.start_date !== undefined) out.StartDate = body.start_date || null;
+  if (body.end_date !== undefined) out.EndDate = body.end_date || null;
+
+  const start = out.StartDate !== undefined ? out.StartDate : cur.StartDate;
+  const end = out.EndDate !== undefined ? out.EndDate : cur.EndDate;
+  if (start && end && String(end) < String(start)) {
+    return { Error: ['INVALID_RANGE', 'Дуусах огноо эхлэх огнооноос өмнө байна'] };
+  }
+
+  return { Data: out };
+}
+
+const shapeReminder = (r, typeLabels, freqLabels) => ({
+  Id: r.Id,
+  ReminderType: r.ReminderType,
+  ReminderTypeLabel: typeLabels ? typeLabels.get(String(r.ReminderType)) || null : null,
+  Title: r.Title,
+  Body: r.Body,
+  Frequency: r.Frequency,
+  FrequencyLabel: freqLabels ? freqLabels.get(String(r.Frequency)) || null : null,
+  TimesOfDay: r.TimesOfDay,
+  DaysOfWeek: r.DaysOfWeek,
+  StartDate: r.StartDate,
+  EndDate: r.EndDate,
+  LinkObjectName: r.LinkObjectName,
+  LinkObjectId: r.LinkObjectId,
+  IsActive: !!r.IsActive,
+  CreateDate: r.CreateDate,
+  UpdateDate: r.UpdateDate,
+});
+
+exports.listReminders = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+    const where = { PatientId: req.Patient.PatientId };
+
+    if (req.query.type) where.ReminderType = String(req.query.type);
+    // Inactive reminders are hidden by default - a completed one-off should not
+    // clutter the list - but remain fetchable with ?include_inactive=1.
+    if (String(req.query.include_inactive) !== '1') where.IsActive = true;
+
+    const { rows, count } = await Models.PatientReminder.findAndCountAll({
+      where,
+      order: [['Id', 'DESC']],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    const [typeLabels, freqLabels] = await Promise.all([
+      DicoLabels.GetLabelMap('patient_reminder_type'),
+      DicoLabels.GetLabelMap('patient_reminder_freq'),
+    ]);
+
+    return ok(res, rows.map((r) => shapeReminder(r, typeLabels, freqLabels)), {
+      total: count,
+      limit,
+      offset,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'listReminders');
+  }
+};
+
+exports.createReminder = async (req, res) => {
+  try {
+    const body = req.body || {};
+    if (!body.title || !String(body.title).trim()) {
+      return fail(res, 'TITLE_REQUIRED', 'Гарчгаа бичнэ үү');
+    }
+    if (body.times_of_day === undefined) {
+      return fail(res, 'TIMES_REQUIRED', 'Цагаа сонгоно уу');
+    }
+
+    const parsed = ParseReminderInput(body, null);
+    if (parsed.Error) return fail(res, parsed.Error[0], parsed.Error[1]);
+
+    // Validated against the dictionary only when it has been seeded, so the
+    // endpoint behaves the same on a database without it - the fail-soft rule
+    // DicoLabels follows everywhere.
+    const typeLabels = await DicoLabels.GetLabelMap('patient_reminder_type');
+    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+      return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
+    }
+    const freqLabels = await DicoLabels.GetLabelMap('patient_reminder_freq');
+    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+      return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.PatientReminder.create(
+      Object.assign(
+        {
+          // Both keys, from the SESSION, never from the body. PatientId is what
+          // the notification and push layers address; PatRegNo is what the
+          // rehab-era tables join on.
+          PatientId: req.Patient.PatientId,
+          PatRegNo: req.Patient.PatRegNo,
+          Frequency: 'daily',
+          IsActive: true,
+          CreateDate: Now,
+          UpdateDate: Now,
+          CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+        },
+        parsed.Data
+      )
+    );
+
+    return ok(res, shapeReminder(created.toJSON(), typeLabels, freqLabels));
+  } catch (ex) {
+    return serverError(res, ex, 'createReminder');
+  }
+};
+
+exports.updateReminder = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const existing = await Models.PatientReminder.findOne({
+      where: { Id, PatientId: req.Patient.PatientId },
+      raw: true,
+    });
+    if (!existing) return fail(res, 'NOT_FOUND', 'Сануулга олдсонгүй', 404);
+
+    const parsed = ParseReminderInput(req.body || {}, existing);
+    if (parsed.Error) return fail(res, parsed.Error[0], parsed.Error[1]);
+
+    const [typeLabels, freqLabels] = await Promise.all([
+      DicoLabels.GetLabelMap('patient_reminder_type'),
+      DicoLabels.GetLabelMap('patient_reminder_freq'),
+    ]);
+    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+      return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
+    }
+    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+      return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
+    }
+
+    parsed.Data.UpdateDate = ObjectHelper.getDateYMDHMS();
+    // PatientId stays in the WHERE, so an id belonging to somebody else simply
+    // matches nothing rather than being checked and refused.
+    await Models.PatientReminder.update(parsed.Data, {
+      where: { Id, PatientId: req.Patient.PatientId },
+    });
+
+    const after = await Models.PatientReminder.findOne({ where: { Id }, raw: true });
+    return ok(res, shapeReminder(after, typeLabels, freqLabels));
+  } catch (ex) {
+    return serverError(res, ex, 'updateReminder');
+  }
+};
+
+/**
+ * Soft delete. The reminder stops firing but its PatientReminderLog history
+ * stays meaningful - "why did I get this on Tuesday" has to remain answerable,
+ * and a hard delete would orphan those rows.
+ */
+exports.deleteReminder = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const [count] = await Models.PatientReminder.update(
+      { IsActive: false, UpdateDate: ObjectHelper.getDateYMDHMS() },
+      { where: { Id, PatientId: req.Patient.PatientId } }
+    );
+    if (!count) return fail(res, 'NOT_FOUND', 'Сануулга олдсонгүй', 404);
+
+    return ok(res, { Id, IsActive: false });
+  } catch (ex) {
+    return serverError(res, ex, 'deleteReminder');
+  }
+};
+
+/* ------------------------------------ Access log (tracker 24, read side) */
+
+/**
+ * Who looked at my record.
+ *
+ * BEHIND FEATURE_ACCESS_LOG_API, and the flag is not ceremony. UserActionHistory
+ * holds ~637,000 rows on the test database alone; without
+ * IX_UserActionHistory_PatientId this query scans all of them, on a phone
+ * launch, potentially for many patients at once. Refusing is better than taking
+ * the server down, so the endpoint checks for the index rather than trusting
+ * that somebody remembered to run the script.
+ *
+ * WHAT IT DELIBERATELY DOES NOT RETURN: the accessing account's UserName or id.
+ * A patient is entitled to know that a named clinician at a named hospital
+ * opened their record - that is the point of the tender requirement - not to be
+ * handed staff login names.
+ *
+ * The log starts from the day the write side deployed. Historical rows carry no
+ * PatientId and cannot be given one; the information was never captured, and
+ * inventing it would be worse than a short history.
+ */
+exports.listAccessLog = async (req, res) => {
+  try {
+    if (!Flags.AccessLogApi) {
+      return fail(
+        res,
+        'FEATURE_DISABLED',
+        'Хандалтын түүх одоогоор идэвхгүй байна',
+        503
+      );
+    }
+
+    await SchemaProbe.Warm();
+    if (!SchemaProbe.HasColumn('UserActionHistory', 'IpAddress')) {
+      return fail(res, 'FEATURE_DISABLED', 'Хандалтын түүх одоогоор идэвхгүй байна', 503);
+    }
+
+    const { limit, offset } = readPaging(req);
+    const where = Object.assign(
+      { PatientId: req.Patient.PatientId },
+      readDateRange(req, 'LogDate')
+    );
+
+    const { rows, count } = await Models.UserActionHistory.findAndCountAll({
+      where,
+      attributes: ['Id', 'LogDate', 'Action', 'LinkObjectName', 'DoctorId'],
+      include: [
+        {
+          model: Models.DoctorsProfile,
+          as: 'DoctorsProfile',
+          attributes: ['id_data', 'lastname', 'firstname'],
+          required: false,
+          include: [
+            {
+              model: Models.Organization,
+              as: 'Organization',
+              attributes: ['Id', 'Name'],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [['LogDate', 'DESC']],
+      limit,
+      offset,
+    });
+
+    const data = rows.map((r) => {
+      const row = r.toJSON();
+      const D = row.DoctorsProfile || null;
+      return {
+        Id: row.Id,
+        LogDate: row.LogDate,
+        Action: row.Action,
+        ObjectName: row.LinkObjectName,
+        DoctorName: D ? [D.lastname, D.firstname].filter(Boolean).join(' ') : null,
+        OrganizationName: D && D.Organization ? D.Organization.Name : null,
+      };
+    });
+
+    return ok(res, data, { total: count, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listAccessLog');
+  }
+};
+
+/* ------------------------------------------ Зөвшөөрөл (consent, tracker 23) */
+
+/**
+ * What this patient has agreed to, and what they have not been asked yet.
+ *
+ * Returns a row per ACTIVE consent document rather than per stored consent, so
+ * a purpose the patient has never been asked about still appears - with
+ * Granted: null. An app that only listed stored rows could never prompt anybody.
+ */
+exports.listConsents = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const [docs, states] = await Promise.all([
+      Models.ConsentDocument.findAll({
+        where: { IsActive: true },
+        attributes: ['Id', 'PurposeCode', 'Version', 'TitleMn', 'EffectiveFrom'],
+        order: [['PurposeCode', 'ASC'], ['EffectiveFrom', 'DESC'], ['Id', 'DESC']],
+        raw: true,
+      }),
+      Consent.CurrentStates(req.Patient.PatRegNo),
+    ]);
+
+    const byPurpose = new Map();
+    docs.forEach((d) => {
+      if (!byPurpose.has(d.PurposeCode)) byPurpose.set(d.PurposeCode, d);
+    });
+    const stateBy = new Map(states.map((s) => [s.PurposeCode, s]));
+
+    const items = [...byPurpose.values()].map((d) => {
+      const s = stateBy.get(d.PurposeCode) || null;
+      return {
+        PurposeCode: d.PurposeCode,
+        TitleMn: d.TitleMn,
+        Version: d.Version,
+        DocumentId: d.Id,
+        // null = never asked. Distinct from false = withdrawn, which the app
+        // must render differently or it will re-prompt somebody who refused.
+        Granted: s ? !!s.Granted : null,
+        GrantedDate: s && s.Granted ? s.GrantedDate : null,
+        WithdrawnDate: s && !s.Granted ? s.GrantedDate : null,
+        // True when they agreed to an older version and a newer one is live.
+        Superseded: !!(s && s.Granted && s.ConsentDocumentId && s.ConsentDocumentId !== d.Id),
+      };
+    });
+
+    return ok(res, { items }, { total: items.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listConsents');
+  }
+};
+
+/** The full text to display before asking. */
+exports.getConsentDocument = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const doc = await Consent.ActiveDocument(String(req.params.purposeCode || ''));
+    if (!doc) return fail(res, 'CONSENT_DOC_NOT_FOUND', 'Зөвшөөрлийн текст олдсонгүй', 404);
+
+    return ok(res, {
+      Id: doc.Id,
+      PurposeCode: doc.PurposeCode,
+      Version: doc.Version,
+      TitleMn: doc.TitleMn,
+      BodyMn: doc.BodyMn,
+      EffectiveFrom: doc.EffectiveFrom,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'getConsentDocument');
+  }
+};
+
+/**
+ * Grant consent.
+ *
+ * documentId is REQUIRED and checked against the currently active document.
+ * That is the point of recording it: consent has to be to a specific text, and
+ * accepting a stale documentId would record agreement to wording the patient
+ * never saw. If the text changed while they were reading it, they are asked
+ * again rather than silently bound to the new version.
+ */
+exports.grantConsent = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const { purposeCode, documentId } = req.body || {};
+    if (!purposeCode) return fail(res, 'PURPOSE_REQUIRED', 'Зорилгыг заана уу');
+
+    const doc = await Consent.ActiveDocument(String(purposeCode));
+    if (!doc) return fail(res, 'CONSENT_DOC_NOT_FOUND', 'Зөвшөөрлийн текст олдсонгүй', 400);
+    if (documentId && String(documentId) !== String(doc.Id)) {
+      return fail(
+        res,
+        'CONSENT_DOC_SUPERSEDED',
+        'Зөвшөөрлийн текст шинэчлэгдсэн байна. Дахин уншина уу.',
+        409
+      );
+    }
+
+    const states = await Consent.CurrentStates(req.Patient.PatRegNo);
+    const current = states.find((s) => s.PurposeCode === String(purposeCode));
+    if (current && current.Granted && String(current.ConsentDocumentId) === String(doc.Id)) {
+      return fail(res, 'CONSENT_ALREADY_GRANTED', 'Аль хэдийн зөвшөөрсөн байна', 409);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    // A NEW ROW, always. Never an update - see the model header.
+    const created = await Models.PatientConsent.create({
+      PatRegNo: req.Patient.PatRegNo,
+      PatientId: req.Patient.PatientId,
+      PatientUserId: req.Patient.PatientUserId || null,
+      ConsentDocumentId: doc.Id,
+      PurposeCode: String(purposeCode),
+      Granted: true,
+      GrantedDate: Now,
+      Channel: 'mobile',
+      IpAddress: String(req.ip || '').slice(0, 45),
+      CreateDate: Now,
+      CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+    });
+
+    Consent.Invalidate(req.Patient.PatRegNo);
+
+    return ok(res, {
+      Id: created.Id,
+      PurposeCode: String(purposeCode),
+      Granted: true,
+      GrantedDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'grantConsent');
+  }
+};
+
+/**
+ * Withdraw consent.
+ *
+ * Writes a NEW row with Granted = 0. The granting row stays exactly as it was,
+ * because proving what somebody agreed to and when they stopped agreeing is the
+ * entire purpose of this table.
+ */
+exports.withdrawConsent = async (req, res) => {
+  try {
+    if (!(await Consent.Available())) {
+      return fail(res, 'FEATURE_DISABLED', 'Зөвшөөрлийн бүртгэл бэлэн биш байна', 503);
+    }
+
+    const purposeCode = String(req.params.purposeCode || '');
+    if (!purposeCode) return fail(res, 'PURPOSE_REQUIRED', 'Зорилгыг заана уу');
+
+    const states = await Consent.CurrentStates(req.Patient.PatRegNo);
+    const current = states.find((s) => s.PurposeCode === purposeCode);
+    if (!current || !current.Granted) {
+      return fail(res, 'CONSENT_NOT_GRANTED', 'Зөвшөөрөл өгөөгүй байна', 409);
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.PatientConsent.create({
+      PatRegNo: req.Patient.PatRegNo,
+      PatientId: req.Patient.PatientId,
+      PatientUserId: req.Patient.PatientUserId || null,
+      ConsentDocumentId: current.ConsentDocumentId || null,
+      PurposeCode: purposeCode,
+      Granted: false,
+      GrantedDate: Now,
+      Channel: 'mobile',
+      IpAddress: String(req.ip || '').slice(0, 45),
+      CreateDate: Now,
+      CreateUserId: req.LogedUser ? req.LogedUser.Id : null,
+    });
+
+    Consent.Invalidate(req.Patient.PatRegNo);
+
+    return ok(res, {
+      Id: created.Id,
+      PurposeCode: purposeCode,
+      Granted: false,
+      WithdrawnDate: Now,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'withdrawConsent');
   }
 };

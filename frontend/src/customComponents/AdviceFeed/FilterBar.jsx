@@ -137,8 +137,8 @@ export default function FilterBar({
         <InputBase
           value={text}
           onChange={(e) => setText(e.target.value)}
-          placeholder={t("Тасалбар хайх")}
-          inputProps={{ "aria-label": t("Тасалбар хайх") }}
+          placeholder={t("Асуумж хайх")}
+          inputProps={{ "aria-label": t("Асуумж хайх") }}
           sx={{ flex: 1, fontSize: "14px", color: colors.brand.ink }}
         />
       </Box>

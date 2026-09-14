@@ -187,6 +187,11 @@ export const colors = {
     canvas: "#eaf2f8", // LoginScene --bg-1. The page background.
     surface: "#ffffff", // cards
     tint: "rgba(24, 140, 200, 0.075)", // LoginScene --ring. Hover wash, chips.
+    // `tint` pre-mixed onto white: the same colour, but opaque. Use it for
+    // anything that sits ON TOP of scrolling content - a sticky grid header in
+    // `tint` let every row that scrolled under it show through.
+    tintSolid: "#eef6fb",
+    tintSolidHover: "#dce7ee", // hover step on a tintSolid surface
 
     // Hairlines - LoginScene --panel-line
     hairline: "rgba(13, 58, 92, 0.13)",

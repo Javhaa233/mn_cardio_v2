@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const Auth = require('../../helper/Auth');
+const SessionStore = require('../../helper/SessionStore');
 
 /**
  * Handlers for /api/auth/*.
@@ -28,7 +29,20 @@ const verifyAccessToken = (token) =>
     if (!token) return resolve(null);
     jwt.verify(token, process.env.JWT_PASS, (err, decoded) => {
       if (err || !decoded || !decoded.user || !decoded.user.Id) return resolve(null);
+      // A signature-valid token can still have been cancelled.
+      if (SessionStore.IsRevoked(decoded.jti)) return resolve(null);
       resolve(decoded.user);
+    });
+  });
+
+/** The same, but keeping the jti - the session routes act on it. */
+const verifyWithJti = (token) =>
+  new Promise((resolve) => {
+    if (!token) return resolve(null);
+    jwt.verify(token, process.env.JWT_PASS, (err, decoded) => {
+      if (err || !decoded || !decoded.user || !decoded.user.Id) return resolve(null);
+      if (SessionStore.IsRevoked(decoded.jti)) return resolve(null);
+      resolve({ user: decoded.user, jti: decoded.jti || null });
     });
   });
 
@@ -120,5 +134,90 @@ exports.session = async (req, res) => {
       message: 'Сервер дээр алдаа гарлаа',
       data: null,
     });
+  }
+};
+
+/* ------------------------------------------------------- session management */
+
+const UserTypeOf = (user) => (String(user.RoleId) === '4' ? 'patient' : 'staff');
+
+/**
+ * POST /api/auth/logout
+ *
+ * Ends THIS session. The jti comes from the presented token, so one session
+ * cannot be used to end another - there is no id to pass and nothing to guess.
+ */
+exports.logout = async (req, res) => {
+  try {
+    const decoded = await verifyWithJti(bearer(req));
+    if (!decoded) return fail(res, 'TOKEN_INVALID', 'Токен буруу байна', 401);
+
+    const revoked = decoded.jti ? await SessionStore.Revoke(decoded.jti, 'logout') : 0;
+    // Success either way. A token with no jti pre-dates revocation and cannot
+    // be cancelled individually; telling the client its logout failed would be
+    // both useless and alarming, since it clears its own state regardless.
+    return ok(res, { revoked });
+  } catch (ex) {
+    console.error('[api/auth] logout: ' + ex.message);
+    return fail(res, 'SERVER_ERROR', 'Сервер дээр алдаа гарлаа', 500);
+  }
+};
+
+/**
+ * GET /api/auth/sessions
+ *
+ * Where am I signed in? Never returns a jti - that is the credential this
+ * endpoint exists to let somebody cancel, not something to hand out.
+ */
+exports.sessions = async (req, res) => {
+  try {
+    const decoded = await verifyWithJti(bearer(req));
+    if (!decoded) return fail(res, 'TOKEN_INVALID', 'Токен буруу байна', 401);
+
+    const rows = await SessionStore.ListFor({
+      UserType: UserTypeOf(decoded.user),
+      UserId: decoded.user.Id,
+    });
+
+    return ok(
+      res,
+      rows.map((r) => ({
+        Id: r.Id,
+        DeviceName: r.DeviceName,
+        IssuedDate: r.IssuedDate,
+        LastSeenDate: r.LastSeenDate,
+        ExpireDate: r.ExpireDate,
+        IpAddress: r.IpAddress,
+      }))
+    );
+  } catch (ex) {
+    console.error('[api/auth] sessions: ' + ex.message);
+    return fail(res, 'SERVER_ERROR', 'Сервер дээр алдаа гарлаа', 500);
+  }
+};
+
+/**
+ * POST /api/auth/logout-all
+ *
+ * Ends every session for this identity, including the one making the call.
+ * This is the "I lost my phone" button, and the reason token revocation exists
+ * at all - before it, the only way to achieve this was to rotate JWT_PASS and
+ * sign out every user of the system.
+ */
+exports.logoutAll = async (req, res) => {
+  try {
+    const decoded = await verifyWithJti(bearer(req));
+    if (!decoded) return fail(res, 'TOKEN_INVALID', 'Токен буруу байна', 401);
+
+    const revoked = await SessionStore.RevokeAllFor({
+      UserType: UserTypeOf(decoded.user),
+      UserId: decoded.user.Id,
+      reason: 'logout-all',
+    });
+
+    return ok(res, { revoked });
+  } catch (ex) {
+    console.error('[api/auth] logoutAll: ' + ex.message);
+    return fail(res, 'SERVER_ERROR', 'Сервер дээр алдаа гарлаа', 500);
   }
 };

@@ -5,6 +5,8 @@ import { useTranslation } from "react-i18next";
 import React from "react";
 import SettingsIcon from "@mui/icons-material/Settings";
 import AssessmentIcon from "@mui/icons-material/Assessment";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import GroupsIcon from "@mui/icons-material/Groups";
 import StorageIcon from "@mui/icons-material/Storage";
 import SupervisorAccountIcon from "@mui/icons-material/SupervisorAccount";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
@@ -26,6 +28,7 @@ import ViewHeadlineIcon from "@mui/icons-material/ViewHeadline";
 import i18n from "../i18n";
 
 const Reports = React.lazy(() => import("view/Reports.jsx"));
+const DoctorExamReport = React.lazy(() => import("view/DoctorExamReport.jsx"));
 const DoctorsProfile = React.lazy(() => import("view/DoctorsProfile.jsx"));
 const Organization = React.lazy(() => import("view/OrganizationNew.jsx"));
 const DrgroupDepartments = React.lazy(() => import("view/DrgroupDepartments"));
@@ -60,12 +63,35 @@ const settingsRoutes = [
     roles: [1, 6],
     views: [
       {
-        path: "/report",
+        // Тайлан нэгээс олон болсон тул задардаг бүлэг болов. Шинэ тайлан нэмэхэд
+        // энд нэг мөр нэмэхэд хангалттай. `state` нь бүх route файлд давхцахгүй
+        // байх ёстой — Sidebar бүх флагийг нэг объект дээр хавтгайруулдаг.
+        collapse: true,
         name: "Report",
         icon: AssessmentIcon,
-        component: Reports,
-        roles: [1, 6],
+        state: "ReportCollapse",
         layout: "/admin",
+        // Хүүхдүүдийнхээ эрхийн нэгдэл — эс тэгвээс хоосон нээгддэг цэс үүснэ.
+        roles: [1, 6],
+        views: [
+          {
+            // URL хэвээр: хадгалсан холбоос, PageTabs-ийн түлхүүр эвдрэхгүй.
+            path: "/report",
+            name: "Сар бүрийн нэгтгэл тайлан",
+            icon: CalendarMonthIcon,
+            component: Reports,
+            roles: [1, 6],
+            layout: "/admin",
+          },
+          {
+            path: "/doctorExamReport",
+            name: "Эмчийн нэгдсэн үзлэгийн тайлан",
+            icon: GroupsIcon,
+            component: DoctorExamReport,
+            roles: [1, 6],
+            layout: "/admin",
+          },
+        ],
       },
       {
         collapse: true,

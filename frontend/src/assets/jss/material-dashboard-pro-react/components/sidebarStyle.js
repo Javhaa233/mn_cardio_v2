@@ -84,7 +84,9 @@ const sidebarStyle = (theme) => ({
   },
   drawerPaperMini: { width: drawerMiniWidth + "px!important" },
   logo: {
-    padding: "10px 0",
+    // The header centres it now; 10px of padding on top of the 40px line box
+    // would overflow the 48px header.
+    padding: "0",
     margin: "0",
     display: "block",
     position: "relative",
@@ -495,8 +497,10 @@ const sidebarStyle = (theme) => ({
     margin: "0",
     position: "relative",
     display: "flex",
+    alignItems: "center",
     zIndex: "4",
-    height: "56px",
+    // Same height as the admin top bar, so the two bottom rules line up.
+    height: layout.topBarHeight + "px",
     "&:after": {
       content: '""',
       position: "absolute",
@@ -512,6 +516,8 @@ const sidebarStyle = (theme) => ({
     right: "5px",
     bottom: 0,
     top: 0,
+    display: "flex",
+    alignItems: "center",
     padding: "0 15px 0 15px",
     marginTop: "0",
     color: grayColor[6],
@@ -526,6 +532,7 @@ const sidebarStyle = (theme) => ({
 //
 // No import cycle: `theme.js` pulls in `theme/colors` only, never this file.
 import appTheme from "@/theme.js";
+import { layout } from "@/theme/tokens";
 
 export const sidebarSx = (() => {
   const sx = sidebarStyle(appTheme);

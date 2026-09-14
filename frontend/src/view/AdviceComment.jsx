@@ -314,7 +314,7 @@ class AdviceComment extends Component {
                   py: space[8],
                 }}
               >
-                {t("Тасалбар олдсонгүй")}
+                {t("Асуумж олдсонгүй")}
               </Typography>
             ) : (
               <>

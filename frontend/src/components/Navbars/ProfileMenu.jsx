@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Avatar from "@mui/material/Avatar";
@@ -19,8 +19,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 
-import BaseDialog from "customComponents/BaseDialog";
-import ChangePassword from "customComponents/Profile/ChangePassword";
+import ChangePasswordDialog from "customComponents/Profile/ChangePasswordDialog";
 import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/components/adminNavbarLinksStyle.js";
 import { colors } from "@/theme/colors";
 import Helper from "helper";
@@ -42,6 +41,7 @@ const Chip = styled(ButtonBase, {
   shouldForwardProp: (prop) => prop !== "active",
 })(({ theme, active }) => ({
   height: T.button,
+  "@media (pointer: coarse)": { height: T.buttonTouch },
   padding: "4px 8px 4px 4px",
   gap: T.gapGroup,
   borderRadius: T.radius,
@@ -65,7 +65,6 @@ export default function ProfileMenu() {
   const { t } = useTranslation();
   const [Dialog, setDialog] = useState(null);
   const [anchor, setAnchor] = useState(null);
-  const ChangePasswordRef = useRef(null);
 
   const User = Helper.AuthHelper.GetLogedUserLocal();
   const firstName = User && User.Doctor ? User.Doctor.firstname : "";
@@ -79,25 +78,7 @@ export default function ProfileMenu() {
 
   const ShowChangePassword = () => {
     handleClose();
-    setDialog(
-      <BaseDialog
-        Close={() => setDialog(null)}
-        Title="Change password"
-        Width="360px"
-        Height="400px"
-        Save={() => {
-          if (ChangePasswordRef.current && ChangePasswordRef.current.Save) {
-            ChangePasswordRef.current.Save((success) => {
-              success && setDialog(null);
-            });
-          }
-        }}
-        ShowSaveNotLoad={true}
-        SaveButtonText="Change password"
-      >
-        <ChangePassword ref={ChangePasswordRef} />
-      </BaseDialog>,
-    );
+    setDialog(<ChangePasswordDialog OnClose={() => setDialog(null)} />);
   };
 
   const open = Boolean(anchor);

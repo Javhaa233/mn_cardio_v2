@@ -5,6 +5,7 @@ import Badge from "@mui/material/Badge";
 import { styled } from "@mui/material/styles";
 
 import { colors } from "@/theme/colors";
+import { COARSE } from "@/theme.js";
 import T from "./topBarTokens";
 
 /**
@@ -40,6 +41,13 @@ const Root = styled(IconButton, {
 
   "& .MuiSvgIcon-root": {
     fontSize: T.icon,
+  },
+
+  // A finger needs more than 32px; the bar has room for 40.
+  [COARSE]: {
+    width: T.buttonTouch,
+    height: T.buttonTouch,
+    padding: (T.buttonTouch - T.icon) / 2,
   },
 
   "&:hover": {

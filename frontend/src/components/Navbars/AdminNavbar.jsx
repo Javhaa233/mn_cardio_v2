@@ -15,11 +15,14 @@ import TopBarIconButton from "components/Navbars/TopBarIconButton";
 import T from "components/Navbars/topBarTokens";
 import { PatientSearch } from "@features/patient";
 import { colors } from "@/theme/colors";
+import { elevation } from "@/theme/tokens";
 import customHistory from "customHistory";
 
 const Navbar = styled(AppBar)({
   backgroundColor: colors.background.primary,
-  boxShadow: "0 4px 20px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04)",
+  // The navy-tinted token, not a 20px grey blur: that blur spread a dark band
+  // over the tab strip and made the gap under the bar look bigger than it was.
+  boxShadow: elevation[2],
   borderBottom: `1px solid ${colors.border.divider}`,
   marginBottom: "0",
   position: "sticky",
@@ -46,6 +49,14 @@ const NavbarContainer = styled(Toolbar)(({ theme }) => ({
   minHeight: T.height,
   display: "flex",
   alignItems: "center",
+  // MUI's Toolbar mixin sets minHeight 64 from `sm` up (and 48/56 below). Left
+  // alone it kept this toolbar 64px tall inside the 48px bar, so every icon
+  // sat centred on 32px - visibly low in the bar. Pin it at every breakpoint.
+  [theme.breakpoints.up("xs")]: { minHeight: T.height },
+  [theme.breakpoints.up("sm")]: { minHeight: T.height },
+  "@media (min-width:0px) and (orientation: landscape)": {
+    minHeight: T.height,
+  },
   [theme.breakpoints.down("md")]: {
     paddingLeft: T.sidePadSm,
     paddingRight: T.sidePadSm,

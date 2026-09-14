@@ -87,7 +87,7 @@ export default function AnalyticsRail({ compact = false }) {
   const maxStatus = Math.max(1, ...byStatus.map((s) => s.Count));
 
   const KPIS = [
-    { label: t("Нийт тасалбар"), value: kpi.Total },
+    { label: t("Нийт асуумж"), value: kpi.Total },
     { label: t("Нээлттэй"), value: kpi.Open },
     { label: t("Хаагдсан"), value: kpi.Closed },
     { label: t("Хариулт"), value: kpi.Comments },
@@ -142,7 +142,7 @@ export default function AnalyticsRail({ compact = false }) {
 
   return (
     <TilePanel
-      Title={t("Тасалбарын тойм")}
+      Title={t("Асуумжийн тойм")}
       Variant="panel"
       Action={
         <BaseDateSelect
@@ -203,7 +203,7 @@ export default function AnalyticsRail({ compact = false }) {
             />
           ) : (
             <Typography variant="body2" sx={{ color: colors.brand.inkDim }}>
-              {t("Энэ хугацаанд тасалбар алга")}
+              {t("Энэ хугацаанд асуумж алга")}
             </Typography>
           )}
 

@@ -7,9 +7,7 @@ const { Models, Op } = require('../../config/DB');
 const Auths = require('../../helper/Auth');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const MailHelper = require('../../helper/MailHelper');
-
-const EMAIL_REGEX =
-  /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+const { EMAIL_REGEX, CheckContact } = require('../../helper/ContactValidation');
 
 // Case-insensitive match on Email, so the check does not depend on the
 // database collation.
@@ -133,16 +131,17 @@ async function Register(req, res) {
         raw: true,
       });
       if (!UsersData && !UserRequestData) {
-        // email duplicate / format check before the request is stored
-        const Email = Data.Email ? String(Data.Email).trim() : '';
-        if (Email && !EMAIL_REGEX.test(Email)) {
-          return res.send(
-            JSON.stringify(
-              BaseControllerHelper.GetDefaultErrorResult('The email address is invalid')
-            )
-          );
+        // Email and phone are required on every new request - accounts created
+        // without them could not reset a password or be contacted.
+        const ContactError = CheckContact(Data, {
+          EmailKey: 'Email',
+          PhoneKey: 'Telephone',
+          Required: true,
+        });
+        if (ContactError) {
+          return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
         }
-        const DuplicateEmail = await FindDuplicateEmail(Email);
+        const DuplicateEmail = await FindDuplicateEmail(Data.Email);
         if (DuplicateEmail) {
           return res.send(
             JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(DuplicateEmail))

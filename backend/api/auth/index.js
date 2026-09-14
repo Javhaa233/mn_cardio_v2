@@ -16,4 +16,12 @@ const router = express.Router();
 router.post('/refresh', c.refresh);
 router.get('/session', c.session);
 
+// End this session. The jti comes from the presented token, so one session
+// cannot be used to end another
+router.post('/logout', c.logout);
+// Where am I signed in? Never returns a session identifier
+router.get('/sessions', c.sessions);
+// The "I lost my phone" button - ends every session for this identity
+router.post('/logout-all', c.logoutAll);
+
 module.exports = router;

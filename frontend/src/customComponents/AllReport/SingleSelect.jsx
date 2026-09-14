@@ -103,4 +103,7 @@ class SingleSelect extends Component {
   }
 }
 
-export default withTranslation()(SingleSelect);
+// ReportLocationSelect reaches in through a ref and calls GetData() to fill the
+// options. Without withRef the HOC swallowed the ref, GetData was never called,
+// and all three location dropdowns sat empty on every report screen.
+export default withTranslation(undefined, { withRef: true })(SingleSelect);

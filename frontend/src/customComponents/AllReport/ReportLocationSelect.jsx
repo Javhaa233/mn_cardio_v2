@@ -21,6 +21,11 @@ class ReportLocationSelect extends Component {
     this.SelectRef3 = createRef();
   }
 
+  // withTranslation resolves the ref either to the wrapper or to the instance
+  // depending on the version, so unwrap the same way the rest of the app does.
+  Unwrap = (ref) =>
+    ref && ref.getWrappedInstance ? ref.getWrappedInstance() : ref;
+
   componentDidMount() {
     this.GetProvinceData({
       ObjectName: "DictProvinceCity",
@@ -37,13 +42,16 @@ class ReportLocationSelect extends Component {
       ReqData,
       (resData) => {
         if (resData && resData.Success) {
+          const Ref1 = this.Unwrap(this.SelectRef1);
+          const Ref2 = this.Unwrap(this.SelectRef2);
+          const Ref3 = this.Unwrap(this.SelectRef3);
           if (ObjectName === "DictProvinceCity") {
-            this.SelectRef1 && this.SelectRef1.GetData(resData.Data);
+            Ref1 && Ref1.GetData(resData.Data);
           } else if (ObjectName === "DictSoumDistrict") {
-            this.SelectRef2 && this.SelectRef2.GetData(resData.Data);
-            this.SelectRef3 && this.SelectRef3.GetData([]);
+            Ref2 && Ref2.GetData(resData.Data);
+            Ref3 && Ref3.GetData([]);
           } else if (ObjectName === "DictBagKhoroo") {
-            this.SelectRef3 && this.SelectRef3.GetData(resData.Data);
+            Ref3 && Ref3.GetData(resData.Data);
           }
         }
       },

@@ -17,6 +17,24 @@ Patient.init(
     date_modif: { type: Sequelize.DATE },
 
     rec_status: { type: Sequelize.INTEGER },
+
+    /*
+     * Confidentiality classification (tracker 21/22), added by
+     * scripts/add_confidentiality_flag.sql.
+     *
+     * helper/Confidentiality.js SELECTS ConfidentialityLevel by name, and an
+     * undeclared attribute on a read is what makes Sequelize produce an invalid
+     * column reference - so without this the classification check fails on
+     * every call and, because it fails safe, silently allows everything.
+     *
+     * No level is set on any row today: 357,156 patients, 0 classified. The
+     * levels themselves cannot be seeded until ЗСҮТ supply the access-rights
+     * matrix (BLOCKERS item 8).
+     */
+    ConfidentialityLevel: { type: Sequelize.STRING },
+    ConfidentialitySetDate: { type: Sequelize.DATE },
+    ConfidentialitySetUserId: { type: Sequelize.INTEGER },
+    ConfidentialityReason: { type: Sequelize.STRING },
     p_familyname: { type: Sequelize.STRING },
     p_lastname: { type: Sequelize.STRING },
     p_firstname: { type: Sequelize.STRING },

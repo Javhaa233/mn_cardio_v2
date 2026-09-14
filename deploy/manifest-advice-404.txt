@@ -1,0 +1,22 @@
+# Files changed by the Advice attachment 404 fix, and where they go on
+# mncardio.itsystem.mn. Run with:
+#
+#   uv run --with paramiko python rsh.py --sync deploy/manifest-advice-404.txt
+#
+# then rebuild the frontend and restart the API on that host.
+
+# Backend - download authorization, the availability flag, the Mongolian 404
+backend/controllers/system/BaseController.js -> /srv/clients/mncardio/backend/controllers/system/BaseController.js
+backend/controllers/organization/AdviceController.js -> /srv/clients/mncardio/backend/controllers/organization/AdviceController.js
+backend/helper/BaseControllerHelper.js -> /srv/clients/mncardio/backend/helper/BaseControllerHelper.js
+backend/helper/AdviceScopeHelper.js -> /srv/clients/mncardio/backend/helper/AdviceScopeHelper.js
+backend/scripts/advice_attachments.js -> /srv/clients/mncardio/backend/scripts/advice_attachments.js
+
+# Frontend - the real error message, and unavailable attachments marked as such
+frontend/src/helper/BaseCrudHelper.jsx -> /srv/clients/mncardio/frontend/src/helper/BaseCrudHelper.jsx
+frontend/src/customComponents/AdviceFeed/PostMedia.jsx -> /srv/clients/mncardio/frontend/src/customComponents/AdviceFeed/PostMedia.jsx
+frontend/src/customComponents/AdviceFeed/Lightbox.jsx -> /srv/clients/mncardio/frontend/src/customComponents/AdviceFeed/Lightbox.jsx
+frontend/src/customComponents/AdviceFeed/mediaUtils.js -> /srv/clients/mncardio/frontend/src/customComponents/AdviceFeed/mediaUtils.js
+frontend/src/customComponents/Advice/AdviceFileInfo.jsx -> /srv/clients/mncardio/frontend/src/customComponents/Advice/AdviceFileInfo.jsx
+frontend/public/locales/mn/translation.json -> /srv/clients/mncardio/frontend/public/locales/mn/translation.json
+frontend/public/locales/en/translation.json -> /srv/clients/mncardio/frontend/public/locales/en/translation.json

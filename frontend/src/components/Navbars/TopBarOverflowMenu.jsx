@@ -17,8 +17,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import MoreVertOutlinedIcon from "@mui/icons-material/MoreVertOutlined";
 
-import BaseDialog from "customComponents/BaseDialog";
-import ChangePassword from "customComponents/Profile/ChangePassword";
+import ChangePasswordDialog from "customComponents/Profile/ChangePasswordDialog";
 import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/components/adminNavbarLinksStyle.js";
 import Helper from "helper";
 import customHistory from "customHistory";
@@ -39,7 +38,6 @@ export default function TopBarOverflowMenu() {
   const { t } = useTranslation();
   const [anchor, setAnchor] = useState(null);
   const [Dialog, setDialog] = useState(null);
-  const ChangePasswordRef = useRef(null);
 
   const User = Helper.AuthHelper.GetLogedUserLocal();
   const isMn = (User && User.Language) === "mn";
@@ -60,25 +58,7 @@ export default function TopBarOverflowMenu() {
 
   const ShowChangePassword = () => {
     handleClose();
-    setDialog(
-      <BaseDialog
-        Close={() => setDialog(null)}
-        Title="Change password"
-        Width="360px"
-        Height="400px"
-        Save={() => {
-          if (ChangePasswordRef.current && ChangePasswordRef.current.Save) {
-            ChangePasswordRef.current.Save((success) => {
-              success && setDialog(null);
-            });
-          }
-        }}
-        ShowSaveNotLoad={true}
-        SaveButtonText="Change password"
-      >
-        <ChangePassword ref={ChangePasswordRef} />
-      </BaseDialog>,
-    );
+    setDialog(<ChangePasswordDialog OnClose={() => setDialog(null)} />);
   };
 
   const item = (icon, label, onClick, danger) => (

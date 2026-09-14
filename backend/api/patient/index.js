@@ -51,13 +51,58 @@ router.get('/advice', gate, c.listAdvice);
 // 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology
 router.get('/risk', gate, c.getRisk);
 
-// 2.6 Цахим үзлэг
+// 2.6 Цахим үзлэг - request, appointment and the state of both
 router.get('/evisits', gate, c.listEvisits);
 router.post('/evisits', gate, c.createEvisit);
+// One request, with its assigned doctor and - only once scheduled - its join link
+router.get('/evisits/:id', gate, c.getEvisit);
+// Withdraw a request. A named transition, not a generic status PATCH
+router.post('/evisits/:id/cancel', gate, c.cancelEvisit);
+
+// Option lists for the dropdowns above, served from the OptionTypes dictionary
+// so unapproved wording never gets hardcoded into the app
+router.get('/options/:dico', gate, c.listOptions);
+
+// Мэдэгдэл (tracker 48). Patients were denied every notification row until now
+router.get('/notifications', gate, c.listNotifications);
+// The badge count on its own, so the app is not paging a list to count
+router.get('/notifications/unread-count', gate, c.unreadNotificationCount);
+router.post('/notifications/:id/read', gate, c.markNotificationRead);
+router.post('/notifications/read-all', gate, c.markAllNotificationsRead);
+
+// Push registration. Works today on the log driver, with no FCM or APNs keys
+router.post('/devices', gate, c.registerDevice);
+// POST, not DELETE /:token - an FCM token is ~163 chars and contains ':'
+router.post('/devices/unregister', gate, c.unregisterDevice);
+router.get('/devices', gate, c.listDevices);
+
+// Сануулга - medication, exercise and follow-up reminders the patient sets
+// themselves. Fired by services/ReminderDispatcher.js, which converts to
+// Asia/Ulaanbaatar explicitly because the server runs UTC
+router.get('/reminders', gate, c.listReminders);
+router.post('/reminders', gate, c.createReminder);
+router.patch('/reminders/:id', gate, c.updateReminder);
+// Soft delete: stops firing, keeps the history answerable
+router.delete('/reminders/:id', gate, c.deleteReminder);
+
+// Хандалтын түүх (tracker 24) - who looked at my record. Behind
+// FEATURE_ACCESS_LOG_API: UserActionHistory holds ~637k rows and this query
+// needs IX_UserActionHistory_PatientId to be affordable
+router.get('/access-log', gate, c.listAccessLog);
+
+// Зөвшөөрөл (tracker 23) - consent for non-treatment use of personal data.
+// PatientConsent is APPEND-ONLY: withdrawing writes a new row, never an update,
+// because proving what was agreed and when it stopped is the point
+router.get('/consents', gate, c.listConsents);
+router.get('/consents/:purposeCode/document', gate, c.getConsentDocument);
+router.post('/consents', gate, c.grantConsent);
+router.delete('/consents/:purposeCode', gate, c.withdrawConsent);
 
 // 2.7 Сэргээн засах, дасгал хөдөлгөөн
-// Inert until scripts/add_rehabilitation_tables.sql has been run against the
-// database - the tables do not exist yet, and DDL is a DBA request here.
+// Live on MnCardio_test: the tables exist and the catalogue holds 39 rows. They
+// are PLACEHOLDERS - the real exercise names are clinical content ЗСҮТ enter
+// through /BaseObject. Videos are served by /api/Media; see helper/MediaRef.js
+// for how the hosting decision stays a database value.
 router.get('/rehab/exercises', gate, c.listExercises);
 router.get('/rehab/progress', gate, c.listRehabProgress);
 router.post('/rehab/progress', gate, c.createRehabProgress);

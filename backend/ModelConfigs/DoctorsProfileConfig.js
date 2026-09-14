@@ -35,6 +35,9 @@ function DoctorsProfileConfig() {
         Name: 'telephone',
         Label: 'Telephone',
         Type: 'Text',
+        // Enforced in DoctorProfileController / BaseController via
+        // helper/ContactValidation - `Required` itself only draws the asterisk.
+        Required: true,
         EditField: true,
         GridField: true,
         Position: 1,
@@ -231,6 +234,7 @@ function DoctorsProfileConfig() {
         Name: 'email',
         Label: 'Email',
         Type: 'Text',
+        Required: true,
         EditField: true,
         GridField: true,
         Position: 12,
@@ -347,7 +351,10 @@ function DoctorsProfileConfig() {
       },
       {
         Name: 'user_mod',
-        Label: 'Auteur de la derni',
+        // ModelHelper.SetDefaultValue stamps user_mod only when IsNew, so on
+        // this table it really is the creator's user name, not the last
+        // editor's - which is why the export can label it that way.
+        Label: 'Record created by',
         Type: 'Text',
         EditField: false,
         GridField: false,
