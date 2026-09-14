@@ -5,7 +5,6 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
 import '../../core/util/validators.dart';
 import '../../shared/theme/app_colors.dart';
-import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/app_snack.dart';
 import 'forgot_password_screen.dart';
 import 'server_settings_sheet.dart';
@@ -54,6 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      // Цэвэрхэн цагаан — логоны цэнхэр, ягаан өнгө хамгийн тод харагдах
+      // дэвсгэр. Талбарууд сэдвийн цайвар дүүргэлт, үсэн хүрээтэй тул цагаан
+      // дээр ялгарна.
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -350,24 +353,15 @@ class _Brand extends StatelessWidget {
       onLongPress: onLongPress,
       child: Column(
         children: <Widget>[
-          Container(
-            width: 76,
-            height: 76,
-            alignment: Alignment.center,
-            // Вебийн хажуугийн цэсний градиент (indigo -> cyanDeep). Брэндийн
-            // таних тэмдэг вебэд нэвтрэх дэлгэцээс эхэлдэг тул энд ч мөн адил.
-            //
-            // Цагаан дүрс cyanDeep дээр ~3.0:1 — ТЕКСТЭД тэнцэхгүй ч энэ нь
-            // 38px дүрс, контрастын дүрмийн 24px босгоос дээш.
-            decoration: BoxDecoration(
-              gradient: AppColors.brandGradient,
-              borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-            ),
-            child: const Icon(
-              Icons.favorite_rounded,
-              size: 38,
-              color: Colors.white,
-            ),
+          // Системийн албан ёсны лого — вебийн `frontend/public/logo.ico`
+          // (`assets/logo.png`). Тунгалаг дэвсгэртэй тул цагаан дэлгэц дээр
+          // шууд сууна; хавтан, градиент хэрэггүй.
+          Image.asset(
+            'assets/logo.png',
+            width: 112,
+            height: 112,
+            filterQuality: FilterQuality.high,
+            semanticLabel: 'МнКардио',
           ),
           const SizedBox(height: 16),
           Text(

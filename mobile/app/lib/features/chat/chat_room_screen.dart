@@ -413,12 +413,12 @@ class _AttachmentViewState extends State<_AttachmentView> {
 
     return InkWell(
       onTap: _busy ? null : _openAttachment,
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
           color: theme.colorScheme.surface.withValues(alpha: 0.7),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(color: theme.dividerColor),
         ),
         child: Row(
@@ -426,7 +426,7 @@ class _AttachmentViewState extends State<_AttachmentView> {
           children: <Widget>[
             if (thumbnail != null)
               ClipRRect(
-                borderRadius: BorderRadius.circular(7),
+                borderRadius: BorderRadius.circular(9),
                 child: Image.memory(
                   thumbnail,
                   width: 42,
@@ -462,7 +462,11 @@ class _AttachmentViewState extends State<_AttachmentView> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _busy ? 'Татаж байна…' : 'Нээхийн тулд дарна уу',
+                    _busy
+                        ? 'Татаж байна…'
+                        : attachment.isAudio
+                            ? 'Сонсохын тулд дарна уу'
+                            : 'Нээхийн тулд дарна уу',
                     style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                   ),
                 ],

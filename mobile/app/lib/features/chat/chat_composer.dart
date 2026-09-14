@@ -154,8 +154,18 @@ class _ChatComposerState extends State<ChatComposer> {
             ListTile(
               leading: const Icon(Icons.insert_drive_file_outlined),
               title: const Text('Баримт бичиг'),
-              subtitle: const Text('PDF, Word, Excel, текст, аудио'),
+              subtitle: const Text('PDF, Word, Excel, текст'),
               onTap: () => Navigator.of(ctx).pop('file'),
+            ),
+            // Тендер: "текстээс гадна зураг, дуу бичлэг, баримт бичиг
+            // хавсаргах". Микрофоноор шууд бичихгүй (хэрэглэгчийн шийдвэр) —
+            // утсан дээр бэлэн байгаа бичлэгийг (Voice Memos, Дуу хураагч)
+            // файлаар хавсаргана.
+            ListTile(
+              leading: const Icon(Icons.audio_file_outlined),
+              title: const Text('Дуу бичлэг'),
+              subtitle: const Text('M4A, MP3, AAC, WAV, OGG'),
+              onTap: () => Navigator.of(ctx).pop('audio'),
             ),
             const SizedBox(height: 8),
           ],
@@ -170,6 +180,8 @@ class _ChatComposerState extends State<ChatComposer> {
         await _pickImage(ImageSource.gallery);
       case 'file':
         await _pickFile();
+      case 'audio':
+        await _pickFile(audioOnly: true);
     }
   }
 
@@ -192,12 +204,16 @@ class _ChatComposerState extends State<ChatComposer> {
     }
   }
 
-  Future<void> _pickFile() async {
+  Future<void> _pickFile({bool audioOnly = false}) async {
     try {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: true,
+        // `FileType.audio` iOS дээр зөвхөн хөгжмийн санг нээдэг тул Voice Memos-
+        // оос хуваалцсан бичлэг харагдахгүй. `custom` нь Файлууд аппыг нээнэ.
         type: FileType.custom,
-        allowedExtensions: ChatRepository.allowedExtensions.toList(),
+        allowedExtensions: audioOnly
+            ? ChatRepository.audioExtensions.toList()
+            : ChatRepository.allowedExtensions.toList(),
       );
       if (result == null) return;
       for (final f in result.files) {
@@ -310,7 +326,7 @@ class _PendingStrip extends StatelessWidget {
             decoration: BoxDecoration(
               color: theme.colorScheme.surfaceContainerHighest
                   .withValues(alpha: 0.6),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(color: theme.dividerColor),
             ),
             child: Row(
@@ -354,9 +370,8 @@ class _PendingStrip extends StatelessWidget {
         .contains(ext)) {
       return Icons.image_outlined;
     }
-    if (const <String>['mp3', 'm4a', 'aac', 'ogg', 'wav', 'webm']
-        .contains(ext)) {
-      return Icons.mic_rounded;
+    if (ChatRepository.audioExtensions.contains(ext)) {
+      return Icons.audio_file_outlined;
     }
     return Icons.insert_drive_file_outlined;
   }

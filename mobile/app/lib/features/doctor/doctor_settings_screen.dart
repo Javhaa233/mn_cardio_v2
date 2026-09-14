@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/app_licenses.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../auth/server_settings_sheet.dart';
@@ -163,6 +164,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () => _push(const TermsScreen()),
                 ),
+                AppLicensesTile(version: _version),
                 if (_version.isNotEmpty)
                   ListTile(
                     contentPadding: EdgeInsets.zero,

@@ -286,23 +286,19 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      // Нэвтрэх дэлгэцтэй ижил: цагаан дэвсгэр дээр системийн лого. Апп нээгдэх
+      // бүрт хамгийн түрүүнд харагддаг тул хоёр дэлгэц салах ёсгүй.
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Container(
-              width: 76,
-              height: 76,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Icon(
-                Icons.favorite_rounded,
-                size: 38,
-                color: theme.colorScheme.primary,
-              ),
+            Image.asset(
+              'assets/logo.png',
+              width: 112,
+              height: 112,
+              filterQuality: FilterQuality.high,
+              semanticLabel: 'МнКардио',
             ),
             const SizedBox(height: 20),
             Text('МнКардио', style: theme.textTheme.titleLarge),

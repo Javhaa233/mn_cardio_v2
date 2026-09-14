@@ -6,6 +6,7 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
 import '../../core/notifications/reminder_controller.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/app_licenses.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../auth/server_settings_sheet.dart';
@@ -150,6 +151,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
                   ),
                 ),
+                AppLicensesTile(version: _version),
                 if (_version.isNotEmpty)
                   ListTile(
                     contentPadding: EdgeInsets.zero,

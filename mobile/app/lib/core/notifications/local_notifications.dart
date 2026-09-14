@@ -35,7 +35,7 @@ class LocalNotifications {
 
     tzdata.initializeTimeZones();
     try {
-      final name = await FlutterTimezone.getLocalTimezone();
+      final name = (await FlutterTimezone.getLocalTimezone()).identifier;
       tz.setLocalLocation(tz.getLocation(name));
     } catch (_) {
       // Улаанбаатарын цагийн бүс — эталон цагийн тохиргоо олдоогүй үеийн

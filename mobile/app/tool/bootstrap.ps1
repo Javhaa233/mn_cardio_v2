@@ -209,6 +209,32 @@ if (-not $gradlePath) {
     }
 }
 
+# --- 4б. Android: R8 дүрэм (release build) -----------------------------------
+
+Write-Step 'R8 дүрэм (proguard-rules.pro) тохируулж байна'
+
+# flutter_secure_storage -> Google Tink нь compile-time annotation-уудыг
+# (errorprone, javax.annotation) иш татдаг. Тэдгээр апп-д байхгүй тул R8
+# "Missing class" гэж release build-ийг зогсооно. Flutter gradle plugin
+# android/app/proguard-rules.pro-г автоматаар хэрэглэдэг.
+$proguardPath = 'android/app/proguard-rules.pro'
+$proguardRules = @'
+# flutter_secure_storage -> Google Tink: compile-time annotation, ажиллах үед хэрэггүй.
+-dontwarn com.google.errorprone.annotations.CanIgnoreReturnValue
+-dontwarn com.google.errorprone.annotations.CheckReturnValue
+-dontwarn com.google.errorprone.annotations.Immutable
+-dontwarn com.google.errorprone.annotations.RestrictedApi
+-dontwarn javax.annotation.Nullable
+-dontwarn javax.annotation.concurrent.GuardedBy
+'@
+
+if ((Test-Path $proguardPath) -and ((Get-Content $proguardPath -Raw -Encoding UTF8) -match 'errorprone')) {
+    Write-Skip 'proguard-rules.pro'
+} else {
+    Add-Content -Path $proguardPath -Value $proguardRules -Encoding UTF8
+    Write-Ok 'proguard-rules.pro'
+}
+
 # --- 5. iOS: Info.plist тайлбарууд -------------------------------------------
 
 Write-Step 'iOS Info.plist тохируулж байна'

@@ -37,6 +37,11 @@ class ChatRepository {
     'mp3', 'm4a', 'aac', 'ogg', 'wav', 'webm',
   };
 
+  /// Дуу бичлэгийн өргөтгөлүүд — [allowedExtensions]-ийн дэд олонлог.
+  static const Set<String> audioExtensions = <String>{
+    'mp3', 'm4a', 'aac', 'ogg', 'wav', 'webm',
+  };
+
   /// Чатын хавсралтын дээд хэмжээ 50 МБ (бусад газар 10 МБ).
   static const int maxAttachmentBytes = 50 * 1024 * 1024;
 

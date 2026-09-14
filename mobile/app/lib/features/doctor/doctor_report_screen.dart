@@ -1,19 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../core/util/mn_format.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/date_range_field.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
 import 'doctor_models.dart';
+import 'doctor_repository.dart';
+import 'report_export.dart';
 
 /// 1.4 Миний тайлан.
 ///
-/// Энэ бол **гар утасны товч тайлан**. Батлагдсан маягтын дагуух тайлан,
-/// XLS/TXT экспорт нь тендерийн тусдаа ажил бөгөөд одоо байгаа Excel, PDF
-/// замаар гардаг (API.md §4, мөр 31).
+/// Гар утасны товч тайлан, Excel / CSV / TXT-ээр татах боломжтой (§1.8).
+/// Батлагдсан маягтын дагуух тайлан нь ЗСҮТ маягтаа өгсний дараах тусдаа ажил.
 class DoctorReportScreen extends StatefulWidget {
   const DoctorReportScreen({super.key});
 
@@ -75,14 +79,7 @@ class _DoctorReportScreenState extends State<DoctorReportScreen> {
                       const SizedBox(height: 12),
                       _SourceCard(report: report),
                       const SizedBox(height: 12),
-                      const PendingModuleNotice(
-                        title: 'Тайлан татаж авах',
-                        message: 'Батлагдсан маягтын дагуух тайлан, XLS/TXT '
-                            'форматаар татах, хэвлэх боломж МнКардио '
-                            'системийн вэб хувилбарт байна. Гар утасны '
-                            'хувилбар нь товч үзүүлэлт харуулна.',
-                        icon: Icons.download_outlined,
-                      ),
+                      _ExportCard(report: report, range: controller.range),
                     ],
                   ),
                 );
@@ -267,4 +264,103 @@ class _SourceCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Техникийн шаардлага §1.8 — тайланг XLS, TXT зэрэг форматаар татах.
+class _ExportCard extends StatefulWidget {
+  const _ExportCard({required this.report, required this.range});
+
+  final DoctorReport report;
+  final DateRange range;
+
+  @override
+  State<_ExportCard> createState() => _ExportCardState();
+}
+
+class _ExportCardState extends State<_ExportCard> {
+  ReportFormat? _busy;
+
+  Future<void> _export(ReportFormat format, BuildContext buttonContext) async {
+    if (_busy != null) return;
+    setState(() => _busy = format);
+
+    // iPad дээр хуваалцах цонх товчны дэргэд гарахад байрлал хэрэгтэй.
+    final box = buttonContext.findRenderObject() as RenderBox?;
+    final origin =
+        box == null ? null : box.localToGlobal(Offset.zero) & box.size;
+
+    try {
+      final exporter = DoctorReportExporter(context.read<DoctorRepository>());
+      final file = await exporter.export(
+        format: format,
+        report: widget.report,
+        range: widget.range,
+        me: context.read<DoctorProfileController>().me,
+      );
+      if (!mounted) return;
+      await SharePlus.instance.share(ShareParams(
+        files: <XFile>[XFile(file.path)],
+        subject: 'МнКардио — Миний тайлан (${widget.range.label})',
+        sharePositionOrigin: origin,
+      ));
+    } on ApiException catch (e) {
+      if (mounted) AppSnack.error(context, e.message);
+    } catch (_) {
+      if (mounted) AppSnack.error(context, 'Тайлан үүсгэж чадсангүй.');
+    } finally {
+      if (mounted) setState(() => _busy = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SectionCard(
+      title: 'Тайлан татах',
+      subtitle: widget.range.label,
+      icon: Icons.download_outlined,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Text(
+            'Хураангуй ба сонгосон хугацааны үзлэгүүд. Файл бүр байгууллага, '
+            'мэдээллийн сан, гаргасан хүн, огнооны тэмдэглэгээтэй.',
+            style: theme.textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: <Widget>[
+              for (final format in ReportFormat.values) ...<Widget>[
+                if (format != ReportFormat.values.first)
+                  const SizedBox(width: 8),
+                Expanded(
+                  child: Builder(
+                    builder: (BuildContext buttonContext) => OutlinedButton.icon(
+                      onPressed: _busy == null
+                          ? () => _export(format, buttonContext)
+                          : null,
+                      icon: _busy == format
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(_iconFor(format), size: 18),
+                      label: Text(format.label),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  IconData _iconFor(ReportFormat format) => switch (format) {
+        ReportFormat.xlsx => Icons.table_chart_outlined,
+        ReportFormat.csv => Icons.grid_on_outlined,
+        ReportFormat.txt => Icons.description_outlined,
+      };
 }

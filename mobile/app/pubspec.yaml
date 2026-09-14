@@ -40,9 +40,9 @@ dependencies:
   intl: 0.20.2
 
   # --- Хавсралт (зураг, баримт бичиг, аудио файл) ---
-  file_picker: 8.1.2
+  file_picker: 10.3.10
   image_picker: 1.1.2
-  open_filex: 4.5.0
+  open_filex: 4.7.0
 
   # --- График ---
   fl_chart: 0.69.0
@@ -50,7 +50,7 @@ dependencies:
   # --- Сануулга (push байхгүй тул төхөөрөмж дээрх мэдэгдэл) ---
   flutter_local_notifications: 17.2.3
   timezone: 0.9.4
-  flutter_timezone: 3.0.1
+  flutter_timezone: 5.1.0
 
   # --- Бусад ---
   package_info_plus: 8.0.2
@@ -59,6 +59,10 @@ dependencies:
   uuid: 4.5.1
   cupertino_icons: 1.0.8
 
+  # --- Тайлан татах (§1.8 XLS, TXT) — файлыг утсан дээр үүсгээд хуваалцана ---
+  excel: 4.0.6
+  share_plus: 12.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -66,6 +70,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  # Зурган нөөц одоогоор байхгүй — бүх дүрс Material icon. Нөөц нэмэх үед
-  # `assets:` хэсгийг сэргээнэ. Хоосон хавтас заавал билдийг унагаадаг тул
-  # урьдчилж бичихгүй.
+  assets:
+    # Системийн албан ёсны лого — `frontend/public/logo.ico`-ийн 256px хувилбар.
+    # Flutter .ico уншдаггүй тул PNG болгож хөрвүүлсэн (тунгалаг дэвсгэртэй).
+    - assets/logo.png
