@@ -29,7 +29,40 @@ separately; chase the letter.
 
 ## Not yet raised — new, and specific to the mobile tender
 
-### 1. Execute the two ready SQL scripts — **both already run on `MnCardio_test`**
+### 1. SQL scripts — **structural DDL now applied to PRODUCTION (2026-09-14)**
+
+All **13 structural scripts** have been applied to the live database `MnCardioNew` on
+`mncardiosrv1`, after a verified `COPY_ONLY` backup (2,480 MB → 391 MB, taken 16:01). Every
+object verified present afterwards; row counts unchanged (450,747 visits, 357,576 patients,
+3,295 doctors) and the system stayed live throughout.
+
+**Deliberately NOT applied to production, and they should not be:**
+
+| Script | Why not |
+|---|---|
+| `seed_dico_remotevisit_status.sql` | drafted Mongolian, unapproved |
+| `seed_dico_rehab.sql` | drafted Mongolian, unapproved |
+| `seed_patient_reminder_dico.sql` | drafted Mongolian, unapproved |
+| `seed_dico_consent_purpose.sql` | drafted, and these are **legal categories** |
+| `seed_rehab_exercise_catalogue.sql` | 39 **placeholder** rows reading "нэр батлагдаагүй" |
+| `backfill_remotevisit_historical_status.sql` | **modifies patient records** — needs approval |
+
+The five seed scripts carry a `MnCardio_test`-only guard and would refuse anyway. Approval of
+the wording is what releases them, and approval is then an `UPDATE`, never a redeploy.
+
+> **One small consequence to decide on.** Production had 2 `RemoteVisit` rows, both from
+> **2024-08-15**. `Status` was added `NOT NULL DEFAULT 'requested'`, so both now read as
+> pending and will sit at the top of the triage queue indefinitely.
+> `backfill_remotevisit_historical_status.sql` closes them as `cancelled` — not `completed`,
+> because nobody knows whether those examinations happened. It touches **2 rows**. Held for
+> approval because it changes clinical records, not because it is risky.
+
+> **The production APPLICATION is still on the old code.** Only the schema was changed. Every
+> script is additive with defaults, so the running application is unaffected — but none of the
+> new endpoints exist on `smr.telemedicine.mn` until that code is deployed, which is a separate
+> decision.
+
+#### Original entry, for history — both already run on `MnCardio_test`
 
 Verified by direct query on 2026-09-14 against `MnCardio_test` (server `mncardiosrv1`).
 This entry previously said neither had been run anywhere, which was wrong.
