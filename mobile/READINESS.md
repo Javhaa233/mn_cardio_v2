@@ -72,9 +72,24 @@ which is a doctor's own working set rather than clinical data.
 endpoint also accepts a still-valid access token as Bearer, so the login controllers did not
 have to change shape. Both paths re-read the user, so a deactivated account stops refreshing.
 
-**Still open:** individual revocation. There is no token store, so cancelling one session means
-rotating `JWT_PASS` and logging everyone out. A real implementation needs a table, and
-therefore DDL — see §3. `LogOut` remains a stub until then.
+~~**Still open:** individual revocation.~~ **Closed 2026-09-14.** Tokens now carry a `jti`,
+`helper/SessionStore.js` keeps a revocation denylist, and `POST /api/auth/logout`,
+`POST /api/auth/logout-all` and `GET /api/auth/sessions` act on it. `LogOut` is no longer a
+stub: verified that the *same* token returns 401 after logout instead of continuing to work
+for its full ten hours.
+
+The denylist is in memory and refreshed on a timer rather than queried per request — checking
+a table on every call would put a read in front of all 47 legacy prefixes to answer "not
+revoked" almost every time. The cost is that a revoked token can survive up to
+`TOKEN_REVOCATION_REFRESH_SEC` (30s).
+
+> **Rollout order matters.** Tokens issued before this carry no `jti` and live ten hours.
+> `TOKEN_REVOCATION_ALLOW_LEGACY` defaults to **true** — rejecting them immediately would sign
+> out every active session on deploy, which is the outage the feature exists to prevent.
+> Enable, wait 11 hours, then set it false.
+
+The web client needs no change: `AuthHelper` already calls `/User/LogOut` with the bearer
+token and already clears localStorage on success.
 
 ### 2.3 Patients cannot read notifications at all — **fixed 2026-09-14**
 
