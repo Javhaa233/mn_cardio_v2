@@ -7,6 +7,8 @@ import '../../shared/widgets/measurement_chart.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
+import '../diagnostics/diagnostics_screen.dart';
+import 'doctor_patient_extras.dart';
 import 'doctor_questions_screen.dart';
 import 'doctor_models.dart';
 import 'doctor_repository.dart';
@@ -222,6 +224,50 @@ class _SummaryTab extends StatelessWidget {
             icon: const Icon(Icons.forum_outlined),
             label: const Text('Асуулт, хариулт'),
           ),
+        const SizedBox(height: 10),
+        // Тендер: эмч үйлчлүүлэгчийн эрсдэл, сэргээн засах, шинжилгээг харна.
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          children: <Widget>[
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DoctorPatientRiskScreen(
+                    patientId: card.patient.idData,
+                    patientName: card.patient.fullName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.favorite_outline_rounded, size: 18),
+              label: const Text('Эрсдэл'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DiagnosticsScreen(
+                    patientId: card.patient.idData,
+                    patientName: card.patient.fullName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.science_outlined, size: 18),
+              label: const Text('Шинжилгээ'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DoctorPatientRehabScreen(
+                    patientId: card.patient.idData,
+                    patientName: card.patient.fullName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.self_improvement_outlined, size: 18),
+              label: const Text('Сэргээн засах'),
+            ),
+          ],
+        ),
         const SizedBox(height: 16),
         SectionCard(
           title: 'Хувийн мэдээлэл',

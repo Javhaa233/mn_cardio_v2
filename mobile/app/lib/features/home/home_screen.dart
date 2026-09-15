@@ -9,6 +9,7 @@ import '../advice/advice.dart';
 import '../advice/advice_controller.dart';
 import '../advice/advice_screen.dart';
 import '../chat/chat_controller.dart';
+import '../diagnostics/diagnostics_screen.dart';
 import '../evisits/evisits_screen.dart';
 import '../journal/journal_controller.dart';
 import '../journal/journal_entry.dart';
@@ -116,6 +117,12 @@ class _HomeScreenState extends State<HomeScreen> {
         description: 'Хүсэлт илгээх',
         icon: Icons.videocam,
         onTap: () => _open(const EvisitsScreen()),
+      ),
+      _ActionTile(
+        title: 'Шинжилгээ',
+        description: 'Лаборатори, эхо, ЗЦБ',
+        icon: Icons.science,
+        onTap: () => _open(const DiagnosticsScreen()),
       ),
       _ActionTile(
         title: 'Эмчийн зөвлөгөө',
