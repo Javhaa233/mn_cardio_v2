@@ -24,6 +24,7 @@ const ChatIdentity = require('./ChatIdentity');
 const ChatHelper = require('./ChatHelper');
 const AdviceScopeHelper = require('./AdviceScopeHelper');
 const PatientScope = require('./PatientScope');
+const CareTeam = require('./CareTeam');
 const Flags = require('./FeatureFlags');
 
 /**
@@ -61,7 +62,23 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser, Mode }
     const Me = ChatIdentity.Me(LogedUser);
     if (!Me) return false;
 
-    // Author only.
+    /*
+     * READING is room membership, nothing more. Everyone in the conversation is
+     * meant to open what was sent to it - that is what an attachment IS.
+     *
+     * This branch used to apply the write rules below to reads as well, which
+     * meant the Status !== 'P' test refused every COMMITTED message. The effect
+     * was not a locked-down read path but a dead one: MayDownload always
+     * returned null for a chat attachment, so /api/Media/stream could not serve
+     * one and /api/Chat/DownloadAttachment had to walk the room membership
+     * itself to work at all. Splitting read from write is what lets a player
+     * reach these bytes.
+     */
+    if (Mode === 'read') {
+      return !!(await ChatHelper.IsMember(Me, Message.ChatRoomId));
+    }
+
+    // WRITING keeps exactly the rules it had. Author only.
     if (!ChatIdentity.Same(Me, { UserType: Message.UserType, UserId: Message.UserId })) {
       return false;
     }
@@ -86,6 +103,44 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser, Mode }
   if (LinkedObjectName === 'RehabExercise') {
     if (Mode === 'read') return true;
     return String(LogedUser.RoleId) === '1';
+  }
+
+  /*
+   * Асуумж (tender §2.3) — a patient's question thread and the doctor's reply,
+   * now that both may carry photos, voice notes and documents.
+   *
+   * ABOVE the admin short-circuit for the patient half and below it for the
+   * staff half would be two branches, so it is one branch here and the admin
+   * case is handled inside it: an administrator keeps access, because support
+   * genuinely needs to open what a patient reports as broken.
+   *
+   * Without this the permissive default at the bottom of this function applies,
+   * and that means ANY staff token in the country can read a photo a patient
+   * attached to a question for their own cardiologist. The thread is not
+   * shared-consult material like the Advice board - it is one patient talking
+   * to the doctors monitoring them - so membership is the rule:
+   *
+   *   the patient the thread is ABOUT, or a doctor treating them.
+   *
+   * Read and write are the same rule here, unlike chat: a doctor who may read
+   * the question is exactly the doctor who may answer it with a file attached.
+   */
+  if (LinkedObjectName === 'VisitComments') {
+    const Comment = await Models.VisitComments.findOne({
+      where: { id_data: LinkedObjectId },
+      attributes: ['id_data', 'patient_id'],
+      raw: true,
+    });
+    // Unknown id: refuse, rather than let it create orphan File rows.
+    if (!Comment || !Comment.patient_id) return false;
+
+    if (PatientScope.IsPatient(LogedUser)) {
+      return String(Comment.patient_id) === String(LogedUser.PatientId);
+    }
+
+    if (String(LogedUser.RoleId) === '1') return true;
+
+    return await CareTeam.IsTreating({ UserId: LogedUser.Id, PatientId: Comment.patient_id });
   }
 
   if (String(LogedUser.RoleId) === '1') return true;
@@ -205,6 +260,19 @@ async function MayDownload({ FileInfo, LogedUser }) {
   // Same rule that governs attaching a file to this record.
   const Allowed = await MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser, Mode: 'read' });
   if (!Allowed) return null;
+
+  /*
+   * Chat returns here for the same reason Advice does: membership already IS
+   * the whole rule, and it has just been checked for staff and patients alike.
+   *
+   * Falling through would break the patient side specifically. The scope check
+   * below demands a SCOPE_BY_OBJECT entry and refuses when there is none, and
+   * a chat message has no patient column to key one on - a room is two or more
+   * people, not a record belonging to one of them. So a patient would clear
+   * MayAttachTo and then be refused here, and would be the only participant in
+   * the conversation unable to open what was sent to them.
+   */
+  if (LinkedObjectName === 'ChatMessages') return Stored;
 
   // MayAttachTo ends in `return true` for object types it does not name, which
   // is the right default for staff but not for patients - it is what let a

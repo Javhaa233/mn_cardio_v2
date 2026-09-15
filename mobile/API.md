@@ -686,6 +686,7 @@ all supported, which covers tender §2 in full.
 | `CreateGroupRoom` | `RoomName, Members[]` | doctors only — patients can never be group members |
 | `SearchUsers` | `SearchText, PageSize, PageNumber, ...` | patient searches are scoped to their care team |
 | `DownloadAttachment` | `FileId` | **membership-checked** — use this, never the generic download |
+| `GetAttachmentLink` | `FileId` | a short-lived streaming URL. **Browser clients only — see below** |
 
 ### Sending an attachment is three calls, in order
 
@@ -701,11 +702,60 @@ all supported, which covers tender §2 in full.
 If step 3 never happens, or zero files landed, the carrier message is deleted rather than
 left as an empty bubble. Chat uploads get a **50 MB** cap (10 MB everywhere else).
 
-Allowed extensions, app-wide (`BaseController.js:278-301`):
+Allowed extensions, app-wide:
 `jpg jpeg png gif webp bmp heic · pdf doc docx xls xlsx txt csv dcm · mp3 m4a aac ogg wav webm`
 
-Anything else is rejected outright. Note there is **no video extension on that list** — see
-READINESS.
+**Chat additionally accepts video** (`mp4 m4v mov webm`), as `RehabExercise` does. This is
+per-object, not a widening of the app-wide list — a clinical form still refuses video.
+
+The **50 MB cap is unchanged and will not be raised**, so keep a recorded clip inside it:
+720p at ~1.5 Mbps puts three minutes near 35 MB. `formidable` fixes its limit before it
+knows which object an upload is for, so a higher cap would let every upload in the app be
+read to that size before it could be rejected.
+
+**Content is now checked against the extension** for audio and video only
+(`helper/MediaSniff.js`): the first bytes must be a real `ftyp` / EBML / `OggS` / `RIFF…WAVE`
+/ MPEG-audio header. A renamed file is rejected with `Reason: 'content'`. Images, PDFs, DICOM
+and Office documents are not sniffed and behave exactly as before.
+
+### Playing a voice or video message
+
+**Do NOT use `GetAttachmentLink` from Flutter.** It exists because a browser `<audio>` element
+cannot send an `Authorization` header, so the web client needs a URL that carries its own
+short-lived credential. Flutter has no such limitation — `VideoPlayerController` and
+`just_audio` both take `httpHeaders`. Use the header-authenticated stream:
+
+```
+GET /api/Media/stream/<generated_name>
+    Authorization: Bearer <token>
+    Range: bytes=0-            (optional; 206 + Content-Range comes back)
+```
+
+`generated_name` is on the attachment's `FileInfo`. This route supports real byte ranges,
+`HEAD`, `416`, and answers `Content-Disposition: inline`, so a player can start before the
+file has arrived and can seek. It was previously unreachable for chat files — a read was
+being judged by the *write* rule, which refused any message that had already been delivered.
+Fixed 2026-09-14 in `helper/FileAccessHelper.js`.
+
+Each attachment's `FileInfo` now carries three extra fields:
+
+| Field | Meaning |
+|---|---|
+| `Kind` | `audio` · `video` · `image` · `file` — branch on this, not on the extension |
+| `DurationMs` | clip length, so the bubble can show `0:42` before fetching anything. `null` if unknown |
+| `MediaState` | `null` · `pending` · `done` · `failed` — see below. Never hide an attachment because of it |
+
+**Uploads are normalised after delivery.** A voice note recorded in a browser or on Android is
+WebM/Opus, which iOS cannot play, so the server rewrites every clip to **M4A/AAC** (audio) or
+**MP4/H.264+AAC** (video) once the message is already sent. Consequences for the client:
+
+- the `ext` of an attachment **can change** shortly after it is committed — always re-read it
+  from the message rather than caching it;
+- `generated_name` does **not** change, so a URL you already hold stays valid;
+- `MediaState: 'pending'` means the original bytes are live and playable right now; show a
+  quiet hint at most;
+- `MediaState: 'failed'` (including on a server with no ffmpeg installed) means the original
+  is served as uploaded. Play it anyway — on Android it will work.
 
 ### Realtime
 
@@ -719,9 +769,25 @@ Socket.IO, JWT in the handshake (`helper/SocketAuth.js`), two separate mount pat
 Writes go over HTTP and the socket only fans out, so a dropped socket costs you liveness,
 never a message. Reconnect and re-fetch; do not send over the socket.
 
-**A backgrounded phone receives nothing.** There is no FCM/APNs anywhere in the backend, so
-the socket is the only delivery channel and the OS will kill it. Until push exists, treat
-the socket as a foreground nicety and poll on resume.
+**A backgrounded phone now gets a push** (added 2026-09-14). Every new message fans out over
+the socket and then pushes to every room member except the sender and anyone with
+`IsMuted` on their `ChatRoomTooUsers` row. Payload:
+
+```
+title: <sender name>
+body:  <message text, trimmed to 120 chars>   or  🎤 Дуут мессеж / 🎬 Видео бичлэг /
+                                                  📷 Зураг / 📎 Файл
+data:  { Type: 'chat', ChatRoomId: '<id>', MessageId: '<id>' }
+```
+
+Register the device with `POST /api/patient/devices` (or `/api/doctor/devices`) on every
+launch, or this delivers nowhere.
+
+Two caveats that are still true. **Delivery depends on server configuration**: with no
+`FCM_*` / `APNS_*` keys set, `PUSH_DRIVER` falls back to the log driver and nothing leaves
+the box — so test against a server that has them. And push is best-effort and deliberately
+not awaited, so it is a wake-up, not a delivery guarantee: still re-fetch on resume rather
+than treating the notification as the message.
 
 ---
 
@@ -800,3 +866,187 @@ Do not spend a sprint discovering these.
 The rows from `GetTicket` to `/api/Test/*` are security findings, already recorded in
 `CLAUDE.md §10` for the contract's mandated audit. They are listed here so you do not mistake
 them for features.
+
+---
+
+## 9. Added 2026-09-14 (second round) — the gap list, answered
+
+Written in response to the mobile developer's "дутуу endpoint" list, section А items 1–15.
+Narrative version with the reasoning: [HANDOVER-2026-09-14-B.md](HANDOVER-2026-09-14-B.md).
+
+**Not on the test server yet.** Verified against `MnCardio_test` only.
+
+All of these follow the §1 lowercase conventions unless the row says otherwise.
+
+### 9.1 Doctor notifications
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/doctor/notifications` | `?limit &offset &unread=1` |
+| GET | `/api/doctor/notifications/unread-count` | `{ unread }` |
+| POST | `/api/doctor/notifications/:id/read` | foreign id → 404 |
+| POST | `/api/doctor/notifications/read-all` | `{ marked }` |
+
+Field shape identical to §3's patient notifications — one shared `NotificationHelper.Shape`.
+Addressed by `ToUserId`.
+
+### 9.2 New notification producers
+
+Advice published · advice comment · e-visit completed · e-visit cancelled · rehab assessment
+recorded → the **patient**. E-visit requested / withdrawn · question asked → the **care team**.
+
+Chat push already existed (`PushToMembers`); no bell row is written per chat message, by design.
+
+### 9.3 Doctor reads
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/doctor/patients/:id/risk` | same `{ bodySize, history }` as `/api/patient/risk` |
+| GET | `/api/doctor/evisits?patientId=` | one patient's history; **drops the open-only default** |
+| GET | `/api/doctor/icd10?search=` | min 2 chars, max 20 → `[{ code, name_mn, name_en }]` |
+| GET | `/api/patient/rehab/assessments` | `?limit &offset &from &to` |
+
+`/api/doctor/visits` gains `?icd10= ?diagnosis= ?doctor=`; `search` now covers the diagnosis
+columns. `/api/doctor/patients` gains `?icd10=`, and `search` becomes optional when it is present.
+
+> **`Visit.icd10` is empty on all 450,604 rows** — NULL on 73,535, empty string on the rest. The
+> code lives inside `main_diagnosis` as `*I21.4 Acute subendocardial…`. `?icd10=` matches that,
+> but do not render `icd10` as a code in the UI. `main_diagnosis_mn` is NULL on 96% of rows.
+>
+> `?icd10=I21` is exact; `?icd10=I21%` is the block.
+
+### 9.4 Question attachments
+
+`POST /api/patient/questions` and `POST /api/doctor/monitoring/:patientId/questions` accept
+`multipart/form-data` (`comment` + up to 5 `files`, ≤20 MB each) **as well as** the existing JSON.
+Either `comment` or `files` is required. Both list endpoints gain
+`files: [{ id, name, ext, size, url }]`.
+
+`url` is `/api/Media/stream/<generated_name>` — header-authenticated, supports byte ranges.
+
+Ownership on `VisitComments` files is now the patient, a treating doctor, or an admin. Previously
+any staff token could read them.
+
+### 9.5 Mobile configuration
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/mobile/version?platform=&build=` | **none** |
+| GET | `/api/mobile/config` | any token |
+
+`version` → `{ latestVersion, latestBuild, minSupportedBuild, forceUpdate, storeUrl, storeUrlAndroid, storeUrlIos, releaseNotes }`.
+`forceUpdate` is computed for the build you pass.
+
+**`X-App-Build` header** on `/api/patient/*` and `/api/doctor/*`: below `minSupportedBuild` →
+**426 `UPDATE_REQUIRED`**. A missing or unparseable header always passes. Seeded minimum is `0`,
+so nothing is blocked today. `/api/mobile/version` is never gated.
+
+Backed by the new `MobileSetting` table, editable from the admin web.
+
+### 9.6 Guardian consent
+
+| Method | Path |
+|---|---|
+| GET | `/api/doctor/patients/:id/consents` |
+| POST | `/api/doctor/patients/:id/consents` |
+
+Body: `{ purposeCode, granted, guardianRegNo*, guardianName*, guardianRelation* }` — all three
+guardian fields required. Append-only. `GrantedBy` is `'self'` or `'guardian'`.
+
+New columns on `PatientConsent`: `GrantedBy`, `GuardianRegNo`, `GuardianName`, `GuardianRelation`.
+
+### 9.7 Diagnostics
+
+| Method | Path |
+|---|---|
+| GET | `/api/doctor/patients/:id/diagnostics?type=lab\|echo\|cathlab\|ecg&from&to` |
+| GET | `/api/doctor/diagnostics/:type/:id` |
+| GET | `/api/patient/diagnostics?type&from&to` |
+| GET | `/api/patient/diagnostics/:type/:id` |
+
+List rows: `{ type, id, date, title, summary, organization }`, merged across all four tables and
+sorted newest-first. `lab` detail groups into panels of
+`{ name, label, value, unit, refRange, flag }`.
+
+> `unit`, `refRange` and `flag` are **null** — `LaboratoryTest` has no unit or reference columns
+> at all. They come from `CodeMapping` once verified. Do not render a missing range as normal.
+
+The serology panel (`hiv`, `hbs_ag`, `hcv`, `syphilis`) carries `confidential: true`. Under
+enforcement it returns `results: []` + `restricted: true` rather than vanishing.
+
+`EchoExamination` and `PEcgRest` are **not** exposed: 0 rows and no patient column.
+
+### 9.8 Permissions
+
+`GET /api/doctor/me` gains `permissions: [{ object, create, read, update, delete }]` and
+`permissionMode`.
+
+> **Empty array = nothing configured = show everything.** All 125 existing grants belong to the
+> admin role; the doctor tiers have none.
+
+Enforcement: `FEATURE_PERMISSIONS` = `off` (default) | `warn` | `enforce`.
+
+### 9.9 Operations
+
+| Method | Path | Auth |
+|---|---|---|
+| GET | `/api/admin/backups?limit&offset` | roles 1, 6 |
+| GET | `/api/time` | **none** |
+
+`/api/time` → `{ serverTime, serverTimeLocal, epochMs, timezone, utcOffsetMinutes, ntpSynced, ntpSource, ntpOffsetSeconds }`.
+`ntpSynced: null` means "cannot tell", not "not synced".
+
+`/api/admin/backups` returns rows plus a 30-day `summary`. `StatusText` interprets the column;
+`Status: null` is **unknown**, not success.
+
+### 9.10 Export and print — these return FILES
+
+| Method | Path |
+|---|---|
+| GET | `/api/patient/journal/export?from&to&format=xlsx\|csv\|txt` |
+| GET | `/api/doctor/visits/export?<visits filters>&format=` |
+| GET | `/api/doctor/reports/summary/export?from&to&format=` |
+| GET | `/api/doctor/visits/:id/print` → PDF |
+
+`Content-Disposition: attachment`, not the JSON envelope. Plain GET with a bearer token.
+
+Every file carries the tender's source stamp. CSV/TXT are written with a **UTF-8 BOM** so Excel
+renders Cyrillic. `/visits/export` refuses over 10,000 rows with `400 EXPORT_TOO_LARGE` and the
+real count — refused, never truncated.
+
+### 9.11 ЭМД
+
+| Method | Path |
+|---|---|
+| GET | `/api/doctor/emd/drugs?patientId=&icd10=&search=` |
+| GET | `/api/doctor/emd/services?search=` |
+
+**`patientId`, not a registration number** — the reg-no is resolved server-side after your access
+to that patient is checked. `?icd10=` takes several comma-separated codes; each row carries its
+`diagCode`. Upstream failure → **502**; partial results → `partial: true`.
+
+### 9.12 FHIR
+
+| Method | Path |
+|---|---|
+| GET | `/api/fhir/Encounter?patient=&_count=` |
+| GET | `/api/fhir/Observation?patient=&code=&_count=` |
+
+Behind `FEATURE_FHIR_EXPORT`; while off they answer **503 with a FHIR `OperationOutcome`**.
+`patient` is required on both.
+
+> `Observation` emits `code.text` and **no `coding`**, and `?code=` returns nothing, until a
+> `CodeMapping` row is marked `Verified = 1`. 29 LOINC mappings are seeded unverified.
+> `valueQuantity` with a UCUM unit works now.
+
+### 9.13 Schema added
+
+| Object | Purpose |
+|---|---|
+| `MobileSetting` | app version gate, terms text, support phone |
+| `CodeMapping` | local field → LOINC/SNOMED + UCUM unit, with a `Verified` interlock |
+| `PatientConsent.GrantedBy/GuardianRegNo/GuardianName/GuardianRelation` | guardian consent |
+| `Permissions` +9 rows | the objects the mobile surface serves |
+| `ConsentDocument` ×4 | **placeholder** text, test only |
+
+Applied to `MnCardio_test` only. Production has neither the schema nor the application.

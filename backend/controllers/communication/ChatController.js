@@ -12,6 +12,11 @@ const ChatHelper = require('../../helper/ChatHelper');
 const ChatIdentity = require('../../helper/ChatIdentity');
 const CareTeam = require('../../helper/CareTeam');
 const ChatSocket = require('../../WebSockets/ChatSocket');
+const MediaTicket = require('../../helper/MediaTicket');
+const MediaStream = require('../../helper/MediaStream');
+const MediaMeta = require('../../helper/MediaMeta');
+const MediaTranscode = require('../../helper/MediaTranscode');
+const PushHelper = require('../../helper/PushHelper');
 
 /**
  * Chat.
@@ -64,6 +69,7 @@ router.post('/RemoveUserFromChatRoom', RemoveUserFromChatRoom);
 router.post('/SearchUsers', SearchUsers);
 router.post('/GetDirectoryFilters', GetDirectoryFilters);
 router.post('/DownloadAttachment', DownloadAttachment);
+router.post('/GetAttachmentLink', GetAttachmentLink);
 
 const MAX_MESSAGE_LENGTH = 2000;
 const MAX_PAGE_SIZE = 50;
@@ -77,8 +83,7 @@ const MAX_DIRECTORY_PAGE_SIZE = 50;
 // decision, not an engineering one: "any citizen may open a direct chat with any
 // cardiologist in the country" is an unbounded workload commitment that a vendor
 // must not make unilaterally.
-const PatientDirectoryMode = () =>
-  (process.env.CHAT_PATIENT_DIRECTORY || 'careteam').toLowerCase();
+const PatientDirectoryMode = () => (process.env.CHAT_PATIENT_DIRECTORY || 'careteam').toLowerCase();
 
 // Cheap in-memory rate limit for the patient directory, so the endpoint is not a
 // bulk scrape of the national physician register. Same shape as the userCache
@@ -180,16 +185,39 @@ async function AttachFileSources(FilesByMessageId) {
     }
   }
 
+  /*
+   * Duration and transcode state for the audio and video among them, in ONE
+   * query for the whole page rather than one per attachment.
+   *
+   * It travels with the message list on purpose: without it a client cannot
+   * tell a voice note from a document until it has asked about each file
+   * separately, which is a round trip per bubble just to decide which control
+   * to draw. Empty Map when the columns are not there yet (MediaMeta), and
+   * every field below degrades to null.
+   */
+  const Playable = AllFiles.filter((F) => {
+    const K = MediaStream.Kind(F.ext);
+    return K === 'audio' || K === 'video';
+  });
+  const MetaById = await MediaMeta.Read(Playable.map((F) => F.id_data));
+
   const Shaped = new Map();
   FilesByMessageId.forEach((Files, MessageId) => {
     Shaped.set(
       MessageId,
       Files.map((F) => {
         const T = ThumbById.get(F.id_data);
+        const M = MetaById.get(F.id_data);
         return {
           FileSrc: T ? T.FileSrc : '',
           Type: T ? T.Type : '',
-          FileInfo: { ...F, Name: F.original_name },
+          FileInfo: {
+            ...F,
+            Name: F.original_name,
+            Kind: MediaStream.Kind(F.ext),
+            DurationMs: M ? M.DurationMs : null,
+            MediaState: M ? M.MediaState : null,
+          },
         };
       })
     );
@@ -252,7 +280,9 @@ async function GetChatRoomList(req, res) {
       // three-person room rendered as one run-together string.
       let Name = R.RoomName;
       if (R.RoomType !== 'GR' || !Name) {
-        Name = Others.map((M) => M.Name).filter(Boolean).join(', ');
+        Name = Others.map((M) => M.Name)
+          .filter(Boolean)
+          .join(', ');
       }
 
       return {
@@ -474,10 +504,7 @@ async function GetMessages(req, res) {
           // A pending attachment row is visible to its author alone until
           // CommitMessage promotes it - so nobody else sees an empty bubble
           // while the bytes are still uploading.
-          [Op.or]: [
-            { Status: 'S' },
-            { Status: 'P', UserId: Me.UserId, UserType: Me.UserType },
-          ],
+          [Op.or]: [{ Status: 'S' }, { Status: 'P', UserId: Me.UserId, UserType: Me.UserType }],
         },
       ],
     };
@@ -607,6 +634,27 @@ async function CommitMessage(req, res) {
     Payload.ClientMsgId = req.body.ClientMsgId || null;
     await FanOutMessage(Row.ChatRoomId, Payload);
 
+    /*
+     * Queue any audio or video for normalisation - AFTER the message is
+     * committed and fanned out, so nothing here can delay or fail delivery.
+     *
+     * A WebM voice note recorded in a browser does not play on iOS; this is
+     * what turns it into M4A/AAC. It is fire-and-forget on purpose: the
+     * original bytes are already being served, and the swap happens under the
+     * same generated_name, so links handed out in the meantime stay valid.
+     */
+    try {
+      const Playable = (Payload.Attachment || [])
+        .filter((F) => {
+          const K = F && F.FileInfo && F.FileInfo.Kind;
+          return K === 'audio' || K === 'video';
+        })
+        .map((F) => F.FileInfo.id_data);
+      if (Playable.length > 0) MediaTranscode.Enqueue(Playable);
+    } catch (ex) {
+      console.log('CommitMessage transcode enqueue failed:', ex.message);
+    }
+
     return Ok(res, Payload);
   } catch (ex) {
     console.log(ex);
@@ -618,9 +666,7 @@ async function ReadOneMessage(MessageId, Me) {
   const Row = await Models.ChatMessages.findByPk(MessageId, { raw: true });
   if (!Row) return null;
 
-  const People = await ChatIdentity.ResolveMany([
-    { UserType: Row.UserType, UserId: Row.UserId },
-  ]);
+  const People = await ChatIdentity.ResolveMany([{ UserType: Row.UserType, UserId: Row.UserId }]);
   let FilesByMessageId = await ChatHelper.GetFilesForMessages([MessageId]);
   FilesByMessageId = await AttachFileSources(FilesByMessageId);
 
@@ -634,6 +680,66 @@ async function ReadOneMessage(MessageId, Me) {
  * closed still gets the unread bump. The member list is read from the database,
  * never taken from the client payload.
  */
+/**
+ * What a push says when the message is not text.
+ *
+ * The body of a clinical message does not belong on a lock screen in any case,
+ * but an attachment has no text to show at all - without this the notification
+ * would be blank and tell the recipient nothing about whether to open it.
+ */
+function PushPreview(Payload) {
+  const Text = String(Payload.MessageText || '').trim();
+  if (Text) return Text.length > 120 ? Text.slice(0, 119) + '…' : Text;
+
+  const Kinds = (Payload.Attachment || []).map(
+    (F) => (F && F.FileInfo && F.FileInfo.Kind) || 'file'
+  );
+  if (Kinds.indexOf('audio') !== -1) return '🎤 Дуут мессеж';
+  if (Kinds.indexOf('video') !== -1) return '🎬 Видео бичлэг';
+  if (Kinds.indexOf('image') !== -1) return '📷 Зураг';
+  if (Kinds.length > 0) return '📎 Файл';
+  return 'Шинэ мессеж';
+}
+
+/**
+ * Push to everyone in the room except the sender and anyone who muted it.
+ *
+ * WHY THIS EXISTS. Until now a new message produced a socket emit and nothing
+ * else, so a phone with the app closed learned nothing - which makes a voice
+ * note about as useful as not sending one. PushHelper and the device tables
+ * were already built for reminders; chat simply never called them.
+ *
+ * Best-effort, like the socket emit above it: the message is already durable,
+ * and a missing FCM key must not turn a saved message into an error the sender
+ * sees. With no push driver configured this lands in the log driver.
+ */
+async function PushToMembers(Members, Payload) {
+  const Sender = { UserType: Payload.UserType, UserId: Payload.UserId };
+  const Body = PushPreview(Payload);
+
+  const Targets = Members.filter(
+    (M) => !ChatIdentity.Same(Sender, { UserType: M.UserType, UserId: M.UserId }) && !M.IsMuted
+  );
+
+  for (const M of Targets) {
+    try {
+      await PushHelper.Send({
+        UserType: M.UserType,
+        UserId: M.UserId,
+        Title: Payload.SenderName || 'MnCardio',
+        Body,
+        Data: {
+          Type: 'chat',
+          ChatRoomId: String(Payload.ChatRoomId),
+          MessageId: String(Payload.Id),
+        },
+      });
+    } catch (ex) {
+      console.log('PushToMembers error for ' + M.UserType + ':' + M.UserId + ' -', ex.message);
+    }
+  }
+}
+
 async function FanOutMessage(ChatRoomId, Payload) {
   try {
     const Members = await ChatHelper.GetRoomMembers(ChatRoomId, false);
@@ -645,6 +751,10 @@ async function FanOutMessage(ChatRoomId, Payload) {
       ...Broadcast,
       ClientMsgId: Payload.ClientMsgId || null,
     });
+
+    // Not awaited: a slow or unreachable FCM endpoint must not hold the HTTP
+    // response the sender is waiting on.
+    PushToMembers(Members, Payload).catch((ex) => console.log('PushToMembers failed:', ex.message));
   } catch (ex) {
     // Delivery is best-effort; the message is already durable. A socket failure
     // must never turn a saved message into an error the sender sees.
@@ -982,12 +1092,7 @@ async function SearchUsers(req, res) {
           ),
           'ASC',
         ],
-        [
-          Sequelize.literal(
-            "CASE WHEN lastname LIKE N'[А-ЯЁӨҮа-яёөү]%' THEN 0 ELSE 1 END"
-          ),
-          'ASC',
-        ],
+        [Sequelize.literal("CASE WHEN lastname LIKE N'[А-ЯЁӨҮа-яёөү]%' THEN 0 ELSE 1 END"), 'ASC'],
         ['lastname', 'ASC'],
         ['firstname', 'ASC'],
       ],
@@ -1007,7 +1112,9 @@ async function SearchUsers(req, res) {
     const AccountById = new Map(Accounts.map((A) => [A.Id, A]));
 
     const People = await ChatIdentity.ResolveMany(
-      rows.filter((R) => AccountById.has(R.UserId)).map((R) => ({ UserType: 'S', UserId: R.UserId }))
+      rows
+        .filter((R) => AccountById.has(R.UserId))
+        .map((R) => ({ UserType: 'S', UserId: R.UserId }))
     );
 
     const Data = rows
@@ -1148,24 +1255,40 @@ function AllowDirectoryHit(Me) {
  * BaseDownloadFile still does its own ValidateFilePath traversal check - only
  * the authorization in front of it is new.
  */
+/**
+ * File -> message -> room, proving membership. Shared by DownloadAttachment and
+ * GetAttachmentLink so the two cannot drift: one of them handing out a playable
+ * URL under a weaker rule than the other downloads under would be a hole that
+ * looks like a refactor.
+ */
+async function ResolveChatFile(req) {
+  const Me = ChatIdentity.Me(req.LogedUser);
+  if (!Me) return { Ok: false, Reason: 'Хэрэглэгчийн мэдээлэл тодорхойгүй байна' };
+
+  const FileId = parseInt(req.body.FileId, 10);
+  if (!FileId || Number.isNaN(FileId)) return { Ok: false, Reason: 'Мэдээлэл дутуу байна' };
+
+  const FileRow = await Models.File.findByPk(FileId, { raw: true });
+  if (!FileRow) return { Ok: false, Reason: 'Файл олдсонгүй' };
+  if (FileRow.LinkedObjectName !== 'ChatMessages')
+    return { Ok: false, Reason: 'Хандах эрхгүй байна' };
+  if (String(FileRow.rec_status) === '2') return { Ok: false, Reason: 'Файл олдсонгүй' };
+
+  const Message = await Models.ChatMessages.findByPk(FileRow.LinkedObjectId, { raw: true });
+  if (!Message) return { Ok: false, Reason: 'Файл олдсонгүй' };
+
+  const Auth = await AssertMembership(req.LogedUser, Message.ChatRoomId);
+  if (!Auth.Ok) return { Ok: false, Reason: Auth.Reason };
+
+  return { Ok: true, FileRow, Message, Me };
+}
+
 async function DownloadAttachment(req, res) {
   try {
-    const Me = ChatIdentity.Me(req.LogedUser);
-    if (!Me) return Fail(res, 'Хэрэглэгчийн мэдээлэл тодорхойгүй байна');
+    const Resolved = await ResolveChatFile(req);
+    if (!Resolved.Ok) return Fail(res, Resolved.Reason);
 
-    const FileId = parseInt(req.body.FileId, 10);
-    if (!FileId || Number.isNaN(FileId)) return Fail(res, 'Мэдээлэл дутуу байна');
-
-    const FileRow = await Models.File.findByPk(FileId, { raw: true });
-    if (!FileRow) return Fail(res, 'Файл олдсонгүй');
-    if (FileRow.LinkedObjectName !== 'ChatMessages') return Fail(res, 'Хандах эрхгүй байна');
-    if (String(FileRow.rec_status) === '2') return Fail(res, 'Файл олдсонгүй');
-
-    const Message = await Models.ChatMessages.findByPk(FileRow.LinkedObjectId, { raw: true });
-    if (!Message) return Fail(res, 'Файл олдсонгүй');
-
-    const Auth = await AssertMembership(req.LogedUser, Message.ChatRoomId);
-    if (!Auth.Ok) return Fail(res, Auth.Reason);
+    const FileRow = Resolved.FileRow;
 
     // BaseDownloadFile returns {Path, ContentType} - it does not write the
     // response itself. Same two-step controllers/system/BaseController.js:494
@@ -1175,6 +1298,55 @@ async function DownloadAttachment(req, res) {
 
     res.set('Content-Type', Download.ContentType);
     return res.download(Download.Path, FileRow.original_name || undefined);
+  } catch (ex) {
+    console.log(ex);
+    return Fail(res);
+  }
+}
+
+/**
+ * A URL a player can actually open.
+ *
+ * WHY THIS IS NOT JUST DownloadAttachment. That route is a POST that answers
+ * with Content-Disposition: attachment. An <audio> or <video> element can issue
+ * neither the POST nor the Authorization header it needs, and would not render
+ * an attachment if it could. So the browser gets a GET URL instead, carrying a
+ * ticket scoped to this one file and this one caller - see helper/MediaTicket.js.
+ *
+ * THE MOBILE CLIENT SHOULD NOT CALL THIS. Flutter sets httpHeaders, so it reads
+ * /api/Media/stream/<generated_name> with the bearer token directly and skips
+ * the extra round trip. Documented in mobile/API.md §5.
+ */
+async function GetAttachmentLink(req, res) {
+  try {
+    const Resolved = await ResolveChatFile(req);
+    if (!Resolved.Ok) return Fail(res, Resolved.Reason);
+
+    const FileRow = Resolved.FileRow;
+
+    if (!FileRow.generated_name) return Fail(res, 'Файл олдсонгүй');
+
+    const Minted = MediaTicket.Mint({
+      generatedName: FileRow.generated_name,
+      LogedUser: req.LogedUser,
+    });
+    if (!Minted) return Fail(res, 'Файл олдсонгүй');
+
+    const Meta = await MediaMeta.ReadOne(FileRow.id_data);
+
+    return Ok(res, {
+      FileId: FileRow.id_data,
+      Url: '/api/Media/t/' + Minted.Ticket,
+      ExpiresAt: Minted.ExpiresAt,
+      ExpiresInSeconds: Minted.ExpiresInSeconds,
+      Kind: MediaStream.Kind(FileRow.ext),
+      ContentType: MediaStream.Disposition(FileRow.ext).ContentType,
+      DurationMs: Meta.DurationMs,
+      MediaState: Meta.MediaState,
+      Name: FileRow.original_name || '',
+      Ext: FileRow.ext || '',
+      Size: FileRow.size || 0,
+    });
   } catch (ex) {
     console.log(ex);
     return Fail(res);

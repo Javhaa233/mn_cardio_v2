@@ -35,13 +35,13 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 25 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 256 |
-| — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 41 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 76 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 257 |
+| — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 101 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **359** |
+| **Нийт** |  |  | **385** |
 
-api-layer задаргаа: `/api/patient` 35 · `/api/doctor` 26 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 39 · `/api/doctor` 41 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -70,19 +70,19 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 |---|---|---|---|---|
 | `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:46` |  |
 | `POST` | `/api/Test/RegexTest` | public | `TestController.js:47` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:34` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:35` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:36` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:37` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:38` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:39` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:40` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:41` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:42` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:43` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:44` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:45` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:46` | The same export as tab-separated text. |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:37` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:38` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:39` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:40` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:41` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:42` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:43` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:44` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:45` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:46` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:47` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:48` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:49` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
@@ -212,26 +212,27 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.5. Чат ба мэдэгдэл — `controllers/communication/`
 
-Угтвар: `/api/Chat`, `/api/Notification` · 17 endpoint.
+Угтвар: `/api/Chat`, `/api/Notification` · 18 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/Chat/GetChatRoomList` | token + patient allowed | `ChatController.js:51` |  |
-| `POST` | `/api/Chat/GetMessages` | token + patient allowed | `ChatController.js:52` | Room-scoped, membership-checked, and the predicate is written here rather than taken from the… |
-| `POST` | `/api/Chat/SendMessage` | token + patient allowed | `ChatController.js:53` | The authoritative write path. |
-| `POST` | `/api/Chat/CommitMessage` | token + patient allowed | `ChatController.js:54` | Promote a pending attachment message to sent, and only then fan it out. |
-| `POST` | `/api/Chat/MarkRead` | token + patient allowed | `ChatController.js:55` |  |
-| `POST` | `/api/Chat/GetUnreadCount` | token + patient allowed | `ChatController.js:56` |  |
-| `POST` | `/api/Chat/AddChatRoom` | token + patient allowed | `ChatController.js:57` | Idempotent. |
-| `POST` | `/api/Chat/StartChat` | token + patient allowed | `ChatController.js:58` | Idempotent. |
-| `POST` | `/api/Chat/CheckChatRoom` | token + patient allowed | `ChatController.js:59` |  |
-| `POST` | `/api/Chat/CreateGroupRoom` | token + patient allowed | `ChatController.js:60` | Groups are doctors-only, and must be created as groups. |
-| `POST` | `/api/Chat/GetChatRoomUsers` | token + patient allowed | `ChatController.js:61` |  |
-| `POST` | `/api/Chat/AddUserToChatRoom` | token + patient allowed | `ChatController.js:62` |  |
-| `POST` | `/api/Chat/RemoveUserFromChatRoom` | token + patient allowed | `ChatController.js:63` |  |
-| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:64` | The people you can start a chat with. |
-| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:65` | The aimag / soum lists for the directory's filters. |
-| `POST` | `/api/Chat/DownloadAttachment` | token + patient allowed | `ChatController.js:66` | Membership-checked download. |
+| `POST` | `/api/Chat/GetChatRoomList` | token + patient allowed | `ChatController.js:56` |  |
+| `POST` | `/api/Chat/GetMessages` | token + patient allowed | `ChatController.js:57` | Room-scoped, membership-checked, and the predicate is written here rather than taken from the… |
+| `POST` | `/api/Chat/SendMessage` | token + patient allowed | `ChatController.js:58` | The authoritative write path. |
+| `POST` | `/api/Chat/CommitMessage` | token + patient allowed | `ChatController.js:59` | Promote a pending attachment message to sent, and only then fan it out. |
+| `POST` | `/api/Chat/MarkRead` | token + patient allowed | `ChatController.js:60` |  |
+| `POST` | `/api/Chat/GetUnreadCount` | token + patient allowed | `ChatController.js:61` |  |
+| `POST` | `/api/Chat/AddChatRoom` | token + patient allowed | `ChatController.js:62` | Idempotent. |
+| `POST` | `/api/Chat/StartChat` | token + patient allowed | `ChatController.js:63` | Idempotent. |
+| `POST` | `/api/Chat/CheckChatRoom` | token + patient allowed | `ChatController.js:64` |  |
+| `POST` | `/api/Chat/CreateGroupRoom` | token + patient allowed | `ChatController.js:65` | Groups are doctors-only, and must be created as groups. |
+| `POST` | `/api/Chat/GetChatRoomUsers` | token + patient allowed | `ChatController.js:66` |  |
+| `POST` | `/api/Chat/AddUserToChatRoom` | token + patient allowed | `ChatController.js:67` |  |
+| `POST` | `/api/Chat/RemoveUserFromChatRoom` | token + patient allowed | `ChatController.js:68` |  |
+| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:69` | The people you can start a chat with. |
+| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:70` | The aimag / soum lists for the directory's filters. |
+| `POST` | `/api/Chat/DownloadAttachment` | token + patient allowed | `ChatController.js:71` |  |
+| `POST` | `/api/Chat/GetAttachmentLink` | token + patient allowed | `ChatController.js:72` | A URL a player can actually open. |
 | `POST` | `/api/Notification/GetListData` | token + patient allowed | `NotificationController.js:7` |  |
 
 ### 4.6. Гадаад интеграц (ХУР, ЭМД) — `controllers/integrations/`
@@ -471,67 +472,86 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `GET` | `/api/patient/me` | token (RoleId 4 only) | `api/patient/index.js:37` | 2.1 Миний бүртгэл |
-| `GET` | `/api/patient/journal` | token (RoleId 4 only) | `api/patient/index.js:40` | 2.2 Миний тэмдэглэл — the daily log, plus the series behind its chart |
-| `POST` | `/api/patient/journal` | token (RoleId 4 only) | `api/patient/index.js:41` |  |
-| `GET` | `/api/patient/journal/summary` | token (RoleId 4 only) | `api/patient/index.js:42` | The tracker's acceptance for Миний тэмдэглэл is explicit that entries must render as a chart, so… |
-| `GET` | `/api/patient/questions` | token (RoleId 4 only) | `api/patient/index.js:45` | 2.3 Эмчээс асуух асуулт |
-| `POST` | `/api/patient/questions` | token (RoleId 4 only) | `api/patient/index.js:46` |  |
-| `GET` | `/api/patient/advice` | token (RoleId 4 only) | `api/patient/index.js:49` | 2.4 Эмчийн зөвлөгөө |
-| `GET` | `/api/patient/risk` | token (RoleId 4 only) | `api/patient/index.js:52` | 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology |
-| `GET` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:55` | 2.6 Цахим үзлэг - request, appointment and the state of both |
-| `POST` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:56` |  |
-| `GET` | `/api/patient/evisits/:id` | token (RoleId 4 only) | `api/patient/index.js:58` | One request, with its assigned doctor and - only once scheduled - its join link |
-| `POST` | `/api/patient/evisits/:id/cancel` | token (RoleId 4 only) | `api/patient/index.js:60` | Withdraw a request. |
-| `GET` | `/api/patient/options/:dico` | token (RoleId 4 only) | `api/patient/index.js:64` | Option lists for the dropdowns above, served from the OptionTypes dictionary so unapproved wording… |
-| `GET` | `/api/patient/notifications` | token (RoleId 4 only) | `api/patient/index.js:67` | Мэдэгдэл (tracker 48). |
-| `GET` | `/api/patient/notifications/unread-count` | token (RoleId 4 only) | `api/patient/index.js:69` | The badge count on its own, so the app is not paging a list to count |
-| `POST` | `/api/patient/notifications/:id/read` | token (RoleId 4 only) | `api/patient/index.js:70` | Ownership lives in the WHERE clause, never in a check beforehand. |
-| `POST` | `/api/patient/notifications/read-all` | token (RoleId 4 only) | `api/patient/index.js:71` |  |
-| `POST` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:74` | Push registration. |
-| `POST` | `/api/patient/devices/unregister` | token (RoleId 4 only) | `api/patient/index.js:76` | POST, not DELETE /:token - an FCM token is ~163 chars and contains ':' |
-| `GET` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:77` | The caller's own devices. |
-| `GET` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:82` | Сануулга - medication, exercise and follow-up reminders the patient sets themselves. |
-| `POST` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:83` |  |
-| `PATCH` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:84` |  |
-| `DELETE` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:86` | Soft delete: stops firing, keeps the history answerable |
-| `GET` | `/api/patient/access-log` | token (RoleId 4 only) | `api/patient/index.js:91` | Хандалтын түүх (tracker 24) - who looked at my record. |
-| `GET` | `/api/patient/consents` | token (RoleId 4 only) | `api/patient/index.js:96` | Зөвшөөрөл (tracker 23) - consent for non-treatment use of personal data. |
-| `GET` | `/api/patient/consents/:purposeCode/document` | token (RoleId 4 only) | `api/patient/index.js:97` | The full text to display before asking. |
-| `POST` | `/api/patient/consents` | token (RoleId 4 only) | `api/patient/index.js:98` |  |
-| `DELETE` | `/api/patient/consents/:purposeCode` | token (RoleId 4 only) | `api/patient/index.js:99` |  |
-| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:106` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
-| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:107` | What this patient has completed, so the catalogue can show progress. |
-| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:108` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
-| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:109` | Tracker #51: vital signs around a session. |
-| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:110` |  |
-| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:111` | Tracker #50: the latest risk / exercise-tolerance assessment. |
-| `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:42` |  |
-| `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:45` | 28 Миний үзлэгүүд |
-| `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:46` | One examination in full. |
-| `GET` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:49` | 29 Миний хяналт |
-| `POST` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:50` | Take a patient into personal monitoring. |
-| `DELETE` | `/api/doctor/monitoring/:patientId` | token (staff only) | `api/doctor/index.js:51` |  |
-| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:52` | A monitored patient's journal, as rows plus the chart series. |
-| `GET` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:53` | The question thread of a patient this doctor monitors. |
-| `POST` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:54` | A doctor's answer. |
-| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:57` | 30 Миний зөвлөгөө |
-| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:58` | One of the doctor's own tickets, with its replies. |
-| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:61` | 31 Миний тайлан |
-| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:64` | 32 Read access to the patient side |
-| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:65` | A patient card: profile, recent examinations, journal series, monitoring state. |
-| `GET` | `/api/doctor/evisits` | token (staff only) | `api/doctor/index.js:69` | 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request Queue of requests… |
-| `GET` | `/api/doctor/evisits/:id` | token (staff only) | `api/doctor/index.js:71` | One request with the patient's card and their latest reading |
-| `POST` | `/api/doctor/evisits/:id/schedule` | token (staff only) | `api/doctor/index.js:73` | Confirm or move a slot, and assign it to the calling doctor |
-| `POST` | `/api/doctor/evisits/:id/complete` | token (staff only) | `api/doctor/index.js:75` | Mark the examination done. |
-| `POST` | `/api/doctor/evisits/:id/cancel` | token (staff only) | `api/doctor/index.js:77` | Refuse or withdraw a request |
-| `GET` | `/api/doctor/rehab/exercises` | token (staff only) | `api/doctor/index.js:80` | 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets |
-| `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:82` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
-| `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:84` | The assessment history, newest first |
-| `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:86` | Record an assessment. |
-| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:90` | Push registration, identical in shape to the patient app's. |
-| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:91` | POST, not DELETE /:token - see the patient equivalent for why. |
-| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:92` |  |
+| `GET` | `/api/patient/me` | token (RoleId 4 only) | `api/patient/index.js:49` | 2.1 Миний бүртгэл |
+| `GET` | `/api/patient/journal` | token (RoleId 4 only) | `api/patient/index.js:52` | 2.2 Миний тэмдэглэл — the daily log, plus the series behind its chart |
+| `POST` | `/api/patient/journal` | token (RoleId 4 only) | `api/patient/index.js:53` |  |
+| `GET` | `/api/patient/journal/summary` | token (RoleId 4 only) | `api/patient/index.js:54` | The tracker's acceptance for Миний тэмдэглэл is explicit that entries must render as a chart, so… |
+| `GET` | `/api/patient/journal/export` | token (RoleId 4 only) | `api/patient/index.js:57` | §1.8 - the journal as a file, for showing a doctor at an appointment. |
+| `GET` | `/api/patient/questions` | token (RoleId 4 only) | `api/patient/index.js:60` | 2.3 Эмчээс асуух асуулт |
+| `POST` | `/api/patient/questions` | token (RoleId 4 only) | `api/patient/index.js:61` | Ask a question, with or without attachments (tender §2.3: "зураг, дуу, баримт хавсаргах"). |
+| `GET` | `/api/patient/advice` | token (RoleId 4 only) | `api/patient/index.js:64` | 2.4 Эмчийн зөвлөгөө |
+| `GET` | `/api/patient/risk` | token (RoleId 4 only) | `api/patient/index.js:67` | 2.5 Эрсдэл үнэлгээ (ЗСӨ) — inputs only until ЗСҮТ approve the methodology |
+| `GET` | `/api/patient/diagnostics` | token (RoleId 4 only) | `api/patient/index.js:71` | §3.1 Шинжилгээ, оношлогоо — the patient's own results, same shape the doctor app gets. |
+| `GET` | `/api/patient/diagnostics/:type/:id` | token (RoleId 4 only) | `api/patient/index.js:72` | One of the patient's own investigations. |
+| `GET` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:75` | 2.6 Цахим үзлэг - request, appointment and the state of both |
+| `POST` | `/api/patient/evisits` | token (RoleId 4 only) | `api/patient/index.js:76` |  |
+| `GET` | `/api/patient/evisits/:id` | token (RoleId 4 only) | `api/patient/index.js:78` | One request, with its assigned doctor and - only once scheduled - its join link |
+| `POST` | `/api/patient/evisits/:id/cancel` | token (RoleId 4 only) | `api/patient/index.js:80` | Withdraw a request. |
+| `GET` | `/api/patient/options/:dico` | token (RoleId 4 only) | `api/patient/index.js:84` | Option lists for the dropdowns above, served from the OptionTypes dictionary so unapproved wording… |
+| `GET` | `/api/patient/notifications` | token (RoleId 4 only) | `api/patient/index.js:87` | Мэдэгдэл (tracker 48). |
+| `GET` | `/api/patient/notifications/unread-count` | token (RoleId 4 only) | `api/patient/index.js:89` | The badge count on its own, so the app is not paging a list to count |
+| `POST` | `/api/patient/notifications/:id/read` | token (RoleId 4 only) | `api/patient/index.js:90` | Ownership lives in the WHERE clause, never in a check beforehand. |
+| `POST` | `/api/patient/notifications/read-all` | token (RoleId 4 only) | `api/patient/index.js:91` |  |
+| `POST` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:94` | Push registration. |
+| `POST` | `/api/patient/devices/unregister` | token (RoleId 4 only) | `api/patient/index.js:96` | POST, not DELETE /:token - an FCM token is ~163 chars and contains ':' |
+| `GET` | `/api/patient/devices` | token (RoleId 4 only) | `api/patient/index.js:97` | The caller's own devices. |
+| `GET` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:102` | Сануулга - medication, exercise and follow-up reminders the patient sets themselves. |
+| `POST` | `/api/patient/reminders` | token (RoleId 4 only) | `api/patient/index.js:103` |  |
+| `PATCH` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:104` |  |
+| `DELETE` | `/api/patient/reminders/:id` | token (RoleId 4 only) | `api/patient/index.js:106` | Soft delete: stops firing, keeps the history answerable |
+| `GET` | `/api/patient/access-log` | token (RoleId 4 only) | `api/patient/index.js:111` | Хандалтын түүх (tracker 24) - who looked at my record. |
+| `GET` | `/api/patient/consents` | token (RoleId 4 only) | `api/patient/index.js:116` | Зөвшөөрөл (tracker 23) - consent for non-treatment use of personal data. |
+| `GET` | `/api/patient/consents/:purposeCode/document` | token (RoleId 4 only) | `api/patient/index.js:117` | The full text to display before asking. |
+| `POST` | `/api/patient/consents` | token (RoleId 4 only) | `api/patient/index.js:118` |  |
+| `DELETE` | `/api/patient/consents/:purposeCode` | token (RoleId 4 only) | `api/patient/index.js:119` |  |
+| `GET` | `/api/patient/rehab/exercises` | token (RoleId 4 only) | `api/patient/index.js:126` | 2.7 Сэргээн засах, дасгал хөдөлгөөн |
+| `GET` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:127` | What this patient has completed, so the catalogue can show progress. |
+| `POST` | `/api/patient/rehab/progress` | token (RoleId 4 only) | `api/patient/index.js:128` | Tracker #56: "Дасгал үзэх, гүйцэтгэлээ тэмдэглэх" - the patient marks their own completion. |
+| `GET` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:129` | Tracker #51: vital signs around a session. |
+| `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:130` |  |
+| `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:131` | Tracker #50: the latest risk / exercise-tolerance assessment. |
+| `GET` | `/api/patient/rehab/assessments` | token (RoleId 4 only) | `api/patient/index.js:134` | The history behind that single row - risk level and exercise tolerance over a whole programme… |
+| `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:74` |  |
+| `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:77` | 28 Миний үзлэгүүд |
+| `GET` | `/api/doctor/visits/export` | token (staff only) | `api/doctor/index.js:80` | §1.8 - the same filters as the list, as a file. |
+| `GET` | `/api/doctor/visits/:id` | token (staff only) | `api/doctor/index.js:81` | One examination in full. |
+| `GET` | `/api/doctor/visits/:id/print` | token (staff only) | `api/doctor/index.js:83` | §1.8 - the examination note as A4 PDF. |
+| `GET` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:86` | 29 Миний хяналт |
+| `POST` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:87` | Take a patient into personal monitoring. |
+| `DELETE` | `/api/doctor/monitoring/:patientId` | token (staff only) | `api/doctor/index.js:88` |  |
+| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:89` | A monitored patient's journal, as rows plus the chart series. |
+| `GET` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:90` | The question thread of a patient this doctor monitors. |
+| `POST` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:91` | A doctor's answer. |
+| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:94` | 30 Миний зөвлөгөө |
+| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:95` | One of the doctor's own tickets, with its replies. |
+| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:98` | 31 Миний тайлан |
+| `GET` | `/api/doctor/reports/summary/export` | token (staff only) | `api/doctor/index.js:102` | The same report as xlsx / csv / txt, with the source stamp the tender requires. |
+| `GET` | `/api/doctor/icd10` | token (staff only) | `api/doctor/index.js:106` | Онош, ICD-ээр хайх (§1.3) - autocomplete for the diagnosis box. |
+| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:110` | 32 Read access to the patient side. |
+| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:111` | A patient card: profile, recent examinations, journal series, monitoring state. |
+| `GET` | `/api/doctor/patients/:id/risk` | token (staff only) | `api/doctor/index.js:113` | §2.1 - the doctor's view of the patient's own risk screen, same rows |
+| `GET` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:117` | §1.2 Асран хамгаалагчийн зөвшөөрөл - the patient records their own at /api/patient/consents; a… |
+| `POST` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:118` | Record a consent given by the patient's guardian. |
+| `GET` | `/api/doctor/patients/:id/diagnostics` | token (staff only) | `api/doctor/index.js:123` | §3.1 Шинжилгээ, оношлогоо - lab, echo, cathlab and ECG as one list. |
+| `GET` | `/api/doctor/diagnostics/:type/:id` | token (staff only) | `api/doctor/index.js:124` | One investigation in full. |
+| `GET` | `/api/doctor/evisits` | token (staff only) | `api/doctor/index.js:128` | 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request Queue of requests… |
+| `GET` | `/api/doctor/evisits/:id` | token (staff only) | `api/doctor/index.js:130` | One request with the patient's card and their latest reading |
+| `POST` | `/api/doctor/evisits/:id/schedule` | token (staff only) | `api/doctor/index.js:132` | Confirm or move a slot, and assign it to the calling doctor |
+| `POST` | `/api/doctor/evisits/:id/complete` | token (staff only) | `api/doctor/index.js:134` | Mark the examination done. |
+| `POST` | `/api/doctor/evisits/:id/cancel` | token (staff only) | `api/doctor/index.js:136` | Refuse or withdraw a request |
+| `GET` | `/api/doctor/rehab/exercises` | token (staff only) | `api/doctor/index.js:139` | 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets |
+| `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:141` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
+| `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:143` | The assessment history, newest first |
+| `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:145` | Record an assessment. |
+| `GET` | `/api/doctor/emd/drugs` | token (staff only) | `api/doctor/index.js:150` | §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the request BODY; these… |
+| `GET` | `/api/doctor/emd/services` | token (staff only) | `api/doctor/index.js:151` | The insurance service catalogue. |
+| `GET` | `/api/doctor/notifications` | token (staff only) | `api/doctor/index.js:156` | Мэдэгдэл - the same four the patient app has, addressed by ToUserId. |
+| `GET` | `/api/doctor/notifications/unread-count` | token (staff only) | `api/doctor/index.js:158` | The badge count on its own, so the app is not paging a list to count |
+| `POST` | `/api/doctor/notifications/:id/read` | token (staff only) | `api/doctor/index.js:159` | Ownership lives in the WHERE clause, never in a check beforehand. |
+| `POST` | `/api/doctor/notifications/read-all` | token (staff only) | `api/doctor/index.js:160` |  |
+| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:164` | Push registration, identical in shape to the patient app's. |
+| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:165` | POST, not DELETE /:token - see the patient equivalent for why. |
+| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:166` |  |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 | `POST` | `/api/auth/logout` | self-authenticating | `api/auth/index.js:21` | End this session. |
@@ -560,8 +580,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:461` |
-| `GET` | `/health` | public | `server.js:465` |
+| `GET` | `/` | public | `server.js:505` |
+| `GET` | `/health` | public | `server.js:509` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
@@ -606,7 +626,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `controllers/system/BaseCustomController.js` | 0 | Маршрутгүй туслах файл. |
 | `controllers/system/ExportExcelOld.js` | 0 | Маршрутгүй туслах файл. |
 | `controllers/system/MediaController.js` | 2 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
+| `controllers/system/MediaTicketController.js` | 1 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 359._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 385._

@@ -120,6 +120,16 @@ const Flags = {
   /** off | warn | enforce. enforce needs the access-rights matrix, which does not exist. */
   Confidentiality: Enum('FEATURE_CONFIDENTIALITY', ['off', 'warn', 'enforce'], 'off'),
 
+  /**
+   * off | warn | enforce, for helper/RequirePermission.js.
+   *
+   * RoleToPermission's 125 grants ALL belong to RoleId 1. The two doctor tiers
+   * have none, so 'enforce' would deny every doctor everything on /api/doctor/*
+   * the day it was switched on. Seed grants for roles 2 and 3 first, then run
+   * 'warn' to catch what the seeding missed. See helper/Permissions.js.
+   */
+  Permissions: Enum('FEATURE_PERMISSIONS', ['off', 'warn', 'enforce'], 'off'),
+
   /** Needs IX_UserActionHistory_PatientId, or it is a table scan per app launch. */
   AccessLogApi: Bool('FEATURE_ACCESS_LOG_API', false),
 
@@ -156,6 +166,7 @@ function LogResolved() {
     TokenRevocationEnabled: Flags.TokenRevocationEnabled,
     ConsentEnabled: Flags.ConsentEnabled,
     Confidentiality: Flags.Confidentiality,
+    Permissions: Flags.Permissions,
     AccessLogApi: Flags.AccessLogApi,
     PushDriver: Flags.PushDriver,
   };

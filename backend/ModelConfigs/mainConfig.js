@@ -152,6 +152,7 @@ const RemoteVisitConfig = require('./RemoteVisitConfig');
 // how the real 39 exercises get entered, since their names are clinical
 // content we must not invent.
 const RehabExerciseConfig = require('./RehabExerciseConfig');
+const MobileSettingConfig = require('./MobileSettingConfig');
 const RehabAssessmentConfig = require('./RehabAssessmentConfig');
 const RehabVitalSignConfig = require('./RehabVitalSignConfig');
 const RehabProgressConfig = require('./RehabProgressConfig');
@@ -344,6 +345,7 @@ function MainConfig() {
 
     // Rehabilitation
     new RehabExerciseConfig(),
+    new MobileSettingConfig(),
     new RehabAssessmentConfig(),
     new RehabVitalSignConfig(),
     new RehabProgressConfig(),

@@ -5,6 +5,13 @@ const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const PushHelper = require('../../helper/PushHelper');
+const NotificationHelper = require('../../helper/NotificationHelper');
+const CareTeam = require('../../helper/CareTeam');
+const RiskInputs = require('../../helper/RiskInputs');
+const AttachmentIntake = require('../../helper/AttachmentIntake');
+const Diagnostics = require('../../helper/Diagnostics');
+const Export = require('../../helper/Export');
+const Provenance = require('../../helper/Provenance');
 const Flags = require('../../helper/FeatureFlags');
 const SchemaProbe = require('../../helper/SchemaProbe');
 const Consent = require('../../helper/Consent');
@@ -45,6 +52,13 @@ const readPaging = (req) => {
   return { limit, offset };
 };
 
+/**
+ * Ceiling on an export. Well above any real personal journal - a patient
+ * recording three readings a day for ten years is ~11,000 rows - and low enough
+ * that one request cannot build an unbounded spreadsheet in memory.
+ */
+const EXPORT_MAX_ROWS = 20000;
+
 // Optional date window, applied to whichever column the resource dates by.
 const readDateRange = (req, field) => {
   const { from, to } = req.query;
@@ -53,6 +67,50 @@ const readDateRange = (req, field) => {
   if (from) range[Op.gte] = from;
   if (to) range[Op.lte] = to;
   return { [field]: range };
+};
+
+/**
+ * Tell every doctor responsible for this patient that the patient did
+ * something. The counterpart of NotifyPatient, which the doctor surface uses.
+ *
+ * Fan-out, because a patient can be on a care team AND on a monitoring list -
+ * CareTeam.GetCareTeamUserIds unions both routes and returns Users.Id, which is
+ * what Notification.ToUserId holds.
+ *
+ * TWO DELIBERATE CHOICES.
+ *
+ * The message carries NO PATIENT IDENTITY. A push body lands on a lock screen
+ * in a corridor; who it is about is one tap away behind the deep link, where
+ * the reader has already authenticated. LinkObjectName + LinkObjectId are what
+ * the app navigates on.
+ *
+ * Nothing here is allowed to fail the write it follows. Awaited so a failure is
+ * logged against this request, never checked, never thrown - a patient's
+ * e-visit request is saved whether or not anybody's phone buzzes. An empty care
+ * team is normal, not an error: an unassigned request is exactly what the
+ * doctor triage queue's ?scope=unassigned exists to show.
+ */
+const NotifyCareTeam = async ({ PatientId, Action, LinkObjectName, LinkObjectId, NotesMn, Notes, LogedUser }) => {
+  try {
+    const UserIds = await CareTeam.GetCareTeamUserIds(PatientId);
+    if (!UserIds.length) return 0;
+
+    for (const UserId of UserIds) {
+      await NotificationHelper.NotifyUser({
+        UserId,
+        Action,
+        LinkObjectName,
+        LinkObjectId,
+        NotesMn,
+        Notes,
+        LogedUser,
+      });
+    }
+    return UserIds.length;
+  } catch (ex) {
+    console.error('[api/patient] NotifyCareTeam:', ex.message);
+    return 0;
+  }
 };
 
 /* ---------------------------------------------------------------- profile */
@@ -217,6 +275,14 @@ exports.listQuestions = async (req, res) => {
       subQuery: false,
     });
 
+    // One query for the whole page, not one per row. Covers the doctor's reply
+    // as well as the patient's question - both are VisitComments rows, so an
+    // answer that came back with an ECG image carries it here too.
+    const filesByComment = await AttachmentIntake.ListFor({
+      LinkedObjectName: 'VisitComments',
+      Ids: rows.map((r) => r.id_data),
+    });
+
     const data = rows.map((r) => {
       const row = r.toJSON();
       return {
@@ -227,6 +293,7 @@ exports.listQuestions = async (req, res) => {
         doctor_name: row.DoctorsProfile
           ? [row.DoctorsProfile.lastname, row.DoctorsProfile.firstname].filter(Boolean).join(' ')
           : null,
+        files: filesByComment.get(row.id_data) || [],
       };
     });
 
@@ -236,12 +303,43 @@ exports.listQuestions = async (req, res) => {
   }
 };
 
+/**
+ * Ask a question, with or without attachments (tender §2.3: "зураг, дуу, баримт
+ * хавсаргах").
+ *
+ * ACCEPTS BOTH BODIES. A JSON `{ comment }` still works exactly as it did - the
+ * app in the field sends one, and breaking it to add a feature would be a bad
+ * trade. A multipart/form-data request carrying `comment` plus up to five
+ * `files` is the new path.
+ *
+ * WHY THE RECORD IS WRITTEN BEFORE THE FILES. A File row needs a
+ * LinkedObjectId, and that id does not exist until VisitComments has been
+ * created. So the order is: parse, create, attach. A failure while attaching
+ * therefore leaves a saved question with fewer files rather than losing the
+ * text the patient typed - which is the right way round, and why `rejected`
+ * comes back in the response instead of becoming an error.
+ *
+ * EITHER comment OR files is required, not both: a photo of a rash with no
+ * words is a legitimate question, and so is a sentence with no photo.
+ */
 exports.createQuestion = async (req, res) => {
   try {
-    const { comment } = req.body;
-    if (!comment || !String(comment).trim()) {
-      return fail(res, 'COMMENT_REQUIRED', 'Асуултаа бичнэ үү');
+    let comment;
+    let files = [];
+
+    if (String(req.headers['content-type'] || '').indexOf('multipart/form-data') !== -1) {
+      const parsed = await AttachmentIntake.Parse(req);
+      comment = parsed.fields.comment;
+      files = parsed.files;
+    } else {
+      comment = (req.body || {}).comment;
     }
+
+    const hasComment = !!(comment && String(comment).trim());
+    if (!hasComment && !files.length) {
+      return fail(res, 'COMMENT_REQUIRED', 'Асуулт эсвэл хавсралт оруулна уу');
+    }
+    comment = hasComment ? String(comment) : '';
 
     // Same reason as createJournal: ModelHelper stamps the legacy bookkeeping.
     const Id = await BaseControllerHelper.BaseCreate({
@@ -256,7 +354,40 @@ exports.createQuestion = async (req, res) => {
     });
     if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'createQuestion');
 
-    return ok(res, { id_data: Id });
+    // Attach now that there is an id to attach to. Per-file rejections are
+    // reported, never thrown - see the header.
+    let attached = { saved: [], rejected: [] };
+    if (files.length) {
+      attached = await AttachmentIntake.Store({
+        Files: files,
+        LinkedObjectName: 'VisitComments',
+        LinkedObjectId: Id,
+        FieldName: 'attachment',
+        LogedUser: req.LogedUser,
+      });
+    }
+
+    // The doctor's reply already notifies the patient (api/doctor ReplyQuestion)
+    // but the question itself notified nobody, so a doctor learned of it only by
+    // opening the monitoring screen and looking.
+    await NotifyCareTeam({
+      PatientId: req.Patient.PatientId,
+      Action: 'PatientQuestion',
+      LinkObjectName: 'VisitComments',
+      LinkObjectId: Id,
+      NotesMn: 'Үйлчлүүлэгч шинэ асуулт илгээлээ',
+      Notes: 'A patient asked a new question',
+      LogedUser: req.LogedUser,
+    });
+
+    return ok(res, {
+      id_data: Id,
+      files: attached.saved,
+      // Present only when something was refused, so a client that ignores the
+      // field is not reading an empty array on every successful save. A file
+      // that was silently dropped is the failure mode this exists to prevent.
+      ...(attached.rejected.length ? { rejected: attached.rejected } : {}),
+    });
   } catch (ex) {
     return serverError(res, ex, 'createQuestion');
   }
@@ -472,6 +603,18 @@ exports.createEvisit = async (req, res) => {
       UpdateDate: Now,
     });
 
+    // A request nobody is told about sits in the queue until somebody happens
+    // to look. This is the trigger for the triage screen.
+    await NotifyCareTeam({
+      PatientId: req.Patient.PatientId,
+      Action: 'EvisitRequested',
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: created.Id,
+      NotesMn: 'Цахим үзлэгийн шинэ хүсэлт ирлээ',
+      Notes: 'A new remote examination request was submitted',
+      LogedUser: req.LogedUser,
+    });
+
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
     return ok(res, {
       Id: created.Id,
@@ -531,6 +674,18 @@ exports.cancelEvisit = async (req, res) => {
       },
       { where: { Id, PatientId: req.Patient.PatientId } }
     );
+
+    // Matters most when the slot was already scheduled: without this a doctor
+    // keeps a confirmed appointment in their day that the patient has withdrawn.
+    await NotifyCareTeam({
+      PatientId: req.Patient.PatientId,
+      Action: 'EvisitWithdrawn',
+      LinkObjectName: 'RemoteVisit',
+      LinkObjectId: Id,
+      NotesMn: 'Үйлчлүүлэгч цахим үзлэгийн хүсэлтээ цуцаллаа',
+      Notes: 'A patient withdrew their remote examination request',
+      LogedUser: req.LogedUser,
+    });
 
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
     return ok(res, {
@@ -592,25 +747,185 @@ exports.listOptions = async (req, res) => {
  */
 exports.getRisk = async (req, res) => {
   try {
-    const PatRegNo = req.Patient.PatRegNo;
-    if (!PatRegNo) return ok(res, { bodySize: null, history: null });
-
-    const [bodySize, history] = await Promise.all([
-      Models.PatientBodySize.findOne({
-        where: { PatRegNo },
-        order: [['Id', 'DESC']],
-        raw: true,
-      }),
-      Models.PatientOwnHistory.findOne({
-        where: { PatRegNo },
-        order: [['Id', 'DESC']],
-        raw: true,
-      }),
-    ]);
-
-    return ok(res, { bodySize: bodySize || null, history: history || null });
+    // helper/RiskInputs.js, so the doctor's view of this patient's risk at
+    // GET /api/doctor/patients/:id/risk reads the identical rows - and so the
+    // score, when ЗСҮТ approve a methodology, appears on both at once.
+    return ok(res, await RiskInputs.Read(req.Patient.PatRegNo));
   } catch (ex) {
     return serverError(res, ex, 'getRisk');
+  }
+};
+
+/**
+ * The patient's own journal as a downloadable file — tender §1.8.
+ *
+ * The reason this exists is mundane and important: a patient brings their blood
+ * pressure log to an appointment. Reading it off a phone screen across a desk
+ * does not work; a file they can send ahead or print does.
+ *
+ * RETURNS A FILE, NOT THE ENVELOPE. Content-Disposition: attachment, so nothing
+ * may be written to the response before Export.Send. Failures before that point
+ * still answer with the normal JSON envelope, which is why the format check and
+ * the query both happen first.
+ *
+ * The source stamp is required on every export by the tender and is written
+ * into the file itself by helper/Export.js.
+ */
+exports.exportJournal = async (req, res) => {
+  try {
+    const format = String(req.query.format || 'xlsx').toLowerCase();
+    if (!Export.IsFormat(format)) {
+      return fail(res, 'INVALID_FORMAT', 'format нь ' + Export.FORMATS.join(', ') + ' байна');
+    }
+
+    const where = Object.assign(
+      { patient_id: req.Patient.PatientId },
+      readDateRange(req, 'date')
+    );
+
+    const rows = await Models.PatientMonitoring.findAll({
+      where,
+      attributes: [
+        'date',
+        'time',
+        'blood_pressure',
+        'blood_pressure2',
+        'pulse',
+        'weight',
+        'inr',
+        'comment',
+      ],
+      // Ascending here, unlike the list: a log read on paper runs forwards in
+      // time, and EXPORT_MAX_ROWS is far above any plausible personal journal.
+      order: [
+        ['date', 'ASC'],
+        ['id_data', 'ASC'],
+      ],
+      limit: EXPORT_MAX_ROWS,
+      raw: true,
+    });
+
+    const me = await Models.Patient.findByPk(req.Patient.PatientId, {
+      attributes: ['p_lastname', 'p_firstname', 'p_registration'],
+      raw: true,
+    });
+
+    const provenance = Provenance.Lines({
+      // A patient session carries no Doctor, so the organisation line comes out
+      // empty. The patient's own identity is what matters on their own export,
+      // and it is added below rather than left to the generic stamp.
+      LogedUser: req.LogedUser,
+      Register: 'Өвчтөний өдрийн тэмдэглэл (Миний тэмдэглэл)',
+      From: req.query.from,
+      To: req.query.to,
+    }).concat([
+      'Үйлчлүүлэгч: ' +
+        [me && me.p_lastname, me && me.p_firstname].filter(Boolean).join(' ') +
+        ' (' + ((me && me.p_registration) || '') + ')',
+    ]);
+
+    return await Export.Send({
+      res,
+      format,
+      fileName: 'journal_' + ((me && me.p_registration) || req.Patient.PatientId),
+      sheetName: 'Тэмдэглэл',
+      headers: [
+        'Огноо',
+        'Цаг',
+        'Даралт дээд',
+        'Даралт доод',
+        'Судас',
+        'Жин',
+        'INR',
+        'Тайлбар',
+      ],
+      rows: rows.map((r) => [
+        r.date,
+        // PatientMonitoring.time is a TIME column, which tedious hands back as a
+        // Date on 1970-01-01. Printed raw it reads "1970-01-01 09:58:00", which
+        // looks like a data error to whoever opens the file. Only the clock
+        // part means anything.
+        r.time instanceof Date ? r.time.toISOString().slice(11, 16) : r.time,
+        r.blood_pressure,
+        r.blood_pressure2,
+        r.pulse,
+        r.weight,
+        r.inr,
+        r.comment,
+      ]),
+      provenance,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'exportJournal');
+  }
+};
+
+/* ------------------------------ Шинжилгээ, оношлогоо (tender §3.1) */
+
+/**
+ * The patient's own investigations - lab, echo, cathlab, ECG.
+ *
+ * Same helper, same shape and same ordering as the doctor's
+ * /api/doctor/patients/:id/diagnostics, so one screen renders both. The only
+ * difference is where the patient id comes from: the token, never the request.
+ *
+ * NOT AUDITED, unlike the doctor's. helper/AccessAudit exists to answer "who
+ * else opened my record"; a patient reading their own file is the baseline that
+ * question is asked against, and logging it would bury the accesses that matter
+ * under one row per app launch.
+ */
+exports.listDiagnostics = async (req, res) => {
+  try {
+    const type = req.query.type ? String(req.query.type) : null;
+    if (type && !Diagnostics.IsType(type)) {
+      return fail(res, 'INVALID_TYPE', 'type нь ' + Diagnostics.TYPE_NAMES.join(', ') + ' байна');
+    }
+
+    const { limit, offset } = readPaging(req);
+    const { total, rows } = await Diagnostics.List({
+      PatientId: req.Patient.PatientId,
+      Type: type,
+      From: req.query.from,
+      To: req.query.to,
+      Limit: limit,
+      Offset: offset,
+    });
+
+    return ok(res, rows, { total, limit, offset });
+  } catch (ex) {
+    return serverError(res, ex, 'listDiagnostics');
+  }
+};
+
+/**
+ * One of the patient's own investigations.
+ *
+ * OWNERSHIP IS CHECKED AGAINST THE RECORD, and a foreign id answers 404 rather
+ * than 403 - the two must be indistinguishable, or this becomes a way to
+ * enumerate which investigations exist for other people.
+ *
+ * Confidentiality is NOT applied to a patient reading their own results. The
+ * classification exists to keep a result from unauthorised STAFF; the person
+ * the result is about is not who it is being withheld from.
+ */
+exports.getDiagnostic = async (req, res) => {
+  try {
+    const type = String(req.params.type || '');
+    const Id = parseInt(req.params.id, 10);
+    if (!Diagnostics.IsType(type)) {
+      return fail(res, 'INVALID_TYPE', 'type нь ' + Diagnostics.TYPE_NAMES.join(', ') + ' байна');
+    }
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+
+    const detail = await Diagnostics.GetOne({ Type: type, Id });
+    if (!detail) return fail(res, 'NOT_FOUND', 'Шинжилгээ олдсонгүй', 404);
+    if (String(detail.PatientId) !== String(req.Patient.PatientId)) {
+      return fail(res, 'NOT_FOUND', 'Шинжилгээ олдсонгүй', 404);
+    }
+
+    return ok(res, detail);
+  } catch (ex) {
+    return serverError(res, ex, 'getDiagnostic');
   }
 };
 
@@ -799,29 +1114,62 @@ exports.getRehabAssessment = async (req, res) => {
   }
 };
 
+/**
+ * The assessment HISTORY, not just the latest one.
+ *
+ * /rehab/assessment (singular) returns one row and stays as it is - it is what
+ * the rehabilitation card shows. This is the list behind it, so a patient can
+ * see their risk level and exercise tolerance change over a programme, which is
+ * the whole point of recording them repeatedly (tender §4.1).
+ *
+ * Deliberately identical in shape to the doctor's listPatientAssessments,
+ * RiskLevelLabel included, so the two apps render the same history with the
+ * same code. Ordered by AssessmentDate DESC then Id DESC - two assessments on
+ * one day resolve by insertion order rather than arbitrarily.
+ */
+exports.listRehabAssessments = async (req, res) => {
+  try {
+    const PatRegNo = req.Patient.PatRegNo;
+    const { limit, offset } = readPaging(req);
+
+    // No registration number means no rows are addressable, which is an empty
+    // history rather than an error.
+    if (!PatRegNo) return ok(res, [], { total: 0, limit, offset });
+
+    const { rows, count } = await Models.RehabAssessment.findAndCountAll({
+      where: Object.assign({ PatRegNo }, readDateRange(req, 'AssessmentDate')),
+      order: [
+        ['AssessmentDate', 'DESC'],
+        ['Id', 'DESC'],
+      ],
+      limit,
+      offset,
+      raw: true,
+    });
+
+    const riskLabels = await DicoLabels.GetLabelMap('rehab_risk');
+    return ok(
+      res,
+      rows.map((r) =>
+        Object.assign({}, r, { RiskLevelLabel: riskLabels.get(String(r.RiskLevel)) || null })
+      ),
+      { total: count, limit, offset }
+    );
+  } catch (ex) {
+    return serverError(res, ex, 'listRehabAssessments');
+  }
+};
+
 /* ------------------------------------------------ Мэдэгдэл (tracker row 48) */
 
 /**
- * SEEN IS '1' OR NULL. Measured on MnCardio_test 2026-09-14 - those are the
- * only two values in the column. Nothing in this repo writes it; the nightly
- * EXEC spUpdateNotification does, and its body lives in the database rather
- * than here. The web bell reads the same column, so this must not invent a
- * third value like 'y' or 'true'.
+ * The seen value and the row shape now live in helper/NotificationHelper.js,
+ * because /api/doctor serves the same four endpoints and the two surfaces must
+ * agree on what "read" means and on what a notification looks like. They are
+ * aliased rather than inlined so the handlers below read unchanged.
  */
-const SEEN = '1';
-
-const shapeNotification = (r) => ({
-  Id: r.Id,
-  Notes: r.Notes,
-  NotesMn: r.NotesMn,
-  Action: r.Action,
-  LinkObjectName: r.LinkObjectName,
-  LinkObjectId: r.LinkObjectId,
-  Url: r.Url,
-  Seen: r.Seen === SEEN,
-  SeenDate: r.SeenDate,
-  CreateDate: r.CreateDate,
-});
+const SEEN = NotificationHelper.SEEN;
+const shapeNotification = NotificationHelper.Shape;
 
 exports.listNotifications = async (req, res) => {
   try {

@@ -10,6 +10,7 @@ import { colors } from "@/theme/colors";
 import { radius } from "@/theme/tokens";
 import MessageAttachments from "customComponents/Chat/MessageAttachments";
 import { timeLabel } from "customComponents/Chat/chatUtils";
+import { fileKind } from "customComponents/AdviceFeed/mediaUtils";
 
 /**
  * One message.
@@ -52,6 +53,34 @@ export default function MessageBubble({
           },
         }))
       : Message.Attachment || [];
+
+  /*
+   * A message whose whole content is a voice note or a video.
+   *
+   * Those two render their own surface, so the bubble must not add a second
+   * one - see the container below. Photos and documents are NOT media-only in
+   * this sense: they sit in the bubble the way they always have.
+   */
+  const mediaOnly =
+    !Message.MessageText &&
+    files.length > 0 &&
+    files.every((f) => {
+      const k = fileKind(f);
+      return k === "audio" || k === "video";
+    });
+
+  /*
+   * Nothing to show at all: no text, no attachment, and not mid-send.
+   *
+   * This used to paint an empty coloured pill 20px wide. It was invisible while
+   * every message carried text, and became constant once voice notes arrived -
+   * a voice note has no text, so any message whose attachment fails to resolve
+   * (bytes missing on the host, an upload that never committed) leaves the
+   * container with nothing in it.
+   */
+  const empty =
+    !Message.MessageText && files.length === 0 && !sending && !failed;
+  if (empty) return null;
 
   // A plain render helper, not a component defined during render - declaring a
   // component inside the body gives it a new identity every render, so React
@@ -110,10 +139,18 @@ export default function MessageBubble({
 
         <Box
           sx={{
-            px: 1.25,
-            py: 0.75,
+            // A voice or video message IS the bubble - it brings its own
+            // surface, in the same two colours. Keeping the chrome here as well
+            // drew a heavy ring around a player that already had a border, and
+            // the outgoing colour behind a light player made it worse.
+            px: mediaOnly ? 0 : 1.25,
+            py: mediaOnly ? 0 : 0.75,
             borderRadius: radius.lg,
-            bgcolor: mine ? colors.brand.cyanInk : colors.brand.tint,
+            bgcolor: mediaOnly
+              ? "transparent"
+              : mine
+                ? colors.brand.cyanInk
+                : colors.brand.tint,
             color: mine ? "#fff" : colors.brand.ink,
             opacity: sending ? 0.85 : 1,
             border: failed ? `1px solid ${colors.brand.urgent}` : "none",
@@ -133,7 +170,7 @@ export default function MessageBubble({
             </Typography>
           ) : null}
 
-          <MessageAttachments Files={files} />
+          <MessageAttachments Files={files} Mine={mine} />
 
           {sending && files.length > 0 ? (
             // Determinate once the browser reports bytes. A 50MB DICOM over an

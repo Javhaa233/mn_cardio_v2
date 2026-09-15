@@ -30,7 +30,62 @@ const ObjectHelper = require('./ObjectHelper');
 const PushHelper = require('./PushHelper');
 const { Models } = require('../config/DB');
 
+/**
+ * Seen IS '1' OR NULL. Measured on MnCardio_test 2026-09-14 - those are the
+ * only two values in the column. Nothing in this repo writes it; the nightly
+ * EXEC spUpdateNotification does, and its body lives in the database rather
+ * than here. The web bell reads the same column, so this must not invent a
+ * third value like 'y' or 'true'.
+ *
+ * It lives here rather than in either api controller because the patient and
+ * doctor surfaces both read it, and a notification that is unread on one screen
+ * and read on the other would be worse than either behaviour on its own.
+ */
+const SEEN = '1';
+
 class NotificationHelper {
+  /** The stored value that means "read". Compare against it, never assign 'y'. */
+  SEEN = SEEN;
+
+  /**
+   * One row as the mobile app receives it, identical on /api/patient and
+   * /api/doctor.
+   *
+   * Two things the client depends on and this guarantees:
+   *   - `Seen` is a BOOLEAN out here even though the column is a string
+   *   - `NotesMn` is the display text; `Notes` is an English developer label
+   *     and is never shown to a user
+   *
+   * LinkObjectName + LinkObjectId are the deep link: VisitComments -> the
+   * questions thread, RemoteVisit -> the e-visit, Advice -> the advice item.
+   */
+  Shape = (r) => ({
+    Id: r.Id,
+    Notes: r.Notes,
+    NotesMn: r.NotesMn,
+    Action: r.Action,
+    LinkObjectName: r.LinkObjectName,
+    LinkObjectId: r.LinkObjectId,
+    Url: r.Url,
+    Seen: r.Seen === SEEN,
+    SeenDate: r.SeenDate,
+    CreateDate: r.CreateDate,
+  });
+
+  /** The columns Shape reads, so a findAll does not select the whole row. */
+  ShapeAttributes = [
+    'Id',
+    'Notes',
+    'NotesMn',
+    'Action',
+    'LinkObjectName',
+    'LinkObjectId',
+    'Url',
+    'Seen',
+    'SeenDate',
+    'CreateDate',
+  ];
+
   /**
    * Persist a notification and, optionally, push it in real time.
    *
