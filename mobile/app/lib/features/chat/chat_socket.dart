@@ -32,14 +32,23 @@ class ChatSocket {
 
   /// Уншсан тэмдэглэгээ өөрчлөгдөх урсгал.
   final StreamController<int> _readRooms = StreamController<int>.broadcast();
+  final StreamController<TypingEvent> _typing =
+      StreamController<TypingEvent>.broadcast();
 
   /// Холболтын төлөв.
   final ValueNotifier<bool> connected = ValueNotifier<bool>(false);
 
   Stream<ChatMessage> get messages => _messages.stream;
   Stream<int> get readRooms => _readRooms.stream;
+  Stream<TypingEvent> get typingEvents => _typing.stream;
 
   ChatMe? me;
+
+  /// Токен хуучирсан үед дуудагдана. `ChatRoomsController` үүнийг сонсож
+  /// HTTP дуудлагаар токеноо сэргээгээд [reconnectWithFreshToken]-ийг дуудна.
+  void Function()? onTokenExpired;
+
+  DateTime? _lastRefreshAt;
 
   Future<void> connect() async {
     if (_socket != null) return;
@@ -72,12 +81,36 @@ class ChatSocket {
       }
     });
 
-    socket.onDisconnect((_) => connected.value = false);
+    socket.onDisconnect((dynamic reason) {
+      connected.value = false;
+      // Серверээс салгасан үед socket.io өөрөө дахин холбогддоггүй. Токен
+      // хугацаа дуусахад сервер яг ингэж салгадаг тул шинэ токеноор
+      // холболтыг өөрсдөө сэргээнэ (CHAT-CLIENT-FIXES §2).
+      if (reason is String && reason == 'io server disconnect') {
+        _scheduleRefresh();
+      }
+    });
 
     socket.on('newMessage', (dynamic payload) {
       if (payload is! Map) return;
       _messages.add(
         ChatMessage.fromJson(Map<String, dynamic>.from(payload), me: me),
+      );
+    });
+
+    socket.on('typing', (dynamic payload) {
+      if (payload is! Map) return;
+      final roomId = payload['ChatRoomId'];
+      if (roomId is! num) return;
+      _typing.add(
+        TypingEvent(
+          chatRoomId: roomId.toInt(),
+          userId: payload['UserId'] is num
+              ? (payload['UserId'] as num).toInt()
+              : null,
+          userType: payload['UserType']?.toString(),
+          isTyping: payload['IsTyping'] == true,
+        ),
       );
     });
 
@@ -89,26 +122,36 @@ class ChatSocket {
 
     // Токен хугацаа дуусахад сервер холболтыг тасалдаг тул шинэ токеноор
     // дахин баталгаажуулна.
-    socket.on('authExpired', (_) => _reauth());
+    // Сервер `authExpired` илгээгээд ТЭР ДАРУЙ салгадаг тул хуучин socket руу
+    // `reauth` илгээх нь хоосон ажил. Шинэ токеноор шинэ холболт үүсгэнэ.
+    socket.on('authExpired', (_) => _scheduleRefresh());
 
     socket.onConnectError((Object? error) {
       if (kDebugMode) debugPrint('[socket] холбогдож чадсангүй: $error');
       connected.value = false;
+      // Хуучин токеноор дахин холбогдох оролдлого ямагт татгалзана.
+      final text = error?.toString().toLowerCase() ?? '';
+      if (text.contains('token') || text.contains('auth')) {
+        _scheduleRefresh();
+      }
     });
 
     _socket = socket;
     socket.connect();
   }
 
-  Future<void> _reauth() async {
-    final socket = _socket;
-    if (socket == null) return;
-    final token = await _store.readAccessToken();
-    if (token == null || token.isEmpty) {
-      await disconnect();
+  /// Токен сэргээх шаардлагатай болсныг мэдэгдэнэ.
+  ///
+  /// Давталтаас сэргийлж 30 секундэд нэгээс олон удаа хийхгүй: татгалзсан
+  /// холболт дараалан алдаа өгвөл энэ нь хязгааргүй давталт болно.
+  void _scheduleRefresh() {
+    final now = DateTime.now();
+    final last = _lastRefreshAt;
+    if (last != null && now.difference(last) < const Duration(seconds: 30)) {
       return;
     }
-    socket.emit('reauth', <String, dynamic>{'token': token});
+    _lastRefreshAt = now;
+    onTokenExpired?.call();
   }
 
   void joinRoom(int chatRoomId) {
@@ -121,8 +164,15 @@ class ChatSocket {
     _socket?.emit('leaveRoom', <String, dynamic>{'ChatRoomId': chatRoomId});
   }
 
-  void typing(int chatRoomId) {
-    _socket?.emit('typing', <String, dynamic>{'ChatRoomId': chatRoomId});
+  /// "Бичиж байна" төлөв.
+  ///
+  /// Сервер `IsTyping: !!data.IsTyping` гэж дамжуулдаг тул талбарыг заавал
+  /// илгээнэ — үгүй бол хүлээн авагч тал ямагт `false` хүлээж авна.
+  void typing(int chatRoomId, {bool isTyping = true}) {
+    _socket?.emit('typing', <String, dynamic>{
+      'ChatRoomId': chatRoomId,
+      'IsTyping': isTyping,
+    });
   }
 
   Future<void> disconnect() async {
@@ -148,7 +198,23 @@ class ChatSocket {
     _joinedRooms.clear();
     socket?.dispose();
     _messages.close();
+    _typing.close();
     _readRooms.close();
     connected.dispose();
   }
+}
+
+/// "Бичиж байна" эвент — `typing` (`WebSockets/ChatSocket.js`).
+class TypingEvent {
+  const TypingEvent({
+    required this.chatRoomId,
+    required this.isTyping,
+    this.userId,
+    this.userType,
+  });
+
+  final int chatRoomId;
+  final bool isTyping;
+  final int? userId;
+  final String? userType;
 }

@@ -1,4 +1,6 @@
+import '../../core/network/envelope.dart';
 import '../../core/util/json_read.dart';
+import '../../shared/widgets/attachment_view.dart';
 
 /// 2.3 Эмчээс асуух асуулт — нэг мөр нь асуулт эсвэл эмчийн хариу.
 ///
@@ -11,6 +13,7 @@ class Question {
     required this.isDoctor,
     this.dateCreation,
     this.doctorName,
+    this.files = const <Attachment>[],
   });
 
   final int idData;
@@ -18,6 +21,9 @@ class Question {
   final bool isDoctor;
   final DateTime? dateCreation;
   final String? doctorName;
+
+  /// Зураг, дуу бичлэг, баримт — Техникийн шаардлага §2.3.
+  final List<Attachment> files;
 
   String get authorLabel {
     if (!isDoctor) return 'Таны асуулт';
@@ -31,5 +37,8 @@ class Question {
         isDoctor: J.boolOf(json, <String>['is_doctor']),
         dateCreation: J.date(json, <String>['date_creation', 'date']),
         doctorName: J.str(json, <String>['doctor_name']),
+        files: Envelope.asList(json['files'])
+            .map(Attachment.fromJson)
+            .toList(growable: false),
       );
 }

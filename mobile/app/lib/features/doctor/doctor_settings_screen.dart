@@ -4,13 +4,18 @@ import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
+import '../../core/network/api_client.dart';
+import '../../core/update/update_controller.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/app_licenses.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../auth/server_settings_sheet.dart';
+import '../auth/biometric_password_dialog.dart';
 import '../auth/terms_screen.dart';
 import 'doctor_advice_screen.dart';
 import 'doctor_controllers.dart';
+import 'doctor_evisits_screen.dart';
 import 'doctor_patients_screen.dart';
 import 'doctor_report_screen.dart';
 
@@ -128,6 +133,14 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.duo_outlined),
+                  title: const Text('Цахим үзлэг'),
+                  subtitle: const Text('Хүсэлт, цаг товлолт'),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => _push(const DoctorEvisitsScreen()),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
                   leading: const Icon(Icons.person_search_outlined),
                   title: const Text('Үйлчлүүлэгч хайх'),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
@@ -161,13 +174,17 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                   leading: const Icon(Icons.gavel_outlined),
                   title: const Text('Үйлчилгээний нөхцөл'),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                  onTap: () => _push(const TermsScreen()),
+                  onTap: () => _push(TermsScreen(api: context.read<ApiClient>())),
                 ),
+                AppLicensesTile(version: _version),
                 if (_version.isNotEmpty)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.tag_rounded),
                     title: const Text('Хувилбар'),
+                    subtitle: context.watch<UpdateController>().updateAvailable
+                        ? const Text('Шинэ хувилбар гарсан байна')
+                        : null,
                     trailing:
                         Text(_version, style: theme.textTheme.bodySmall),
                   ),
@@ -217,6 +234,25 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
     if (!mounted) return;
     if (auth.lastError != null && value) {
       AppSnack.error(context, auth.lastError!);
+      return;
+    }
+
+    // Гарсны дараа ч хурууны хээгээр нэвтрэхийн тулд нэвтрэх мэдээлэл
+    // хадгалагдах ёстой. Апп нээснээс хойш нууц үгээр нэвтрээгүй бол
+    // санах ойд байхгүй — нэг удаа асууна.
+    if (value && auth.biometricEnabled && auth.needsPasswordForBiometric) {
+      final password = await askBiometricPassword(context);
+      if (!mounted) return;
+      if (password == null || password.trim().isEmpty) {
+        AppSnack.info(
+          context,
+          'Нууц үг оруулаагүй тул гарсны дараа нууц үгээр нэвтэрнэ.',
+        );
+        return;
+      }
+      await auth.saveBiometricPassword(password.trim());
+      if (!mounted) return;
+      AppSnack.success(context, 'Хурууны хээгээр нэвтрэх тохируулагдлаа.');
     }
   }
 

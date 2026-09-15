@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/api_client.dart';
 import '../../core/util/mn_format.dart';
+import '../../shared/widgets/attachment_view.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/paged_list_view.dart';
 import '../../shared/widgets/section_card.dart';
@@ -201,13 +203,20 @@ class AdviceDetailScreen extends StatelessWidget {
           SectionCard(
             title: 'Зөвлөгөө',
             icon: Icons.tips_and_updates_outlined,
-            child: Text(
-              body.isEmpty ? 'Агуулга оруулаагүй байна.' : body,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                height: 1.55,
-                color: body.isEmpty ? theme.hintColor : null,
-                fontStyle: body.isEmpty ? FontStyle.italic : null,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  body.isEmpty ? 'Агуулга оруулаагүй байна.' : body,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    height: 1.55,
+                    color: body.isEmpty ? theme.hintColor : null,
+                    fontStyle: body.isEmpty ? FontStyle.italic : null,
+                  ),
+                ),
+                for (final file in advice.displayFiles)
+                  AttachmentChip(attachment: file, api: context.read<ApiClient>()),
+              ],
             ),
           ),
           if (thread.isNotEmpty) ...<Widget>[
@@ -222,10 +231,16 @@ class AdviceDetailScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text(
-                        comment.comment,
-                        style: theme.textTheme.bodyMedium,
-                      ),
+                      if (comment.comment.trim().isNotEmpty)
+                        Text(
+                          comment.comment,
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      for (final file in comment.files)
+                        AttachmentChip(
+                          attachment: file,
+                          api: context.read<ApiClient>(),
+                        ),
                       const SizedBox(height: 6),
                       Text(
                         MnFormat.friendlyDateTime(comment.date),

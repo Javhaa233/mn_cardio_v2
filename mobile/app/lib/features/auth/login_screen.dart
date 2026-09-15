@@ -53,6 +53,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      // Цэвэрхэн цагаан — логоны цэнхэр, ягаан өнгө хамгийн тод харагдах
+      // дэвсгэр. Талбарууд сэдвийн цайвар дүүргэлт, үсэн хүрээтэй тул цагаан
+      // дээр ялгарна.
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -149,7 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('Нэвтрэх'),
                     ),
-                    if (auth.biometricEnabled && auth.biometricAvailable) ...<Widget>[
+                    // Товчийг зөвхөн сэргээх сесс байгаа үед харуулна —
+                    // гарсны дараа хурууны хээ нээх юмгүй.
+                    if (auth.canUnlockWithBiometrics) ...<Widget>[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: auth.busy ? null : _unlockWithBiometrics,
@@ -349,19 +355,15 @@ class _Brand extends StatelessWidget {
       onLongPress: onLongPress,
       child: Column(
         children: <Widget>[
-          Container(
-            width: 76,
-            height: 76,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primary.withValues(alpha: 0.10),
-              borderRadius: BorderRadius.circular(22),
-            ),
-            child: Icon(
-              Icons.favorite_rounded,
-              size: 38,
-              color: theme.colorScheme.primary,
-            ),
+          // Системийн албан ёсны лого — вебийн `frontend/public/logo.ico`
+          // (`assets/logo.png`). Тунгалаг дэвсгэртэй тул цагаан дэлгэц дээр
+          // шууд сууна; хавтан, градиент хэрэггүй.
+          Image.asset(
+            'assets/logo.png',
+            width: 112,
+            height: 112,
+            filterQuality: FilterQuality.high,
+            semanticLabel: 'МнКардио',
           ),
           const SizedBox(height: 16),
           Text(

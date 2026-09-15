@@ -23,6 +23,16 @@ class SecureStore {
   static const String _kUserName = 'mncardio.username';
   static const String _kLogedUser = 'mncardio.loged_user';
 
+  /// Хурууны хээгээр нэвтрэхэд ашиглах нэвтрэх мэдээлэл.
+  ///
+  /// Гарсны дараа ч биометрээр нэвтрэх боломжтой байхыг ЗСҮТ шаардсан
+  /// (2026-09-15). Токен гарахад устдаг тул сэргээх зүйл үлдэхгүй — иймд
+  /// нэвтрэх нэр, нууц үгийг Keychain/Keystore дотор хадгална.
+  ///
+  /// **Уншихын өмнө заавал биометрийн шалгалт хийнэ** ([AuthController]).
+  /// Хэрэглэгч биометрийг унтраавал энэ бичлэг устана.
+  static const String _kBiometricLogin = 'mncardio.biometric_login';
+
   Future<String?> readAccessToken() => _storage.read(key: _kAccessToken);
 
   Future<String?> readRefreshToken() => _storage.read(key: _kRefreshToken);
@@ -56,6 +66,13 @@ class SecureStore {
     }
   }
 
+  Future<String?> readBiometricLogin() => _storage.read(key: _kBiometricLogin);
+
+  Future<void> writeBiometricLogin(String json) =>
+      _storage.write(key: _kBiometricLogin, value: json);
+
+  Future<void> clearBiometricLogin() => _storage.delete(key: _kBiometricLogin);
+
   Future<void> writeUserName(String userName) =>
       _storage.write(key: _kUserName, value: userName);
 
@@ -76,6 +93,7 @@ class SecureStore {
   /// Хэрэглэгчийн нэрийг ч устгана — өөр хүн төхөөрөмжийг ашиглах тохиолдол.
   Future<void> clearAll() async {
     await clearSession();
+    await clearBiometricLogin();
     await _storage.delete(key: _kUserName);
   }
 }

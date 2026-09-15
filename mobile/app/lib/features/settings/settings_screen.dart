@@ -4,12 +4,18 @@ import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
+import '../../core/network/api_client.dart';
+import '../../core/update/update_controller.dart';
 import '../../core/notifications/reminder_controller.dart';
 import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/app_licenses.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../auth/server_settings_sheet.dart';
+import '../access_log/access_log_screen.dart';
+import '../auth/biometric_password_dialog.dart';
 import '../auth/terms_screen.dart';
+import '../consents/consents_screen.dart';
 import '../profile/profile_controller.dart';
 import '../profile/profile_screen.dart';
 import '../reminders/reminders_screen.dart';
@@ -131,6 +137,35 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ),
                   ),
                 ),
+                // Техникийн шаардлага §1.2 — мэдээллээ ямар зорилгоор
+                // ашиглуулахыг хэрэглэгч өөрөө шийднэ.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: const Text('Зөвшөөрөл'),
+                  subtitle: const Text(
+                    'Мэдээллээ ямар зорилгоор ашиглахыг зөвшөөрөх',
+                  ),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const ConsentsScreen(),
+                    ),
+                  ),
+                ),
+                // §1.2 — мэдээлэлд хандсан түүх.
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.history_outlined),
+                  title: const Text('Хандалтын түүх'),
+                  subtitle: const Text('Миний мэдээлэлд хэн, хэзээ хандсан'),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const AccessLogScreen(),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
@@ -147,14 +182,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('Үйлчилгээний нөхцөл'),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () => Navigator.of(context).push(
-                    MaterialPageRoute<void>(builder: (_) => const TermsScreen()),
+                    MaterialPageRoute<void>(builder: (_) => TermsScreen(api: context.read<ApiClient>())),
                   ),
                 ),
+                AppLicensesTile(version: _version),
                 if (_version.isNotEmpty)
                   ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.tag_rounded),
                     title: const Text('Хувилбар'),
+                    subtitle: context.watch<UpdateController>().updateAvailable
+                        ? const Text('Шинэ хувилбар гарсан байна')
+                        : null,
                     trailing: Text(
                       _version,
                       style: theme.textTheme.bodySmall,
@@ -200,6 +239,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     if (auth.lastError != null && value) {
       AppSnack.error(context, auth.lastError!);
+      return;
+    }
+
+    // Гарсны дараа ч хурууны хээгээр нэвтрэхийн тулд нэвтрэх мэдээлэл
+    // хадгалагдах ёстой. Апп нээснээс хойш нууц үгээр нэвтрээгүй бол
+    // санах ойд байхгүй — нэг удаа асууна.
+    if (value && auth.biometricEnabled && auth.needsPasswordForBiometric) {
+      final password = await askBiometricPassword(context);
+      if (!mounted) return;
+      if (password == null || password.trim().isEmpty) {
+        AppSnack.info(
+          context,
+          'Нууц үг оруулаагүй тул гарсны дараа нууц үгээр нэвтэрнэ.',
+        );
+        return;
+      }
+      await auth.saveBiometricPassword(password.trim());
+      if (!mounted) return;
+      AppSnack.success(context, 'Хурууны хээгээр нэвтрэх тохируулагдлаа.');
     }
   }
 

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:dio/dio.dart';
 
 import 'api_exception.dart';
@@ -14,11 +16,20 @@ import 'envelope.dart';
 /// дугтуйн алдаа эхлээд [ApiException] болж хувирч, дараа нь эрхийн interceptor
 /// түүнийг харж токен сэргээх эсэхээ шийднэ.
 class EnvelopeInterceptor extends Interceptor {
+  /// Сервер `426 UPDATE_REQUIRED` буцаахад дуудагдана — Техникийн шаардлага
+  /// §2.1. Дэлгэц бүрт шалгуулахгүй, нэг дор барьж авна.
+  static void Function()? onUpdateRequired;
+
   @override
   void onResponse(
     Response<dynamic> response,
     ResponseInterceptorHandler handler,
   ) {
+    // Бусад бүх шалгалтаас өмнө — [decodeJsonString]-ийг үзнэ үү.
+    response.data = decodeJsonString(response.data);
+
+    if (response.statusCode == 426) onUpdateRequired?.call();
+
     final failure = envelopeFailureOf(
       response.data,
       statusCode: response.statusCode,
@@ -84,7 +95,8 @@ class EnvelopeInterceptor extends Interceptor {
     }
 
     final status = err.response?.statusCode;
-    final body = err.response?.data;
+    if (status == 426) onUpdateRequired?.call();
+    final body = decodeJsonString(err.response?.data);
 
     final fromEnvelope = envelopeFailureOf(body, statusCode: status);
     if (fromEnvelope != null) return fromEnvelope;
@@ -111,6 +123,8 @@ class EnvelopeInterceptor extends Interceptor {
         return 'Мэдээлэл олдсонгүй.';
       case 413:
         return 'Файлын хэмжээ хэтэрсэн байна.';
+      case 426:
+        return 'Аппын хуучин хувилбар байна. Шинэчилнэ үү.';
       case 429:
         return 'Хэт олон хүсэлт илгээлээ. Түр хүлээгээд дахин оролдоно уу.';
       case 500:
@@ -121,5 +135,26 @@ class EnvelopeInterceptor extends Interceptor {
       default:
         return 'Алдаа гарлаа. Дахин оролдоно уу.';
     }
+  }
+}
+
+/// JSON-ийг агуулсан String хариуг задална, бусдыг хөндөхгүй.
+///
+/// Хуучин давхарга (`/api/Chat/*` гэх мэт) хариуг `res.send(JSON.stringify(...))`
+/// -ээр илгээдэг тул Content-Type нь `text/html`. Dio зөвхөн JSON Content-Type-
+/// ийг задалдаг — вебийн axios шиг String-ийг өөрөө оролдож задалдаггүй. Иймд
+/// тэдгээр хариу String хэвээр ирж, дугтуйн шалгалт болон бүх `asMap`/`asList`
+/// хоосон утга буцаадаг байв: чатын жагсаалт, эмчийн лавлах, аймаг/сумын
+/// шүүлтүүр бүгд хоосон, `Success:false` ч "амжилт" мэт өнгөрдөг байв.
+///
+/// Байт (`ResponseType.bytes`) болон JSON биш текст өөрчлөгдөхгүй.
+dynamic decodeJsonString(dynamic data) {
+  if (data is! String) return data;
+  final trimmed = data.trimLeft();
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return data;
+  try {
+    return jsonDecode(trimmed);
+  } on FormatException {
+    return data;
   }
 }

@@ -31,7 +31,9 @@ class ChatMember {
     this.imageSrc,
     this.roleId,
     this.organizationName,
+    this.profession,
     this.isMe = false,
+    this.isActive = true,
   });
 
   final String userType;
@@ -40,17 +42,29 @@ class ChatMember {
   final String? imageSrc;
   final int? roleId;
   final String? organizationName;
+  final String? profession;
   final bool isMe;
 
-  factory ChatMember.fromJson(Map<String, dynamic> json) => ChatMember(
-        userType: J.strOr(json, <String>['UserType'], fallback: 'S'),
-        userId: J.intOf(json, <String>['UserId']) ?? 0,
-        name: J.strOr(json, <String>['Name']),
-        imageSrc: J.str(json, <String>['ImageSrc']),
-        roleId: J.intOf(json, <String>['RoleId']),
-        organizationName: J.str(json, <String>['OrganizationName']),
-        isMe: J.boolOf(json, <String>['IsMe']),
-      );
+  /// `GetChatRoomUsers` хасагдсан гишүүдийг ч буцаадаг (`IsActive = '0'`).
+  final bool isActive;
+
+  String get key => '$userType-$userId';
+
+  factory ChatMember.fromJson(Map<String, dynamic> json) {
+    // `GetChatRoomList`-ийн гишүүдэд `IsActive` байхгүй — тэд бүгд идэвхтэй.
+    final active = json['IsActive'];
+    return ChatMember(
+      userType: J.strOr(json, <String>['UserType'], fallback: 'S'),
+      userId: J.intOf(json, <String>['UserId']) ?? 0,
+      name: J.strOr(json, <String>['Name']),
+      imageSrc: J.str(json, <String>['ImageSrc']),
+      roleId: J.intOf(json, <String>['RoleId']),
+      organizationName: J.str(json, <String>['OrganizationName']),
+      profession: J.str(json, <String>['profession']),
+      isMe: J.boolOf(json, <String>['IsMe']),
+      isActive: active == null || active == true || '$active' == '1',
+    );
+  }
 }
 
 /// Сүүлийн мессежийн товч.
@@ -166,11 +180,58 @@ class ChatAttachment {
     this.ext,
     this.thumbnailSrc,
     this.type,
+    this.kind,
+    this.generatedName,
+    this.durationMs,
+    this.mediaState,
   });
 
   final int fileId;
   final String name;
   final String? ext;
+
+  /// `audio` · `video` · `image` · `file`. **Өргөтгөлөөр биш үүгээр салгана**:
+  /// `.webm` нь видео, `.weba` нь дуу — контейнер нь ижил (CHAT-MEDIA §2).
+  final String? kind;
+
+  /// Сервер дээрх файлын нэр. Хөрвүүлэлтийн дараа ч өөрчлөгддөггүй тул
+  /// тоглуулах холбоос, кэшийн түлхүүр болно.
+  final String? generatedName;
+
+  /// Бичлэгийн урт (мс). Татахаас өмнө `0:42` гэж харуулна.
+  final int? durationMs;
+
+  /// `null` · `pending` · `done` · `failed`. **Хавсралтыг нуух шалтгаан биш** —
+  /// `pending` үед эх бичлэг аль хэдийн тоглогдоно.
+  final String? mediaState;
+
+  /// Өргөтгөлтэй нэр.
+  ///
+  /// Сервер `original_name`-ээс өргөтгөлийг **салгаж** хадгалдаг
+  /// (`BaseController.uploadFile`). Өргөтгөлгүй файлыг тоглуулагч таньдаггүй
+  /// тул түр файлыг заавал `.m4a`, `.mp4` гэх мэт төгсгөлтэй бичнэ.
+  String get fileNameWithExt {
+    final e = (ext ?? '').replaceAll('.', '').trim();
+    if (e.isEmpty) return name;
+    if (name.toLowerCase().endsWith('.$e'.toLowerCase())) return name;
+    return '$name.$e';
+  }
+
+  /// Тоглуулах, татах зам. Токен нь толгойгоор явна.
+  String? get streamUrl {
+    final name = (generatedName ?? '').trim();
+    if (name.isEmpty) return null;
+    return '/api/Media/stream/$name';
+  }
+
+  bool get isVideo {
+    if ((kind ?? '').toLowerCase() == 'video') return true;
+    final e = (ext ?? '').toLowerCase().replaceAll('.', '');
+    return const <String>['mp4', 'm4v', 'mov'].contains(e);
+  }
+
+  /// Хөрвүүлэлт хийгдэж байгаа — тоглуулахад саад биш.
+  bool get isConverting => (mediaState ?? '') == 'pending';
 
   /// Зурган хавсралтын жижиг урьдчилсан харагдац (base64 data URI).
   final String? thumbnailSrc;
@@ -178,6 +239,7 @@ class ChatAttachment {
   final String? type;
 
   bool get isImage {
+    if ((kind ?? '').toLowerCase() == 'image') return true;
     final t = (type ?? '').toLowerCase();
     if (t.contains('image')) return true;
     final e = (ext ?? '').toLowerCase().replaceAll('.', '');
@@ -186,8 +248,11 @@ class ChatAttachment {
   }
 
   bool get isAudio {
+    if ((kind ?? '').toLowerCase() == 'audio') return true;
+    // `kind` ирээгүй хуучин мессежид өргөтгөлөөр таана. `webm` нь видео байж
+    // болох тул энд оруулахгүй — түүнийг `kind` шийднэ.
     final e = (ext ?? '').toLowerCase().replaceAll('.', '');
-    return const <String>['mp3', 'm4a', 'aac', 'ogg', 'wav', 'webm']
+    return const <String>['mp3', 'm4a', 'aac', 'ogg', 'wav', 'weba']
         .contains(e);
   }
 
@@ -203,6 +268,12 @@ class ChatAttachment {
       ext: J.str(info, <String>['ext']),
       thumbnailSrc: J.str(json, <String>['FileSrc']),
       type: J.str(json, <String>['Type']),
+      kind: J.str(json, <String>['Kind']) ?? J.str(info, <String>['Kind']),
+      generatedName: J.str(info, <String>['generated_name', 'GeneratedName']),
+      durationMs: J.intOf(json, <String>['DurationMs']) ??
+          J.intOf(info, <String>['DurationMs', 'duration_ms']),
+      mediaState: J.str(json, <String>['MediaState']) ??
+          J.str(info, <String>['MediaState', 'media_state']),
     );
   }
 }
@@ -317,6 +388,7 @@ class DirectoryPerson {
     this.position,
     this.organizationName,
     this.provCityName,
+    this.soumDistName,
     this.imageSrc,
   });
 
@@ -327,12 +399,21 @@ class DirectoryPerson {
   final String? position;
   final String? organizationName;
   final String? provCityName;
+  final String? soumDistName;
   final String? imageSrc;
+
+  /// Хүнийг ялгах түлхүүр — эмч, үйлчлүүлэгчийн ID өөр хүснэгтээс ирдэг тул
+  /// дугаар дангаараа давхцаж болно.
+  String get key => '$userType-$userId';
 
   String get subtitle {
     final parts = <String>[
       if ((profession ?? '').trim().isNotEmpty) profession!.trim(),
       if ((organizationName ?? '').trim().isNotEmpty) organizationName!.trim(),
+      // Вебийн `DoctorPicker`-тэй ижил дараалал: мэргэжил · байгууллага · сум ·
+      // аймаг. Шүүлтүүрээр хайсан хүн тэр газрыг мөрөн дээрээ харах ёстой.
+      if ((soumDistName ?? '').trim().isNotEmpty) soumDistName!.trim(),
+      if ((provCityName ?? '').trim().isNotEmpty) provCityName!.trim(),
     ];
     return parts.join(' · ');
   }
@@ -346,6 +427,64 @@ class DirectoryPerson {
         position: J.str(json, <String>['position']),
         organizationName: J.str(json, <String>['OrganizationName']),
         provCityName: J.str(json, <String>['ProvCityName']),
+        soumDistName: J.str(json, <String>['SoumDistName']),
         imageSrc: J.str(json, <String>['ImageSrc']),
       );
+}
+
+/// Лавлахын нэг хуудас — `SearchUsers`-ийн `Data` ба `Option.Total`.
+class DirectoryPage {
+  const DirectoryPage({required this.people, required this.total});
+
+  final List<DirectoryPerson> people;
+  final int total;
+}
+
+/// Аймаг эсвэл сум, доторх эмчийн тоотой нь — `GetDirectoryFilters`.
+class DirectoryPlace {
+  const DirectoryPlace({
+    required this.name,
+    required this.count,
+    this.provinceName,
+  });
+
+  final String name;
+  final int count;
+
+  /// Зөвхөн сумд. Сумын нэр аймаг хооронд давхцдаг тул аль аймгийнх болохыг
+  /// хадгална.
+  final String? provinceName;
+
+  /// Вебийнх шиг: "Улаанбаатар (646)".
+  String get label => '$name ($count)';
+
+  factory DirectoryPlace.fromJson(Map<String, dynamic> json) => DirectoryPlace(
+        name: J.strOr(json, <String>['Name'], fallback: ''),
+        count: J.intOf(json, <String>['Count']) ?? 0,
+        provinceName: J.str(json, <String>['ProvinceName']),
+      );
+}
+
+/// Лавлахын шүүлтүүрийн жагсаалтууд.
+///
+/// Эмч байгаа газруудаас л бүтдэг (22 аймаг, 342 сумыг бүгдийг биш), тиймээс
+/// сонголт бүр дор хаяж нэг эмч рүү хөтөлнө.
+class DirectoryFilters {
+  const DirectoryFilters({required this.provinces, required this.soums});
+
+  static const DirectoryFilters empty = DirectoryFilters(
+    provinces: <DirectoryPlace>[],
+    soums: <DirectoryPlace>[],
+  );
+
+  final List<DirectoryPlace> provinces;
+  final List<DirectoryPlace> soums;
+
+  /// Үйлчлүүлэгчид сервер хоосон жагсаалт буцаадаг — тэдний лавлах нь өөрийн
+  /// эмчилгээний баг тул улсын хэмжээний шүүлтүүр утгагүй.
+  bool get isEmpty => provinces.isEmpty;
+
+  List<DirectoryPlace> soumsOf(String province) => soums
+      .where((DirectoryPlace s) => s.provinceName == province)
+      .toList(growable: false);
 }

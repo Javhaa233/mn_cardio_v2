@@ -37,6 +37,7 @@ class MnFormat {
   static final DateFormat _dateTime = DateFormat('yyyy.MM.dd HH:mm');
   static final DateFormat _time = DateFormat('HH:mm');
   static final DateFormat _apiDate = DateFormat('yyyy-MM-dd');
+  static final DateFormat _apiDateTime = DateFormat('yyyy-MM-dd HH:mm:ss');
 
   /// `2026.09.10`
   static String date(DateTime? value) =>
@@ -52,6 +53,9 @@ class MnFormat {
 
   /// Сервер рүү илгээх огнооны хэлбэр (`yyyy-MM-dd`).
   static String apiDate(DateTime value) => _apiDate.format(value);
+
+  /// Сервер `RemoteVisit`-ийн огноог `yyyy-MM-dd HH:mm:ss` хэлбэрээр хүлээнэ.
+  static String apiDateTime(DateTime value) => _apiDateTime.format(value);
 
   /// `Есдүгээр сарын 10, Пүрэв`
   static String longDate(DateTime value) {

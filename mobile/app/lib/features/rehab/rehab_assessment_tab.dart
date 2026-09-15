@@ -83,6 +83,27 @@ class RehabAssessmentTab extends StatelessWidget {
               ),
             ],
           ],
+          if (controller.assessmentHistory.length > 1) ...<Widget>[
+            const SizedBox(height: 12),
+            SectionCard(
+              title: 'Үнэлгээний түүх',
+              subtitle: 'Өмнөх үнэлгээтэй харьцуулах',
+              icon: Icons.history_outlined,
+              child: Column(
+                children: <Widget>[
+                  for (final row in controller.assessmentHistory.skip(1))
+                    InfoRow(
+                      label: MnFormat.date(row.assessmentDate),
+                      value: <String>[
+                        if ((row.riskLevel ?? '').trim().isNotEmpty)
+                          row.riskLevel!.trim(),
+                        row.toleranceLabel,
+                      ].where((String v) => v.trim().isNotEmpty).join(' · '),
+                    ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: 14),
           const RehabSafetyNotice(),
           const SizedBox(height: 12),

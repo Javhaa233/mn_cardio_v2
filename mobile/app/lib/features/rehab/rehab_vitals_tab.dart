@@ -339,6 +339,7 @@ class _VitalFormSheetState extends State<_VitalFormSheet> {
                   DropdownButtonFormField<int?>(
                     value: _exerciseId,
                     isExpanded: true,
+                    borderRadius: BorderRadius.circular(12),
                     decoration: const InputDecoration(
                       labelText: 'Холбогдох дасгал (заавал биш)',
                     ),

@@ -7,6 +7,10 @@ import '../../shared/widgets/measurement_chart.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
+import '../diagnostics/diagnostics_screen.dart';
+import 'doctor_emd_screen.dart';
+import 'doctor_patient_extras.dart';
+import 'doctor_questions_screen.dart';
 import 'doctor_models.dart';
 import 'doctor_repository.dart';
 import 'doctor_visits_screen.dart';
@@ -70,9 +74,7 @@ class _DoctorPatientCardScreenState extends State<DoctorPatientCardScreen>
           return Scaffold(
             appBar: AppBar(
               title: Text(
-                card?.patient.fullName ??
-                    widget.initialName ??
-                    'Үйлчлүүлэгч',
+                card?.patient.fullName ?? widget.initialName ?? 'Үйлчлүүлэгч',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -205,6 +207,85 @@ class _SummaryTab extends StatelessWidget {
           label: Text(
             card.isMonitoredByMe ? 'Хяналтаас хасах' : 'Хувийн хяналтад авах',
           ),
+        ),
+        const SizedBox(height: 10),
+        // 2.3 — хяналтад авсан үйлчлүүлэгчийн асуултад эндээс хариулна.
+        if (card.isMonitoredByMe)
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DoctorQuestionsScreen(
+                  patientId: card.patient.idData,
+                  patientName: card.patient.fullName,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.forum_outlined),
+            label: const Text('Асуулт, хариулт'),
+          ),
+        const SizedBox(height: 10),
+        // Тендер: эмч үйлчлүүлэгчийн эрсдэл, сэргээн засах, шинжилгээг харна.
+        Builder(
+          builder: (BuildContext context) {
+            final me = context.watch<DoctorProfileController>().me;
+            return Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: <Widget>[
+                if (me?.can('Risk') ?? true)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DoctorPatientRiskScreen(
+                          patientId: card.patient.idData,
+                          patientName: card.patient.fullName,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.favorite_outline_rounded, size: 18),
+                    label: const Text('Эрсдэл'),
+                  ),
+                if (me?.can('Diagnostics') ?? true)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DiagnosticsScreen(
+                          patientId: card.patient.idData,
+                          patientName: card.patient.fullName,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.science_outlined, size: 18),
+                    label: const Text('Шинжилгээ'),
+                  ),
+                if (me?.can('Rehab') ?? true)
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => DoctorPatientRehabScreen(
+                          patientId: card.patient.idData,
+                          patientName: card.patient.fullName,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.self_improvement_outlined, size: 18),
+                    label: const Text('Сэргээн засах'),
+                  ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => DoctorEmdScreen(
+                        patientId: card.patient.idData,
+                        patientName: card.patient.fullName,
+                      ),
+                    ),
+                  ),
+                  icon: const Icon(Icons.medication_outlined, size: 18),
+                  label: const Text('ЭМД-ын эм'),
+                ),
+              ],
+            );
+          },
         ),
         const SizedBox(height: 16),
         SectionCard(

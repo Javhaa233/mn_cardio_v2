@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import 'core/app_navigator.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/network/api_client.dart';
 import 'core/storage/secure_store.dart';
@@ -11,6 +12,8 @@ import 'features/auth/login_screen.dart';
 import 'features/chat/chat_controller.dart';
 import 'features/chat/chat_repository.dart';
 import 'features/chat/chat_socket.dart';
+import 'features/consents/consents_controller.dart';
+import 'features/notifications/notifications_controller.dart';
 import 'features/doctor/doctor_controllers.dart';
 import 'features/doctor/doctor_repository.dart';
 import 'features/doctor/doctor_shell.dart';
@@ -23,6 +26,8 @@ import 'features/profile/profile_repository.dart';
 import 'features/questions/questions_controller.dart';
 import 'features/rehab/rehab_controller.dart';
 import 'features/risk/risk_controller.dart';
+import 'features/update/update_required_screen.dart';
+import 'core/update/update_controller.dart';
 import 'shared/theme/app_theme.dart';
 
 /// Апп-ын үндэс.
@@ -36,11 +41,17 @@ class MnCardioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // Мэдэгдэл дээр дарахад энэ түлхүүрээр шилжинэ (core/app_navigator.dart).
+      navigatorKey: appNavigatorKey,
       title: 'МнКардио',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),
       darkTheme: AppTheme.dark(),
-      themeMode: ThemeMode.system,
+      // Вебэд харанхуй горим байхгүй бөгөөд апп түүнтэй адилхан харагдах
+      // ёстой. `system` үед утас харанхуй горимд байвал нүүр хуудас бараан
+      // navy болж, вебийн цайвар хөх дэвсгэр хэзээ ч гарахгүй байв.
+      // `AppTheme.dark()` хэвээр — буцаахад энэ мөрийг л солино.
+      themeMode: ThemeMode.light,
       locale: const Locale('mn'),
       supportedLocales: const <Locale>[Locale('mn')],
       localizationsDelegates: const <LocalizationsDelegate<dynamic>>[
@@ -56,17 +67,57 @@ class MnCardioApp extends StatelessWidget {
           minScaleFactor: 1.0,
           maxScaleFactor: 1.5,
         );
-        return MediaQuery(
+        final Widget media = MediaQuery(
           data: MediaQuery.of(context).copyWith(textScaler: scale),
           child: child ?? const SizedBox.shrink(),
         );
+
+        // Хамрах хүрээ (scope) нь Navigator-ААС ДЭЭШ байх ёстой.
+        //
+        // `builder`-ийн `child` бол Navigator өөрөө. Хэрэв scope-ыг доор нь —
+        // жишээ нь `home:` дэлгэцийн дотор — тавибал `Navigator.push`-оор
+        // нээгдсэн дэлгэц scope-ын ХАЖУУД, өөрөөр хэлбэл түүнээс гадна
+        // холбогдоно. Тэгвэл `context.read<DoctorRepository>()` мэтийн дуудлага
+        // `ProviderNotFoundException` шиднэ: жагсаалт ажиллаад дэлгэрэнгүй
+        // дэлгэц бүр унана.
+        return _SessionScope(child: media);
       },
       home: const _AuthGate(),
     );
   }
 }
 
+/// Нэвтэрсэн хэрэглэгчийн repository ба controller-уудыг **Navigator-аас дээш**
+/// байрлуулна.
+///
+/// `MaterialApp.builder` дотроос дуудагдана — тэнд `child` нь Navigator өөрөө
+/// тул энд өгсөн provider-уудыг `push` хийсэн дэлгэц бүр харна.
+class _SessionScope extends StatelessWidget {
+  const _SessionScope({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthController>();
+    if (auth.status != AuthStatus.authenticated) return child;
+
+    // Хэрэглэгч солигдвол бүх хяналт шинээр үүснэ — өмнөх хүний тэмдэглэл,
+    // чат хоцрох боломжгүй.
+    final key = ValueKey<int>(auth.user?.id ?? 0);
+    final store = context.read<SecureStore>();
+
+    // Эрхийг сервер тогтооно, нэвтрэх дэлгэц дээрх сонголт биш.
+    return auth.isDoctorSession
+        ? DoctorScope(key: key, api: auth.api, store: store, child: child)
+        : PatientScope(key: key, api: auth.api, store: store, child: child);
+  }
+}
+
 /// Нэвтрэлтийн төлөвөөр дэлгэц сонгоно.
+///
+/// Provider-уудыг энд ОРУУЛАХГҮЙ — тэдгээр нь [_SessionScope] дотор,
+/// Navigator-аас дээш байрлана.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -74,27 +125,18 @@ class _AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
 
+    // Сервер дэмжихээ больсон билд — цааш юу ч харуулахгүй (§2.1).
+    if (context.watch<UpdateController>().blocked) {
+      return const UpdateRequiredScreen();
+    }
+
     return switch (auth.status) {
       AuthStatus.unknown => const _SplashScreen(),
       AuthStatus.unauthenticated => const LoginScreen(),
       AuthStatus.locked => const BiometricGateScreen(),
-      // Дэлгэцийн бүтэц нь хадгалсан `RoleId`-аар шийдэгдэнэ, нэвтрэх дэлгэц
-      // дээрх сонголтоор биш. Эрхийг сервер тогтооно.
-      AuthStatus.authenticated => auth.isDoctorSession
-          ? DoctorScope(
-              key: ValueKey<int>(auth.user?.id ?? 0),
-              api: auth.api,
-              store: context.read<SecureStore>(),
-              child: const DoctorShell(),
-            )
-          : PatientScope(
-              // Хэрэглэгч солигдвол бүх хяналт шинээр үүснэ — өмнөх хүний
-              // тэмдэглэл, чат хоцрох боломжгүй.
-              key: ValueKey<int>(auth.user?.id ?? 0),
-              api: auth.api,
-              store: context.read<SecureStore>(),
-              child: const MainShell(),
-            ),
+      // Дэлгэцийн бүтэц нь хадгалсан `RoleId`-аар шийдэгдэнэ.
+      AuthStatus.authenticated =>
+        auth.isDoctorSession ? const DoctorShell() : const MainShell(),
     };
   }
 }
@@ -119,6 +161,7 @@ class DoctorScope extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        Provider<ApiClient>.value(value: api),
         Provider<DoctorRepository>.value(value: doctorRepo),
         Provider<ChatRepository>.value(value: chatRepo),
         Provider<ChatSocket>(
@@ -148,6 +191,18 @@ class DoctorScope extends StatelessWidget {
         // 1.4 Миний тайлан
         ChangeNotifierProvider<DoctorReportController>(
           create: (_) => DoctorReportController(doctorRepo),
+        ),
+
+        // Мэдэгдэл (§2.1) — эмч, үйлчлүүлэгчид ижил гадаргуу.
+        ChangeNotifierProvider<NotificationsController>(
+          create: (_) => NotificationsController(
+            NotificationsRepository(api, isDoctor: true),
+          ),
+        ),
+
+        // Нүүр хуудасны асуумжийн урсгал — вебийн AdviceHome.
+        ChangeNotifierProvider<DoctorFeedController>(
+          create: (_) => DoctorFeedController(doctorRepo),
         ),
 
         // Чат — эмч, үйлчлүүлэгч хоёуланд ижил гадаргуу.
@@ -187,6 +242,7 @@ class PatientScope extends StatelessWidget {
     return MultiProvider(
       providers: [
         // --- Repository-ууд ---
+        Provider<ApiClient>.value(value: api),
         Provider<ChatRepository>.value(value: chatRepo),
         Provider<ChatSocket>(
           create: (_) => ChatSocket(store),
@@ -214,6 +270,18 @@ class PatientScope extends StatelessWidget {
         // --- 2.4 Эмчийн зөвлөгөө ---
         ChangeNotifierProvider<AdviceController>(
           create: (_) => AdviceController(AdviceRepository(api)),
+        ),
+
+        // --- Мэдэгдэл (§2.1) ---
+        ChangeNotifierProvider<NotificationsController>(
+          create: (_) => NotificationsController(
+            NotificationsRepository(api, isDoctor: false),
+          ),
+        ),
+
+        // --- Зөвшөөрөл (Техникийн шаардлага §1.2) ---
+        ChangeNotifierProvider<ConsentsController>(
+          create: (_) => ConsentsController(ConsentsRepository(api)),
         ),
 
         // --- 2.5 Эрсдэл үнэлгээ ---
@@ -251,23 +319,19 @@ class _SplashScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
+      // Нэвтрэх дэлгэцтэй ижил: цагаан дэвсгэр дээр системийн лого. Апп нээгдэх
+      // бүрт хамгийн түрүүнд харагддаг тул хоёр дэлгэц салах ёсгүй.
+      backgroundColor: Colors.white,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
-            Container(
-              width: 76,
-              height: 76,
-              alignment: Alignment.center,
-              decoration: BoxDecoration(
-                color: theme.colorScheme.primary.withValues(alpha: 0.10),
-                borderRadius: BorderRadius.circular(22),
-              ),
-              child: Icon(
-                Icons.favorite_rounded,
-                size: 38,
-                color: theme.colorScheme.primary,
-              ),
+            Image.asset(
+              'assets/logo.png',
+              width: 112,
+              height: 112,
+              filterQuality: FilterQuality.high,
+              semanticLabel: 'МнКардио',
             ),
             const SizedBox(height: 20),
             Text('МнКардио', style: theme.textTheme.titleLarge),

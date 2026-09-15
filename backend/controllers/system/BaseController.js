@@ -326,8 +326,13 @@ async function uploadFile(req, res) {
 
     if (ObjectName && LogedUser) {
       PromiseData = await new Promise(function (resolve, reject) {
-        form.parse(req, async function (err, fields, files) {
-          if (err) reject(err);
+        // formidable ignores the promise its callback returns, so anything
+        // thrown inside an async callback escaped this Promise: it never
+        // settled, no response was sent, and the client sat until its own
+        // timeout (a mobile upload with FileInfo = {} did exactly that).
+        // OnParsed's rejection is routed to reject, which the outer catch answers.
+        const OnParsed = async function (err, fields, files) {
+          if (err) return reject(err);
           // Files the loop below throws away. Without this the handler answered
           // "Successfully saved" for a file it had just discarded, so the user
           // believed an attachment existed that was never stored.
@@ -495,7 +500,11 @@ async function uploadFile(req, res) {
                         ext: FileType,
                         size: NewFile.size,
                         generated_name: FileName,
-                        original_name: FileInfo.Name.replace('.' + FileType, ''),
+                        // A client that omits Name must not crash the upload.
+                        original_name: (FileInfo.Name || FileNameOriginal || '').replace(
+                          '.' + FileType,
+                          ''
+                        ),
                       },
                       LogedUser,
                       SaveLog: true,
@@ -604,6 +613,9 @@ async function uploadFile(req, res) {
           }
 
           resolve({ Rejected });
+        };
+        form.parse(req, (err, fields, files) => {
+          OnParsed(err, fields, files).catch(reject);
         });
       });
 

@@ -13,8 +13,9 @@ import 'reminder.dart';
 /// цагийн сануулгыг үйлдлийн систем өөрөө хүргэдэг тул энэ нь push-гүйгээр
 /// найдвартай ажиллах цорын ганц зам.
 ///
-/// Чатын шинэ мессеж зэрэг **серверээс үүдэлтэй** мэдэгдлийг энэ аргаар
-/// хийж болохгүй — тэдгээр нь push шаардана.
+/// Чатын шинэ мессежийг апп **ажиллаж байх үед** socket-оор мэдээд энэ
+/// сувгаар харуулна ([showChat]). Апп бүрэн хаагдсан үед socket байхгүй тул
+/// тэр тохиолдолд push хэрэгтэй хэвээр (BLOCKERS.md §3).
 class LocalNotifications {
   LocalNotifications._();
 
@@ -23,10 +24,28 @@ class LocalNotifications {
 
   static bool _ready = false;
 
+  /// Мэдэгдэл дээр дарахад дуудагдана. Чиглүүлэгчийг `main` холбоно —
+  /// core давхарга дэлгэцүүдийг мэддэггүй байх ёстой.
+  static Future<void> Function(String payload)? onTap;
+
+  /// Апп хаалттай байхад дарсан мэдэгдлийн ачаа. Нэвтрэлт сэргэсний дараа
+  /// [takeLaunchPayload]-аар нэг л удаа авна.
+  static String? _launchPayload;
+
   static const AndroidNotificationChannel _channel = AndroidNotificationChannel(
     'mncardio_reminders',
     'Сануулга',
     description: 'Эм уух, дасгал хийх, хяналтын үзлэгийн сануулга',
+    importance: Importance.high,
+  );
+
+  /// Чат нь сануулгаас тусдаа суваг — хэрэглэгч аль нэгийг нь дангаар нь
+  /// хаах эрхтэй байх ёстой (Android-ын суваг тус бүрийн тохиргоо).
+  static const AndroidNotificationChannel _chatChannel =
+      AndroidNotificationChannel(
+    'mncardio_chat',
+    'Чат',
+    description: 'Эмч, үйлчлүүлэгчийн шинэ мессеж',
     importance: Importance.high,
   );
 
@@ -35,7 +54,7 @@ class LocalNotifications {
 
     tzdata.initializeTimeZones();
     try {
-      final name = await FlutterTimezone.getLocalTimezone();
+      final name = (await FlutterTimezone.getLocalTimezone()).identifier;
       tz.setLocalLocation(tz.getLocation(name));
     } catch (_) {
       // Улаанбаатарын цагийн бүс — эталон цагийн тохиргоо олдоогүй үеийн
@@ -54,14 +73,43 @@ class LocalNotifications {
       ),
     );
 
-    await _plugin.initialize(settings);
+    await _plugin.initialize(
+      settings,
+      onDidReceiveNotificationResponse: (NotificationResponse response) {
+        final payload = response.payload;
+        if (payload == null || payload.isEmpty) return;
+        final handler = onTap;
+        if (handler == null) {
+          // Чиглүүлэгч бэлэн болоогүй (апп сэргэж байна) — хойшлуулна.
+          _launchPayload = payload;
+          return;
+        }
+        handler(payload);
+      },
+    );
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-            AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(_channel);
+    final android = _plugin.resolvePlatformSpecificImplementation<
+        AndroidFlutterLocalNotificationsPlugin>();
+    await android?.createNotificationChannel(_channel);
+    await android?.createNotificationChannel(_chatChannel);
+
+    // Апп бүрэн хаалттай байхад мэдэгдэл дээр дарж нээсэн бол `initialize`-ийн
+    // callback хэзээ ч дуудагдахгүй — ачааг эндээс л олно.
+    final launch = await _plugin.getNotificationAppLaunchDetails();
+    if (launch != null &&
+        launch.didNotificationLaunchApp &&
+        launch.notificationResponse?.payload != null) {
+      _launchPayload = launch.notificationResponse!.payload;
+    }
 
     _ready = true;
+  }
+
+  /// Апп нээгдэхэд дарагдсан байсан мэдэгдлийн ачааг нэг удаа буцаана.
+  static String? takeLaunchPayload() {
+    final value = _launchPayload;
+    _launchPayload = null;
+    return value;
   }
 
   /// Мэдэгдэл харуулах зөвшөөрөл асуух.
@@ -127,6 +175,7 @@ class LocalNotifications {
         uiLocalNotificationDateInterpretation:
             UILocalNotificationDateInterpretation.absoluteTime,
         matchDateTimeComponents: DateTimeComponents.dayOfWeekAndTime,
+        payload: 'reminder:${reminder.id}',
       );
     }
   }
@@ -163,6 +212,51 @@ class LocalNotifications {
       scheduled = scheduled.add(const Duration(days: 1));
     }
     return scheduled;
+  }
+
+  /// Чатын шинэ мессежийг мэдэгдэх.
+  ///
+  /// Мэдэгдлийн дугаарыг өрөөгөөр өгнө — нэг өрөөний дараачийн мессеж өмнөхийг
+  /// **солино**, арван мессеж арван мөр болж хураадаггүй.
+  static Future<void> showChat({
+    required int chatRoomId,
+    required String title,
+    required String body,
+  }) async {
+    await init();
+    await _plugin.show(
+      _chatNotificationId(chatRoomId),
+      title,
+      body,
+      NotificationDetails(
+        android: AndroidNotificationDetails(
+          _chatChannel.id,
+          _chatChannel.name,
+          channelDescription: _chatChannel.description,
+          importance: Importance.high,
+          priority: Priority.high,
+          category: AndroidNotificationCategory.message,
+        ),
+        iOS: const DarwinNotificationDetails(
+          // Апп нээлттэй байхад ч харагдана: хэрэглэгч өөр дэлгэц дээр байвал
+          // мессеж ирснийг мэдэх ёстой.
+          presentAlert: true,
+          presentBadge: true,
+          presentSound: true,
+        ),
+      ),
+      payload: 'chat:$chatRoomId',
+    );
+  }
+
+  /// Чатын мэдэгдлийг өрөөгөөр нь давхцуулахгүй дугаарлана. Сануулгын
+  /// дугаартай мөргөлдөхгүйн тулд тусдаа мужид байрлуулав.
+  static int _chatNotificationId(int chatRoomId) => 900000 + chatRoomId % 90000;
+
+  /// Өрөөг нээхэд түүний мэдэгдлийг цуцална.
+  static Future<void> clearChat(int chatRoomId) async {
+    await init();
+    await _plugin.cancel(_chatNotificationId(chatRoomId));
   }
 
   /// Туршилтын зорилгоор шууд мэдэгдэл харуулах.

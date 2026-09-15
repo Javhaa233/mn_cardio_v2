@@ -1,21 +1,30 @@
 import '../../core/util/json_read.dart';
+import '../../shared/widgets/attachment_view.dart';
 
-/// Зөвлөгөөний тасалбар дээрх нэг сэтгэгдэл.
+/// Зөвлөгөөний асуумж дээрх нэг сэтгэгдэл.
 class AdviceComment {
   const AdviceComment({
     required this.idData,
     required this.comment,
     this.date,
+    this.files = const <Attachment>[],
   });
 
   final int idData;
   final String comment;
   final DateTime? date;
 
+  /// Хариултын хавсралт — зураг, дуу бичлэг, баримт (API.md §6).
+  final List<Attachment> files;
+
   factory AdviceComment.fromJson(Map<String, dynamic> json) => AdviceComment(
         idData: J.intOf(json, <String>['id_data', 'Id']) ?? 0,
         comment: J.strOr(json, <String>['comment']),
         date: J.date(json, <String>['date', 'date_creation']),
+        files: J
+            .list(json, <String>['files'])
+            .map(Attachment.fromJson)
+            .toList(growable: false),
       );
 }
 
@@ -28,6 +37,7 @@ class Advice {
     this.ticketType,
     this.date,
     this.comments = const <AdviceComment>[],
+    this.files = const <Attachment>[],
   });
 
   final int idData;
@@ -37,7 +47,10 @@ class Advice {
   final DateTime? date;
   final List<AdviceComment> comments;
 
-  /// Тасалбарын **гол агуулга**.
+  /// Асуумжид өөрт нь хавсаргасан файлууд.
+  final List<Attachment> files;
+
+  /// Асуумжийн **гол агуулга**.
   ///
   /// Тасалбруудын 57 хувь дээр `Body` хоосон бөгөөд эмнэлзүйн агуулга нь эхний
   /// хариунд байдаг (API.md §3, 2.4). Иймд хоосон `body`-г шууд харуулж
@@ -48,6 +61,15 @@ class Advice {
     if (trimmed.isNotEmpty) return trimmed;
     if (comments.isNotEmpty) return comments.first.comment.trim();
     return '';
+  }
+
+  /// Гол агуулгын хамт харагдах хавсралтууд.
+  ///
+  /// `body` хоосон үед эхний хариу нь гол агуулга болдог тул түүний
+  /// хавсралтыг ч мөн энд оруулна — эс тэгвээс дуу бичлэг алга болно.
+  List<Attachment> get displayFiles {
+    if (body.trim().isNotEmpty || comments.isEmpty) return files;
+    return <Attachment>[...files, ...comments.first.files];
   }
 
   /// Гол агуулгын дараах хэлэлцүүлэг.
@@ -72,6 +94,10 @@ class Advice {
         comments: J
             .list(json, <String>['comments'])
             .map(AdviceComment.fromJson)
+            .toList(growable: false),
+        files: J
+            .list(json, <String>['files'])
+            .map(Attachment.fromJson)
             .toList(growable: false),
       );
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import '../../core/network/api_client.dart';
@@ -71,6 +73,20 @@ class RehabRepository {
     await _api.postObject('/api/patient/rehab/vitals', body: draft.toJson());
   }
 
+  /// Үнэлгээний **түүх** — `GET /api/patient/rehab/assessments`.
+  ///
+  /// Ганц тоо биш, явц чухал: өмнөх үнэлгээтэй харьцуулж сайжирсан эсэхийг
+  /// үйлчлүүлэгч өөрөө харна.
+  Future<List<RehabAssessment>> fetchAssessments() async {
+    final page = await _api.getPaged<RehabAssessment>(
+      '/api/patient/rehab/assessments',
+      RehabAssessment.fromJson,
+      limit: 20,
+      offset: 0,
+    );
+    return page.items;
+  }
+
   Future<RehabAssessment?> fetchAssessment() async {
     final data = await _api.getRaw('/api/patient/rehab/assessment');
     if (data is! Map) return null;
@@ -104,6 +120,11 @@ class RehabController extends ChangeNotifier {
   AsyncState<List<RehabExercise>> get exercises => _exercises;
   AsyncState<RehabVitalsBundle> get vitals => _vitals;
   AsyncState<RehabAssessment?> get assessment => _assessment;
+
+  List<RehabAssessment> _history = const <RehabAssessment>[];
+
+  /// Сүүлийн үнэлгээнээс өмнөх бичлэгүүд.
+  List<RehabAssessment> get assessmentHistory => _history;
   List<RehabProgress> get progress => _progress;
   DateRange get vitalsRange => _vitalsRange;
 
@@ -184,12 +205,23 @@ class RehabController extends ChangeNotifier {
     await loadVitals(refresh: true);
   }
 
+  Future<void> _loadHistory() async {
+    try {
+      _history = await _repo.fetchAssessments();
+      notifyListeners();
+    } on ApiException {
+      // Түүх татагдаагүй нь дэлгэц унагаах шалтгаан биш.
+    }
+  }
+
   Future<void> loadAssessment({bool refresh = false}) async {
     _assessment = refresh && _assessment.hasData
         ? _assessment.toRefreshing()
         : const AsyncState<RehabAssessment?>.loading();
     notifyListeners();
     try {
+      // Түүхийг чимээгүй татна — алдаа гарвал сүүлийн үнэлгээ харагдсаар байна.
+      unawaited(_loadHistory());
       final row = await _repo.fetchAssessment();
       _assessment = AsyncState<RehabAssessment?>.ready(row);
     } on ApiException catch (e) {

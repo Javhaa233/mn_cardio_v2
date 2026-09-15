@@ -55,11 +55,15 @@ class DoctorVisitsController extends PagedController<DoctorVisit> {
   VisitScope _scope = VisitScope.mine;
   DateRange _range = DateRange.all;
   String _search = '';
+  IcdCode? _icd;
   Timer? _debounce;
 
   VisitScope get scope => _scope;
   DateRange get range => _range;
   String get search => _search;
+
+  /// Сонгосон онош (ICD-10). `null` бол оношоор шүүхгүй.
+  IcdCode? get icd => _icd;
 
   @override
   Future<Paged<DoctorVisit>> fetchPage({
@@ -72,7 +76,14 @@ class DoctorVisitsController extends PagedController<DoctorVisit> {
       scope: _scope,
       range: _range,
       search: _search,
+      icd10: _icd?.code ?? '',
     );
+  }
+
+  Future<void> setIcd(IcdCode? value) async {
+    if (_icd?.code == value?.code) return;
+    _icd = value;
+    await reset();
   }
 
   Future<void> setScope(VisitScope value) async {
@@ -402,3 +413,51 @@ class PatientCardController extends ChangeNotifier {
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Нүүр хуудасны асуумжийн урсгал — вебийн `AdviceHome` (`GetFeed`)
+// ---------------------------------------------------------------------------
+
+/// Хуудас бүр 10 — вебийнх шиг. Карт бүр base64 зураг авч явдаг тул том
+/// хуудас сүлжээ, санах ойд хүнд.
+class DoctorFeedController extends PagedController<FeedTicket> {
+  DoctorFeedController(this._repo) : super(pageSize: 10);
+
+  final DoctorRepository _repo;
+
+  FeedFilter _filter = FeedFilter.all;
+  String _search = '';
+
+  FeedFilter get filter => _filter;
+  String get search => _search;
+  bool get isFiltered => _filter != FeedFilter.all || _search.isNotEmpty;
+
+  @override
+  Future<Paged<FeedTicket>> fetchPage({
+    required int limit,
+    required int offset,
+  }) {
+    return _repo.fetchFeed(
+      filter: _filter,
+      search: _search,
+      pageNumber: offset ~/ limit,
+      pageSize: limit,
+    );
+  }
+
+  Future<void> setFilter(FeedFilter value) async {
+    if (value == _filter) return;
+    _filter = value;
+    await reset();
+  }
+
+  /// Сервер 2-оос доош тэмдэгттэй хайлтыг үл тоодог тул тэр үед шүүлтгүй.
+  Future<void> setSearch(String value) async {
+    final trimmed = value.trim();
+    final next = trimmed.length < 2 ? '' : trimmed;
+    if (next == _search) return;
+    _search = next;
+    await reset();
+  }
+}
+
