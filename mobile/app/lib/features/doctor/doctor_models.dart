@@ -511,25 +511,83 @@ class PatientCard {
 /// Хуучин `/api/RemoteVisit/GetList`-ээс ирнэ. [patientId]-г **заавал**
 /// уншина: шүүлтүүр сервер талд ажилласан эсэхийг клиент тал шалгахад
 /// хэрэглэнэ (доорх repository-г үзнэ үү).
+/// Эмчийн харах цахим үзлэгийн хүсэлт — `GET /api/doctor/evisits`.
+///
+/// Үйлчлүүлэгчийн хүснэгттэй ижил талбарууд дээр нэмээд хэний тухай болохыг
+/// заасан `Patient` картыг агуулна.
 class DoctorEvisit {
   const DoctorEvisit({
     required this.id,
-    required this.patientId,
     required this.comment,
+    this.patientId,
+    this.patientName,
+    this.patientRegistration,
+    this.status,
+    this.statusLabel,
+    this.requestedDate,
+    this.scheduledDate,
+    this.doctorId,
+    this.doctorName,
+    this.meetingUrl,
     this.createDate,
   });
 
   final int id;
-  final int? patientId;
   final String comment;
+  final int? patientId;
+  final String? patientName;
+  final String? patientRegistration;
+  final String? status;
+  final String? statusLabel;
+  final DateTime? requestedDate;
+  final DateTime? scheduledDate;
+  final int? doctorId;
+  final String? doctorName;
+
+  /// Зөвхөн `scheduled` төлөвт утгатай — эмнэлзүйн ярианы эрхийн холбоос.
+  final String? meetingUrl;
   final DateTime? createDate;
 
-  factory DoctorEvisit.fromJson(Map<String, dynamic> json) => DoctorEvisit(
-        id: J.intOf(json, <String>['Id', 'id_data']) ?? 0,
-        patientId: J.intOf(json, <String>['PatientId']),
-        comment: J.strOr(json, <String>['Comment']),
-        createDate: J.date(json, <String>['CreateDate']),
-      );
+  bool get isRequested => status == 'requested';
+  bool get isScheduled => status == 'scheduled';
+  bool get isOpen => isRequested || isScheduled;
+
+  String get label {
+    final fromServer = (statusLabel ?? '').trim();
+    if (fromServer.isNotEmpty) return fromServer;
+    return switch (status) {
+      'requested' => 'Хүсэлт илгээсэн',
+      'scheduled' => 'Цаг товлосон',
+      'completed' => 'Үзлэг хийгдсэн',
+      'cancelled' => 'Цуцалсан',
+      _ => 'Тодорхойгүй',
+    };
+  }
+
+  factory DoctorEvisit.fromJson(Map<String, dynamic> json) {
+    final patient = J.obj(json, <String>['Patient']) ?? <String, dynamic>{};
+    final name = <String>[
+      J.strOr(patient, <String>['p_lastname']),
+      J.strOr(patient, <String>['p_firstname']),
+    ].where((String p) => p.trim().isNotEmpty).join(' ');
+
+    return DoctorEvisit(
+      id: J.intOf(json, <String>['Id', 'id_data']) ?? 0,
+      comment: J.strOr(json, <String>['Comment']),
+      patientId: J.intOf(json, <String>['PatientId']) ??
+          J.intOf(patient, <String>['id_data']),
+      patientName: name.isEmpty ? null : name,
+      patientRegistration: J.str(patient, <String>['p_registration']),
+      status: J.str(json, <String>['Status']),
+      statusLabel: J.str(json, <String>['StatusLabel']),
+      requestedDate: J.date(json, <String>['RequestedDate']),
+      scheduledDate: J.date(json, <String>['ScheduledDate']),
+      doctorId: J.intOf(json, <String>['DoctorId']),
+      doctorName: J.str(json, <String>['DoctorName']),
+      meetingUrl: J.str(json, <String>['MeetingUrl']),
+      createDate: J.date(json, <String>['CreateDate']),
+    );
+  }
 }
 
 /// Тасалбарын хэлбэр — `OptionTypes` (`dico = ticket_type`).

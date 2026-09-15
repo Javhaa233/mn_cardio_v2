@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 
 import '../../core/network/api_client.dart';
-import '../../core/network/api_exception.dart';
+import '../../core/util/mn_format.dart';
 import '../../core/network/envelope.dart';
 import '../../shared/widgets/date_range_field.dart';
 import 'doctor_models.dart';
@@ -487,44 +487,74 @@ class DoctorRepository {
     return PatientCard.fromJson(data);
   }
 
-  /// Үйлчлүүлэгчийн цахим үзлэгийн хүсэлтүүд.
+  /// Үйлчлүүлэгчийн цахим үзлэгийн түүх — `GET /api/doctor/evisits?patientId=`.
   ///
-  /// `/api/doctor/*` дээр энэ өгөгдлийг өгөх endpoint **байхгүй** тул хуучин
-  /// ерөнхий жагсаалт `/api/RemoteVisit/GetList`-ийг шүүлтүүртэй дуудаж байна.
-  ///
-  /// **Аюулгүй байдлын шалгалт.** Тэр жагсаалт нь ерөнхий CRUD бөгөөд эмчид
-  /// шүүлтгүй дуудвал **бүх үйлчлүүлэгчийн** хүсэлтийг буцаана. Хэрэв талбарын
-  /// нэр өөрчлөгдөж шүүлтүүр чимээгүй ажиллахаа болих юм бол өөр хүний
-  /// мэдээлэл энэ үйлчлүүлэгчийн карт дээр гарна. Иймд хариуг **буцаж
-  /// шалгана**: мөр бүр хүссэн `PatientId`-тай эсэхийг баталгаажуулж, тохирохгүй
-  /// бол өгөгдөл харуулахын оронд алдаа шиднэ.
+  /// Өмнө нь хуучин ерөнхий `/api/RemoteVisit/GetList`-ийг шүүлтүүртэй дуудаж,
+  /// хариуг клиент дээр дахин шалгадаг байв (өөр хүний мөр орж ирэхээс
+  /// сэргийлж). Одоо зориулалтын endpoint гарсан тул тэр workaround хэрэггүй:
+  /// сервер эрхийг шалгаад зөвхөн энэ үйлчлүүлэгчийн мөрийг буцаана.
+  /// `patientId` өгөхөд зөвхөн нээлттэй гэсэн шүүлтүүр арилдаг — түүх бүтэн.
   Future<List<DoctorEvisit>> fetchPatientEvisits(int patientId) async {
-    final rows = await _api.legacyList(
-      '/api/RemoteVisit/GetList',
-      body: <String, dynamic>{
-        'PageNumber': 1,
-        'PageSize': 50,
-        'SearchField': <Map<String, dynamic>>[
-          <String, dynamic>{
-            'Field': 'PatientId',
-            'Value': patientId,
-            'Op': 'Equals',
-          },
-        ],
+    final page = await _api.getPaged<DoctorEvisit>(
+      '/api/doctor/evisits',
+      DoctorEvisit.fromJson,
+      limit: 50,
+      offset: 0,
+      query: <String, dynamic>{'patientId': patientId, 'scope': 'all'},
+    );
+    return page.items;
+  }
+
+  /// Эмчийн ажлын дараалал. `scope=mine` анхдагч, `unassigned` нь миний
+  /// үйлчлүүлэгчдийн эзэнгүй хүсэлт, `all` нь зөвхөн админд.
+  Future<Paged<DoctorEvisit>> fetchEvisits({
+    required int limit,
+    required int offset,
+    String scope = 'mine',
+    String status = '',
+  }) {
+    return _api.getPaged<DoctorEvisit>(
+      '/api/doctor/evisits',
+      DoctorEvisit.fromJson,
+      limit: limit,
+      offset: offset,
+      query: <String, dynamic>{
+        'scope': scope,
+        if (status.isNotEmpty) 'status': status,
       },
     );
+  }
 
-    final visits = rows.map(DoctorEvisit.fromJson).toList(growable: false);
+  /// Цаг товлох. Холбоос өгвөл `https://` байх ёстой (`400 INVALID_URL`).
+  Future<void> scheduleEvisit(
+    int id, {
+    required DateTime scheduledDate,
+    String meetingUrl = '',
+  }) async {
+    await _api.postObject(
+      '/api/doctor/evisits/$id/schedule',
+      body: <String, dynamic>{
+        'ScheduledDate': MnFormat.apiDateTime(scheduledDate),
+        if (meetingUrl.trim().isNotEmpty) 'MeetingUrl': meetingUrl.trim(),
+      },
+    );
+  }
 
-    final leaked = visits.any((DoctorEvisit v) => v.patientId != patientId);
-    if (leaked) {
-      throw ApiException(
-        'Цахим үзлэгийн мэдээллийг найдвартай шүүж чадсангүй. '
-        'Аюулгүй байдлын үүднээс харуулахгүй байна.',
-        code: 'EVISIT_FILTER_UNVERIFIED',
-      );
-    }
+  Future<void> completeEvisit(int id, {String comment = ''}) async {
+    await _api.postObject(
+      '/api/doctor/evisits/$id/complete',
+      body: <String, dynamic>{
+        if (comment.trim().isNotEmpty) 'Comment': comment.trim(),
+      },
+    );
+  }
 
-    return visits;
+  Future<void> cancelEvisit(int id, {String reason = ''}) async {
+    await _api.postObject(
+      '/api/doctor/evisits/$id/cancel',
+      body: <String, dynamic>{
+        if (reason.trim().isNotEmpty) 'Reason': reason.trim(),
+      },
+    );
   }
 }

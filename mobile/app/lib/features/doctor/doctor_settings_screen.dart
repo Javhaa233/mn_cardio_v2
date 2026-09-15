@@ -14,6 +14,7 @@ import '../auth/server_settings_sheet.dart';
 import '../auth/terms_screen.dart';
 import 'doctor_advice_screen.dart';
 import 'doctor_controllers.dart';
+import 'doctor_evisits_screen.dart';
 import 'doctor_patients_screen.dart';
 import 'doctor_report_screen.dart';
 
@@ -128,6 +129,14 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                   title: const Text('Миний тайлан'),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
                   onTap: () => _push(const DoctorReportScreen()),
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.duo_outlined),
+                  title: const Text('Цахим үзлэг'),
+                  subtitle: const Text('Хүсэлт, цаг товлолт'),
+                  trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                  onTap: () => _push(const DoctorEvisitsScreen()),
                 ),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
