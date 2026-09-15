@@ -1,0 +1,8 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Зөвхөн ХӨГЖҮҮЛЭЛТИЙН билд дээр шифрлэгдээгүй HTTP-г зөвшөөрнө:
+         локал backend нь http://10.0.2.2:5001 хаягаар ажилладаг.
+         Үйлдвэрлэлийн билдэд энэ файл ОРОХГҮЙ. -->
+    <application android:usesCleartextTraffic="true" />
+</manifest>

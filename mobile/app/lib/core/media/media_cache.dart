@@ -58,7 +58,13 @@ class MediaCache {
 
     final data = await api.downloadBytes(url);
     final dir = await getTemporaryDirectory();
-    final safe = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    var safe = name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    // Өргөтгөлгүй файлыг тоглуулагч таньдаггүй (сервер `original_name`-ээс
+    // өргөтгөлийг салгаж хадгалдаг). Хаягийн төгсгөлөөс сэргээж үзнэ.
+    if (p.extension(safe).isEmpty) {
+      final fromUrl = p.extension(Uri.parse(url).path);
+      if (fromUrl.isNotEmpty) safe = '$safe$fromUrl';
+    }
     final target = File(p.join(dir.path, 'media', safe));
     await target.parent.create(recursive: true);
     await target.writeAsBytes(data, flush: true);

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -38,6 +39,16 @@ Future<void> main() async {
   final updates = UpdateController();
   await updates.attach(auth.api);
   EnvelopeInterceptor.onUpdateRequired = updates.markBlockedByServer;
+
+  // Дуут мессеж чанга яригчаар сонсогдох ёстой. iOS дээр тохируулаагүй бол
+  // чимээгүй горим (хажуугийн унтраалга) асаалттай үед дуу гардаггүй, апп нь
+  // эвдэрсэн мэт харагдана. `speech` нь яриа сонсоход зориулсан горим.
+  try {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.speech());
+  } catch (_) {
+    // Тохируулж чадаагүй нь аппыг зогсоох шалтгаан биш.
+  }
 
   // Мэдэгдлийн сувгийг урьдчилан бэлдэнэ. Зөвшөөрлийг энд асуухгүй —
   // хэрэглэгч сануулга үүсгэх мөчид асуувал яагаад гэдэг нь ойлгомжтой.

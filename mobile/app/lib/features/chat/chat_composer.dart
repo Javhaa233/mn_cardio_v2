@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audio_session/audio_session.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -137,6 +138,18 @@ class _ChatComposerState extends State<ChatComposer> {
     }
   }
 
+  /// Бичлэг хийх үед iOS сессийг `playAndRecord` болгодог. Дараа нь буцааж
+  /// `speech` болгохгүй бол дуу чихэвчний дуудлагын чанга яригчаар гарч,
+  /// бараг сонсогдохгүй болно.
+  Future<void> _restorePlaybackSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.speech());
+    } catch (_) {
+      // Тохируулж чадаагүй нь илгээхэд саад биш.
+    }
+  }
+
   Future<void> _cancelRecording() async {
     _ticker?.cancel();
     try {
@@ -148,6 +161,7 @@ class _ChatComposerState extends State<ChatComposer> {
     } catch (_) {
       // Файл устгаж чадаагүй нь хэрэглэгчид хамаагүй.
     }
+    await _restorePlaybackSession();
     if (!mounted) return;
     setState(() {
       _recording = false;
@@ -165,6 +179,7 @@ class _ChatComposerState extends State<ChatComposer> {
     } catch (_) {
       path = null;
     }
+    await _restorePlaybackSession();
     if (!mounted) return;
 
     final duration = started == null

@@ -63,6 +63,7 @@ dependencies:
   record: 7.1.1
   permission_handler: 13.0.2
   just_audio: 0.10.6
+  audio_session: 0.2.4
   video_player: 2.14.0
 
   # --- Тайлан татах (§1.8 XLS, TXT) — файлыг утсан дээр үүсгээд хуваалцана ---

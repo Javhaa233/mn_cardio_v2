@@ -241,10 +241,18 @@ class _AudioMessagePlayerState extends State<AudioMessagePlayer> {
           SnackBar(content: Text(e.message)),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      // Шалтгааныг богиноор нь харуулна — "болохгүй байна" гэдэг мэдээлэл
+      // тестийн явцад хэрэггүй.
+      final reason = e.toString().replaceAll('\n', ' ');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Бичлэгийг тоглуулж чадсангүй.')),
+          SnackBar(
+            content: Text(
+              'Бичлэгийг тоглуулж чадсангүй: '
+              '${reason.length > 80 ? '${reason.substring(0, 80)}…' : reason}',
+            ),
+          ),
         );
       }
     } finally {

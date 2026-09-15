@@ -205,7 +205,19 @@ class ChatAttachment {
   /// `pending` үед эх бичлэг аль хэдийн тоглогдоно.
   final String? mediaState;
 
-  /// Toglуулах, татах зам. Токен нь толгойгоор явна.
+  /// Өргөтгөлтэй нэр.
+  ///
+  /// Сервер `original_name`-ээс өргөтгөлийг **салгаж** хадгалдаг
+  /// (`BaseController.uploadFile`). Өргөтгөлгүй файлыг тоглуулагч таньдаггүй
+  /// тул түр файлыг заавал `.m4a`, `.mp4` гэх мэт төгсгөлтэй бичнэ.
+  String get fileNameWithExt {
+    final e = (ext ?? '').replaceAll('.', '').trim();
+    if (e.isEmpty) return name;
+    if (name.toLowerCase().endsWith('.$e'.toLowerCase())) return name;
+    return '$name.$e';
+  }
+
+  /// Тоглуулах, татах зам. Токен нь толгойгоор явна.
   String? get streamUrl {
     final name = (generatedName ?? '').trim();
     if (name.isEmpty) return null;

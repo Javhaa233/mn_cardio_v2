@@ -477,7 +477,7 @@ class _AttachmentViewState extends State<_AttachmentView> {
         child: AudioMessagePlayer(
           api: api,
           url: url,
-          fileName: attachment.name,
+          fileName: attachment.fileNameWithExt,
           durationMs: attachment.durationMs,
         ),
       );
