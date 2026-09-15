@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../access_log/access_log_screen.dart';
 import '../advice/advice_screen.dart';
+import '../consents/consents_screen.dart';
 import '../doctor/doctor_advice_screen.dart';
 import '../doctor/doctor_evisits_screen.dart';
 import '../doctor/doctor_monitoring_screen.dart';
@@ -9,8 +11,8 @@ import '../doctor/doctor_repository.dart';
 import '../doctor/ticket_detail_screen.dart';
 import '../evisits/evisits_screen.dart';
 import '../questions/questions_screen.dart';
+import '../rehab/rehab_screen.dart';
 import '../reminders/reminders_screen.dart';
-import '../../shared/widgets/app_snack.dart';
 import 'notifications_controller.dart';
 
 /// Мэдэгдэл дээр дарахад холбогдох хэсэг рүү шилжүүлнэ.
@@ -25,12 +27,19 @@ Future<void> openNotification(
   required bool isDoctor,
 }) async {
   final object = (item.linkObjectName ?? '').trim();
+  final action = (item.action ?? '').trim();
   final id = item.linkObjectId ?? 0;
 
   Future<void> push(Widget screen) async {
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
+  }
+
+  // Хандалтын мэдэгдэл нь ямар ч бичлэгийн нэрээр ирж болно (Visit, Patient,
+  // шинжилгээ …) тул нэрээр нь биш, үйлдлээр нь таана.
+  if (action == 'RecordAccessed') {
+    if (!isDoctor) return push(const AccessLogScreen());
   }
 
   if (!isDoctor) {
@@ -42,10 +51,16 @@ Future<void> openNotification(
       case 'Advice':
       case 'AdviceComment':
         return push(const AdviceScreen());
+      case 'RehabAssessment':
+        return push(const RehabScreen());
+      case 'PatientConsent':
+        return push(const ConsentsScreen());
+      case 'Patient':
+        return push(const AccessLogScreen());
       default:
         // Сануулга нь мэдэгдэл хэлбэрээр ирдэг (Action: 'Reminder').
-        if (item.action == 'Reminder') return push(const RemindersScreen());
-        AppSnack.info(context, 'Энэ мэдэгдэлд нээх хэсэг алга.');
+        if (action == 'Reminder') return push(const RemindersScreen());
+        _showText(context, item);
         return;
     }
   }
@@ -75,8 +90,32 @@ Future<void> openNotification(
       // бүртгэсэн (мэдэгдэлд `PatientId` нэмэх).
       return push(const DoctorMonitoringScreen());
 
+    case 'PatientMonitoringDoctor':
+    case 'RehabAssessment':
+      return push(const DoctorMonitoringScreen());
+
     default:
-      AppSnack.info(context, 'Энэ мэдэгдэлд нээх хэсэг алга.');
+      _showText(context, item);
       return;
   }
+}
+
+/// Хаашаа очихыг мэдэхгүй мэдэгдлийн **агуулгыг** харуулна.
+///
+/// "Нээх хэсэг алга" гэдэг нь хэрэглэгчид юу ч хэлэхгүй. Мэдэгдэл өөрөө
+/// мэдээлэл тул наад зах нь түүнийг нь бүтнээр нь уншуулна.
+void _showText(BuildContext context, AppNotification item) {
+  showDialog<void>(
+    context: context,
+    builder: (BuildContext ctx) => AlertDialog(
+      title: const Text('Мэдэгдэл'),
+      content: Text(item.text, style: const TextStyle(height: 1.45)),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(ctx).pop(),
+          child: const Text('Хаах'),
+        ),
+      ],
+    ),
+  );
 }
