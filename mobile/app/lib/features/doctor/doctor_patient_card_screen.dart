@@ -7,6 +7,7 @@ import '../../shared/widgets/measurement_chart.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
+import 'doctor_questions_screen.dart';
 import 'doctor_models.dart';
 import 'doctor_repository.dart';
 import 'doctor_visits_screen.dart';
@@ -206,6 +207,21 @@ class _SummaryTab extends StatelessWidget {
             card.isMonitoredByMe ? 'Хяналтаас хасах' : 'Хувийн хяналтад авах',
           ),
         ),
+        const SizedBox(height: 10),
+        // 2.3 — хяналтад авсан үйлчлүүлэгчийн асуултад эндээс хариулна.
+        if (card.isMonitoredByMe)
+          OutlinedButton.icon(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => DoctorQuestionsScreen(
+                  patientId: card.patient.idData,
+                  patientName: card.patient.fullName,
+                ),
+              ),
+            ),
+            icon: const Icon(Icons.forum_outlined),
+            label: const Text('Асуулт, хариулт'),
+          ),
         const SizedBox(height: 16),
         SectionCard(
           title: 'Хувийн мэдээлэл',

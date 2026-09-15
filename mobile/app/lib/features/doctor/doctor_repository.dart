@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:path/path.dart' as p;
 
 import '../../core/network/api_client.dart';
 import '../../core/util/mn_format.dart';
 import '../../core/network/envelope.dart';
 import '../../shared/widgets/date_range_field.dart';
+import '../questions/question.dart';
 import 'doctor_models.dart';
 
 /// Үзлэгийн жагсаалтын хамрах хүрээ.
@@ -503,6 +505,57 @@ class DoctorRepository {
       query: <String, dynamic>{'patientId': patientId, 'scope': 'all'},
     );
     return page.items;
+  }
+
+  /// 2.3 Үйлчлүүлэгчийн асуултууд — эмчийн тал.
+  ///
+  /// Хэлбэр нь үйлчлүүлэгчийн `GET /api/patient/questions`-тэй яг ижил тул
+  /// `Question` моделийг хоёр тал хуваалцана. Хяналтад байхгүй үйлчлүүлэгч
+  /// дээр сервер `403 NOT_MONITORED` буцаана.
+  Future<Paged<Question>> fetchPatientQuestions({
+    required int patientId,
+    required int limit,
+    required int offset,
+  }) {
+    return _api.getPaged<Question>(
+      '/api/doctor/monitoring/$patientId/questions',
+      Question.fromJson,
+      limit: limit,
+      offset: offset,
+    );
+  }
+
+  /// Асуултад хариулах. Файлтай бол multipart (API.md §9.4).
+  Future<void> answerQuestion({
+    required int patientId,
+    required String comment,
+    List<File> files = const <File>[],
+  }) async {
+    final path = '/api/doctor/monitoring/$patientId/questions';
+    if (files.isEmpty) {
+      await _api.postObject(
+        path,
+        body: <String, dynamic>{'comment': comment.trim()},
+      );
+      return;
+    }
+
+    final form = FormData();
+    if (comment.trim().isNotEmpty) {
+      form.fields.add(MapEntry<String, String>('comment', comment.trim()));
+    }
+    for (final file in files) {
+      form.files.add(
+        MapEntry<String, MultipartFile>(
+          'files',
+          await MultipartFile.fromFile(
+            file.path,
+            filename: p.basename(file.path),
+          ),
+        ),
+      );
+    }
+    await _api.postMultipart(path, form: form);
   }
 
   /// Эмчийн ажлын дараалал. `scope=mine` анхдагч, `unassigned` нь миний

@@ -228,6 +228,55 @@ class ApiClient {
     return Envelope.asMap(body['Data'] ?? body['data']);
   }
 
+  /// Мобайл гадаргуу руу multipart илгээх — асуултын хавсралт (API.md §9.4).
+  ///
+  /// [upload]-аас ялгаатай нь **шинэ дугтуй**: `{success, data}`. Хуучин
+  /// давхаргын `Data`-г хайхгүй.
+  Future<Map<String, dynamic>> postMultipart(
+    String path, {
+    required FormData form,
+    CancelToken? cancelToken,
+    void Function(int sent, int total)? onProgress,
+  }) async {
+    final response = await _guard(
+      () => _dio.post<dynamic>(
+        path,
+        data: form,
+        cancelToken: cancelToken,
+        onSendProgress: onProgress,
+        options: Options(contentType: 'multipart/form-data'),
+      ),
+    );
+    return Envelope.asMap(Envelope.modernData(response));
+  }
+
+  /// Эрхийн шалгалттай файл татах — `/api/Media/stream/<name>` (API.md §9.4).
+  ///
+  /// Токен нь **толгойгоор** явна. `?token=` хэлбэрийг сервер санаатай
+  /// дэмждэггүй: URL нь nginx-ийн лог, түүх, хуваалцсан холбоос болгонд үлддэг.
+  Future<List<int>> downloadBytes(String path, {CancelToken? cancelToken}) async {
+    final response = await _guard(
+      () => _dio.get<List<int>>(
+        path,
+        cancelToken: cancelToken,
+        options: Options(
+          responseType: ResponseType.bytes,
+          validateStatus: (int? status) => status != null && status < 500,
+        ),
+      ),
+    );
+    // `_guard` нь `Response<dynamic>` буцаадаг тул төрлийг энд нягтална.
+    final raw = response.data;
+    final bytes = raw is List<int> ? raw : const <int>[];
+    final contentType =
+        (response.headers.value('content-type') ?? '').toLowerCase();
+    if (contentType.contains('application/json') || bytes.isEmpty) {
+      // Амжилтгүй үед сервер JSON дугтуй буцаадаг — байт гэж дүр эсгэхгүй.
+      throw ApiException('Файлыг татаж чадсангүй.');
+    }
+    return bytes;
+  }
+
   // ---------------------------------------------------------------------
 
   /// `DioException`-г [ApiException] болгож дамжуулна. Дуудагч тал зөвхөн
