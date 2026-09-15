@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../advice/advice_screen.dart';
-import '../doctor/doctor_advice_screen.dart';
-import '../evisits/evisits_screen.dart';
-import '../questions/questions_screen.dart';
+import 'notification_link.dart';
 import 'notifications_controller.dart';
 import 'notifications_screen.dart';
 
@@ -30,27 +27,6 @@ class _NotificationBellState extends State<NotificationBell> {
     });
   }
 
-  /// Гүн холбоос — `LinkObjectName` дээр салаална (API.md §2.8).
-  void _open(BuildContext context, AppNotification item) {
-    Widget? target;
-    switch (item.linkObjectName) {
-      case 'VisitComments':
-        target = widget.isDoctor ? null : const QuestionsScreen();
-      case 'RemoteVisit':
-        target = widget.isDoctor ? null : const EvisitsScreen();
-      case 'Advice':
-        target = widget.isDoctor
-            ? const DoctorAdviceScreen()
-            : const AdviceScreen();
-      default:
-        target = null;
-    }
-    if (target == null) return;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(builder: (_) => target!),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final unread = context.watch<NotificationsController>().unread;
@@ -60,7 +36,10 @@ class _NotificationBellState extends State<NotificationBell> {
       onPressed: () async {
         await Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => NotificationsScreen(onOpen: _open),
+            builder: (_) => NotificationsScreen(
+              onOpen: (BuildContext ctx, AppNotification item) =>
+                  openNotification(ctx, item, isDoctor: widget.isDoctor),
+            ),
           ),
         );
         if (!context.mounted) return;
