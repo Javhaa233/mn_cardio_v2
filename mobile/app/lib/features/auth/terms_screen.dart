@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../../core/network/api_client.dart';
+import '../../core/network/api_exception.dart';
+import '../../core/util/json_read.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 
@@ -8,8 +11,16 @@ import '../../shared/widgets/state_views.dart';
 /// **Энэ бол батлагдаагүй төсөл.** Эцсийн эрх зүйн үг хэллэгийг Зүрх судасны
 /// үндэсний төвийн хууль эрх зүйн хэсэг батлах ёстой. Бүтэц, гарчгууд нь
 /// байрандаа тул батлагдсан эх ирмэгц энэ файлын текстийг солиход хангалттай.
-class TermsScreen extends StatelessWidget {
-  const TermsScreen({super.key});
+/// Сервер дээрх текст ([api] өгөгдсөн үед) эхэнд ирнэ. ЗСҮТ хуулийн хэлтсээрээ
+/// батлуулаад `MobileSetting.termsText`-д тавихад апп шинэчлэхгүйгээр солигдоно.
+/// Нэвтрэхийн өмнөх дэлгэцээс дуудахад [api] байхгүй — доорх төслийг харуулна.
+class TermsScreen extends StatefulWidget {
+  const TermsScreen({super.key, this.api});
+
+  final ApiClient? api;
+
+  @override
+  State<TermsScreen> createState() => _TermsScreenState();
 
   static const List<(String, String)> _sections = <(String, String)>[
     (
@@ -67,36 +78,81 @@ class TermsScreen extends StatelessWidget {
     ),
   ];
 
+}
+
+class _TermsScreenState extends State<TermsScreen> {
+  String? _serverText;
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFromServer();
+  }
+
+  Future<void> _loadFromServer() async {
+    final api = widget.api;
+    if (api == null) return;
+    setState(() => _loading = true);
+    try {
+      final data = await api.getObject('/api/mobile/config');
+      final text = J.strOr(data, <String>['termsText']).trim();
+      if (!mounted) return;
+      setState(() {
+        _serverText = text.isEmpty ? null : text;
+        _loading = false;
+      });
+    } on ApiException {
+      if (!mounted) return;
+      // Сервер дээр текст тавиагүй эсвэл холболт тасарсан — төслөө харуулна.
+      setState(() => _loading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final serverText = _serverText;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Үйлчилгээний нөхцөл')),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-        children: <Widget>[
-          const PendingModuleNotice(
-            title: 'Батлагдаагүй төсөл',
-            message: 'Үйлчилгээний нөхцөлийн эцсийн эх Зүрх судасны үндэсний '
-                'төвөөс батлагдах шатандаа байна. Доорх нь батлагдахаас '
-                'өмнөх төсөл бөгөөд эрх зүйн хүчин төгөлдөр баримт биш.',
-            icon: Icons.gavel_outlined,
-          ),
-          const SizedBox(height: 14),
-          for (final section in _sections)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: SectionCard(
-                title: section.$1,
-                child: Text(
-                  section.$2,
-                  style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
-                ),
-              ),
+      body: _loading
+          ? const LoadingView()
+          : ListView(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+              children: <Widget>[
+                if (serverText == null) ...<Widget>[
+                  const PendingModuleNotice(
+                    title: 'Батлагдаагүй төсөл',
+                    message:
+                        'Үйлчилгээний нөхцөлийн эцсийн эх Зүрх судасны үндэсний '
+                        'төвөөс батлагдах шатандаа байна. Доорх нь батлагдахаас '
+                        'өмнөх төсөл бөгөөд эрх зүйн хүчин төгөлдөр баримт биш.',
+                    icon: Icons.gavel_outlined,
+                  ),
+                  const SizedBox(height: 14),
+                  for (final section in TermsScreen._sections)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: SectionCard(
+                        title: section.$1,
+                        child: Text(
+                          section.$2,
+                          style:
+                              theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+                        ),
+                      ),
+                    ),
+                ] else
+                  SectionCard(
+                    title: 'Үйлчилгээний нөхцөл',
+                    child: Text(
+                      serverText,
+                      style: theme.textTheme.bodyMedium?.copyWith(height: 1.55),
+                    ),
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 }

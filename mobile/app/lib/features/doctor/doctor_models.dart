@@ -814,3 +814,22 @@ class FeedTicket {
     return age < 0 || age > 130 ? null : age;
   }
 }
+
+
+/// ICD-10 лавлахын нэг мөр — `GET /api/doctor/icd10?search=`.
+class IcdCode {
+  const IcdCode({required this.code, required this.nameMn, this.nameEn});
+
+  final String code;
+  final String nameMn;
+  final String? nameEn;
+
+  /// Монгол нэр байхгүй бол англиар — лавлахад хоёулаа бүрэн биш.
+  String get label => nameMn.trim().isNotEmpty ? nameMn : (nameEn ?? '');
+
+  factory IcdCode.fromJson(Map<String, dynamic> json) => IcdCode(
+        code: J.strOr(json, <String>['code', 'Code']),
+        nameMn: J.strOr(json, <String>['name_mn', 'NameMn']),
+        nameEn: J.str(json, <String>['name_en', 'NameEn']),
+      );
+}

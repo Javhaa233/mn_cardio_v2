@@ -11,6 +11,7 @@ import 'features/auth/login_screen.dart';
 import 'features/chat/chat_controller.dart';
 import 'features/chat/chat_repository.dart';
 import 'features/chat/chat_socket.dart';
+import 'features/consents/consents_controller.dart';
 import 'features/doctor/doctor_controllers.dart';
 import 'features/doctor/doctor_repository.dart';
 import 'features/doctor/doctor_shell.dart';
@@ -23,6 +24,8 @@ import 'features/profile/profile_repository.dart';
 import 'features/questions/questions_controller.dart';
 import 'features/rehab/rehab_controller.dart';
 import 'features/risk/risk_controller.dart';
+import 'features/update/update_required_screen.dart';
+import 'core/update/update_controller.dart';
 import 'shared/theme/app_theme.dart';
 
 /// Апп-ын үндэс.
@@ -118,6 +121,11 @@ class _AuthGate extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthController>();
 
+    // Сервер дэмжихээ больсон билд — цааш юу ч харуулахгүй (§2.1).
+    if (context.watch<UpdateController>().blocked) {
+      return const UpdateRequiredScreen();
+    }
+
     return switch (auth.status) {
       AuthStatus.unknown => const _SplashScreen(),
       AuthStatus.unauthenticated => const LoginScreen(),
@@ -149,6 +157,7 @@ class DoctorScope extends StatelessWidget {
 
     return MultiProvider(
       providers: [
+        Provider<ApiClient>.value(value: api),
         Provider<DoctorRepository>.value(value: doctorRepo),
         Provider<ChatRepository>.value(value: chatRepo),
         Provider<ChatSocket>(
@@ -222,6 +231,7 @@ class PatientScope extends StatelessWidget {
     return MultiProvider(
       providers: [
         // --- Repository-ууд ---
+        Provider<ApiClient>.value(value: api),
         Provider<ChatRepository>.value(value: chatRepo),
         Provider<ChatSocket>(
           create: (_) => ChatSocket(store),
@@ -249,6 +259,11 @@ class PatientScope extends StatelessWidget {
         // --- 2.4 Эмчийн зөвлөгөө ---
         ChangeNotifierProvider<AdviceController>(
           create: (_) => AdviceController(AdviceRepository(api)),
+        ),
+
+        // --- Зөвшөөрөл (Техникийн шаардлага §1.2) ---
+        ChangeNotifierProvider<ConsentsController>(
+          create: (_) => ConsentsController(ConsentsRepository(api)),
         ),
 
         // --- 2.5 Эрсдэл үнэлгээ ---

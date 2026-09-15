@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -7,7 +9,9 @@ import 'core/auth/auth_controller.dart';
 import 'core/notifications/local_notifications.dart';
 import 'core/notifications/reminder_controller.dart';
 import 'core/storage/prefs.dart';
+import 'core/network/envelope_interceptor.dart';
 import 'core/storage/secure_store.dart';
+import 'core/update/update_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,6 +29,12 @@ Future<void> main() async {
   final auth = AuthController(store: store, prefs: prefs);
   final reminders = ReminderController(prefs);
 
+  // Техникийн шаардлага §2.1 — хувилбарын шалгалт. Билдийн дугаарыг дуудлага
+  // бүрт явуулж, сервер хуучин гэж үзвэл (426) аппыг блоклоно.
+  final updates = UpdateController();
+  await updates.attach(auth.api);
+  EnvelopeInterceptor.onUpdateRequired = updates.markBlockedByServer;
+
   // Мэдэгдлийн сувгийг урьдчилан бэлдэнэ. Зөвшөөрлийг энд асуухгүй —
   // хэрэглэгч сануулга үүсгэх мөчид асуувал яагаад гэдэг нь ойлгомжтой.
   await LocalNotifications.init();
@@ -33,6 +43,9 @@ Future<void> main() async {
   // Хадгалсан сесс байвал сэргээнэ.
   await auth.bootstrap();
 
+  // Хувилбарын шалгалт нэвтрэлт шаардахгүй тул хаана ч зогсохгүй.
+  unawaited(updates.check(auth.api));
+
   runApp(
     MultiProvider(
       providers: [
@@ -40,6 +53,7 @@ Future<void> main() async {
         Provider<SecureStore>.value(value: store),
         ChangeNotifierProvider<AuthController>.value(value: auth),
         ChangeNotifierProvider<ReminderController>.value(value: reminders),
+        ChangeNotifierProvider<UpdateController>.value(value: updates),
       ],
       child: const MnCardioApp(),
     ),

@@ -8,6 +8,7 @@ import '../../shared/widgets/paged_list_view.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
+import 'icd_picker_sheet.dart';
 import 'doctor_models.dart';
 import 'doctor_patient_card_screen.dart';
 import 'doctor_repository.dart';
@@ -23,6 +24,15 @@ class DoctorVisitsScreen extends StatefulWidget {
 
 class _DoctorVisitsScreenState extends State<DoctorVisitsScreen> {
   final TextEditingController _search = TextEditingController();
+
+  Future<void> _pickIcd(DoctorVisitsController controller) async {
+    final picked = await showModalBottomSheet<IcdCode>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const IcdPickerSheet(),
+    );
+    if (picked != null) await controller.setIcd(picked);
+  }
 
   @override
   void initState() {
@@ -68,7 +78,7 @@ class _DoctorVisitsScreenState extends State<DoctorVisitsScreen> {
               onChanged: controller.setSearch,
               textInputAction: TextInputAction.search,
               decoration: InputDecoration(
-                hintText: 'Регистр, нэрээр хайх',
+                hintText: 'Регистр, нэр, оноош хайх',
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: _search.text.isEmpty
                     ? null
@@ -95,9 +105,42 @@ class _DoctorVisitsScreenState extends State<DoctorVisitsScreen> {
                   ),
                   const SizedBox(width: 8),
                 ],
+                // Техникийн шаардлага §1.3 — оношоор хайх.
+                if (controller.icd == null)
+                  ActionChip(
+                    avatar: const Icon(
+                      Icons.medical_information_outlined,
+                      size: 18,
+                    ),
+                    label: const Text('Онош сонгох'),
+                    onPressed: () => _pickIcd(controller),
+                  )
+                else
+                  InputChip(
+                    avatar: const Icon(
+                      Icons.medical_information_outlined,
+                      size: 18,
+                    ),
+                    label: Text(controller.icd!.code),
+                    onPressed: () => _pickIcd(controller),
+                    onDeleted: () => controller.setIcd(null),
+                  ),
               ],
             ),
           ),
+          if (controller.icd != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  controller.icd!.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+            ),
           const SizedBox(height: 8),
           DateRangeFilterBar(
             value: controller.range,

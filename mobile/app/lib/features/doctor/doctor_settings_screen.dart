@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_controller.dart';
 import '../../core/config/app_config.dart';
+import '../../core/network/api_client.dart';
+import '../../core/update/update_controller.dart';
 import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/app_licenses.dart';
 import '../../shared/widgets/app_snack.dart';
@@ -162,7 +164,7 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                   leading: const Icon(Icons.gavel_outlined),
                   title: const Text('Үйлчилгээний нөхцөл'),
                   trailing: const Icon(Icons.chevron_right_rounded, size: 20),
-                  onTap: () => _push(const TermsScreen()),
+                  onTap: () => _push(TermsScreen(api: context.read<ApiClient>())),
                 ),
                 AppLicensesTile(version: _version),
                 if (_version.isNotEmpty)
@@ -170,6 +172,9 @@ class _DoctorSettingsScreenState extends State<DoctorSettingsScreen> {
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.tag_rounded),
                     title: const Text('Хувилбар'),
+                    subtitle: context.watch<UpdateController>().updateAvailable
+                        ? const Text('Шинэ хувилбар гарсан байна')
+                        : null,
                     trailing:
                         Text(_version, style: theme.textTheme.bodySmall),
                   ),

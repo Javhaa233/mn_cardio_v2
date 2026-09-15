@@ -79,6 +79,7 @@ class DoctorRepository {
     VisitScope scope = VisitScope.mine,
     DateRange range = DateRange.all,
     String search = '',
+    String icd10 = '',
   }) {
     return _api.getPaged<DoctorVisit>(
       '/api/doctor/visits',
@@ -89,8 +90,23 @@ class DoctorRepository {
         'scope': scope.name,
         ...range.toQuery(),
         if (search.trim().isNotEmpty) 'search': search.trim(),
+        // `I21` яг тухайн код, `I21%` бүлэг бүхэлдээ (API.md §9.3). Онош нь
+        // `Visit.icd10` баганад биш `main_diagnosis` текстэд байдаг тул
+        // шүүлтийг сервер тэндээс хийнэ.
+        if (icd10.trim().isNotEmpty) 'icd10': icd10.trim(),
       },
     );
+  }
+
+  /// ICD-10 лавлах дахь хайлт — Техникийн шаардлага §1.3 "оношоор хайх".
+  Future<List<IcdCode>> searchIcd10(String query) async {
+    final trimmed = query.trim();
+    if (trimmed.length < 2) return const <IcdCode>[];
+    final data = await _api.getRaw(
+      '/api/doctor/icd10',
+      query: <String, dynamic>{'search': trimmed},
+    );
+    return Envelope.asList(data).map(IcdCode.fromJson).toList(growable: false);
   }
 
   /// Нэг үзлэгийн бүрэн бичлэг.
