@@ -72,7 +72,13 @@ class VisitForm extends BaseCustomForm {
     } else {
       const { t } = this.props;
 
-      alert(t("Selected value already exists"));
+      this.setState({
+        Alert: Helper.BaseCrudHelper.ShowAlert(
+          t("Selected value already exists"),
+          false,
+          () => this.setState({ Alert: null }),
+        ),
+      });
     }
   };
 

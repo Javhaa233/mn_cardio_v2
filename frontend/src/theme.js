@@ -1,6 +1,7 @@
 // Create theme that works with both @mui/material and @mui/styles
 import { createTheme } from "@mui/material/styles";
 import { colors } from "./theme/colors";
+import { radius, elevation, space } from "./theme/tokens";
 
 /**
  * Control sizing lives here, and only here.
@@ -79,9 +80,14 @@ const theme = createTheme({
     },
   },
   palette: {
+    // The brand's filled-button colour, not MUI's default blue (#1976d2). Every
+    // `color="primary"` in the app - a contained button, a checked radio, a
+    // focused field - used to be a second, unrelated blue next to the cyanInk
+    // toolbars. cyanInk is 5.84:1 on white, so it is safe for text as well.
     primary: {
-      main: colors.button.primary,
-      dark: colors.button.primaryHover,
+      main: colors.brand.cyanInk,
+      dark: colors.brand.cyanInkHover,
+      contrastText: colors.text.white,
     },
     secondary: {
       main: colors.button.secondary,
@@ -198,6 +204,50 @@ const theme = createTheme({
             padding: "8px 16px !important",
           },
         },
+      },
+    },
+    /**
+     * Dialog surface defaults.
+     *
+     * `BaseDialog`, `BaseDetailView` and `BaseAlert` style themselves; these
+     * defaults are for the dialogs that open a raw MUI `<Dialog>` (user edit,
+     * file preview, organisation merge, chat and others), so every popup shares
+     * one surface: the page-surface radius, the dialog elevation, a white paper
+     * and a navy-tinted backdrop instead of neutral black. A component that
+     * passes its own `sx` still wins.
+     */
+    MuiDialog: {
+      styleOverrides: {
+        root: {
+          "& .MuiBackdrop-root": { backgroundColor: "rgba(12, 34, 51, 0.45)" },
+        },
+        paper: {
+          borderRadius: radius.lg,
+          boxShadow: elevation[4],
+          backgroundColor: colors.brand.surface,
+          backgroundImage: "none",
+        },
+        paperFullScreen: { borderRadius: 0 },
+      },
+    },
+    MuiDialogTitle: {
+      styleOverrides: {
+        root: {
+          color: colors.brand.ink,
+          fontSize: "16px",
+          fontWeight: 600,
+          lineHeight: 1.35,
+        },
+      },
+    },
+    MuiDialogContent: {
+      styleOverrides: {
+        dividers: { borderColor: colors.brand.hairline },
+      },
+    },
+    MuiDialogActions: {
+      styleOverrides: {
+        root: { padding: `${space[3]} ${space[4]}` },
       },
     },
     MuiTextField: {

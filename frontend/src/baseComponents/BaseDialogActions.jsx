@@ -1,10 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { DialogActions, CircularProgress } from "@mui/material";
+import Button from "@mui/material/Button";
+import DialogActions from "@mui/material/DialogActions";
 import SaveIcon from "@mui/icons-material/Save";
 import CheckIcon from "@mui/icons-material/Check";
+import CloseIcon from "@mui/icons-material/Close";
 import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
-import Button from "components/CustomButtons/Button";
+
+import { colors } from "@/theme/colors";
+import { space } from "@/theme/tokens";
+import { dialogActionSx } from "@/theme/controlStyles";
 
 /**
  * BaseDialogActions - Reusable action buttons for dialogs
@@ -62,6 +67,25 @@ const runAction = (handler, setBusy) => {
   }
 };
 
+/**
+ * One action button. `loading` is MUI's own busy state: it disables the button
+ * and swaps the start icon for a spinner in the button's text colour, so the
+ * separate green/red/blue spinners that used to float over each button are
+ * gone.
+ */
+const ActionButton = ({ Rank, Icon, Busy, onClick, children, sx }) => (
+  <Button
+    disableElevation
+    startIcon={<Icon />}
+    loading={Busy}
+    loadingPosition="start"
+    onClick={onClick}
+    sx={{ ...dialogActionSx(Rank), ...sx }}
+  >
+    {children}
+  </Button>
+);
+
 export default function BaseDialogActions(props) {
   const {
     ShowPrintAndSave = false,
@@ -95,219 +119,110 @@ export default function BaseDialogActions(props) {
 
   if (!hasActions) return null;
 
+  // One filled button per bar. Save is the everyday action; Confirm locks a
+  // record permanently, so it only takes the filled slot when there is no Save
+  // beside it.
+  const HasSave = ShowSave || ShowSaveNotLoad;
+  const ConfirmRank = HasSave ? "neutral" : "primary";
+  const PrintAndSaveRank = HasSave || ShowConfirm ? "neutral" : "primary";
+
   return (
     <DialogActions
       sx={{
         display: "flex",
         justifyContent: "flex-end",
+        flexWrap: "wrap",
+        gap: space[2],
         width: "100%",
         flexShrink: 0,
-        padding: "8px 16px",
+        padding: `${space[3]} ${space[4]}`,
+        // No top rule here: the dialog content above uses `dividers`, which
+        // already draws the hairline, and a second one read as a double line.
+        backgroundColor: colors.brand.surface,
+        // MUI spaces siblings with a left margin; `gap` does that now.
+        "& > :not(style) ~ :not(style)": { marginLeft: 0 },
       }}
     >
-      {/* Print Button */}
       {ShowPrint && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginRight: "auto",
+        <ActionButton
+          Rank="neutral"
+          Icon={PrintOutlinedIcon}
+          Busy={PrintLoading}
+          sx={{ marginRight: "auto" }}
+          onClick={() => {
+            setPrintLoading(true);
+            runAction(Print, setPrintLoading);
           }}
         >
-          <Button
-            color="info"
-            size="sm"
-            startIcon={<PrintOutlinedIcon />}
-            onClick={() => {
-              setPrintLoading(true);
-              runAction(Print, setPrintLoading);
-            }}
-            disabled={PrintLoading}
-          >
-            {t("Print")}
-          </Button>
-          {PrintLoading && (
-            <CircularProgress
-              size={24}
-              style={{
-                color: "#1492ff",
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                marginTop: -12,
-                marginLeft: -12,
-              }}
-            />
-          )}
-        </div>
+          {t("Print")}
+        </ActionButton>
       )}
 
-      {/* Print & Save Button */}
       {ShowPrintAndSave && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginLeft: "8px",
+        <ActionButton
+          Rank={PrintAndSaveRank}
+          Icon={SaveIcon}
+          Busy={Loading}
+          onClick={() => {
+            setLoading(true);
+            runAction(Save, setLoading);
           }}
         >
-          <Button
-            color="success"
-            size="sm"
-            startIcon={<SaveIcon />}
-            onClick={() => {
-              setLoading(true);
-              runAction(Save, setLoading);
-            }}
-            disabled={Loading}
-          >
-            {t("Save")} & {t("Print")}
-          </Button>
-          {Loading && (
-            <CircularProgress
-              size={24}
-              style={{
-                color: "green",
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                marginTop: -12,
-                marginLeft: -12,
-              }}
-            />
-          )}
-        </div>
+          {t("Save")} & {t("Print")}
+        </ActionButton>
       )}
 
-      {/* Decline Button */}
       {ShowDecline && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginLeft: "8px",
+        <ActionButton
+          Rank="danger"
+          Icon={CloseIcon}
+          Busy={DeclineLoading}
+          onClick={() => {
+            setDeclineLoading(true);
+            runAction(Decline, setDeclineLoading);
           }}
         >
-          <Button
-            color="danger"
-            size="sm"
-            startIcon={<SaveIcon />}
-            onClick={() => {
-              setDeclineLoading(true);
-              runAction(Decline, setDeclineLoading);
-            }}
-            disabled={DeclineLoading}
-          >
-            {t("Decline")}
-          </Button>
-          {DeclineLoading && (
-            <CircularProgress
-              size={24}
-              style={{
-                color: "#f44336",
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                marginTop: -12,
-                marginLeft: -12,
-              }}
-            />
-          )}
-        </div>
+          {t("Decline")}
+        </ActionButton>
       )}
 
-      {/* Confirm Button */}
       {ShowConfirm && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginLeft: "8px",
+        <ActionButton
+          Rank={ConfirmRank}
+          Icon={CheckIcon}
+          Busy={ConfirmLoading}
+          onClick={() => {
+            setConfirmLoading(true);
+            runAction(Confirm, setConfirmLoading);
           }}
         >
-          <Button
-            color="success"
-            size="sm"
-            startIcon={<CheckIcon />}
-            onClick={() => {
-              setConfirmLoading(true);
-              runAction(Confirm, setConfirmLoading);
-            }}
-            disabled={ConfirmLoading}
-          >
-            {t(ConfirmButtonText)}
-          </Button>
-          {ConfirmLoading && (
-            <CircularProgress
-              size={24}
-              style={{
-                color: "green",
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                marginTop: -12,
-                marginLeft: -12,
-              }}
-            />
-          )}
-        </div>
+          {t(ConfirmButtonText)}
+        </ActionButton>
       )}
 
-      {/* Save Not Load Button */}
       {ShowSaveNotLoad && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginLeft: "8px",
-          }}
+        <ActionButton
+          Rank="primary"
+          Icon={SaveIcon}
+          Busy={false}
+          onClick={() => Save && Save()}
         >
-          <Button
-            color="success"
-            size="sm"
-            startIcon={<SaveIcon />}
-            onClick={() => Save && Save()}
-          >
-            {t(SaveButtonText)}
-          </Button>
-        </div>
+          {t(SaveButtonText)}
+        </ActionButton>
       )}
 
-      {/* Save Button */}
       {ShowSave && (
-        <div
-          style={{
-            position: "relative",
-            display: "inline-flex",
-            marginLeft: "8px",
+        <ActionButton
+          Rank="primary"
+          Icon={SaveIcon}
+          Busy={Loading}
+          onClick={() => {
+            setLoading(true);
+            runAction(Save, setLoading);
           }}
         >
-          <Button
-            color="success"
-            size="sm"
-            startIcon={<SaveIcon />}
-            onClick={() => {
-              setLoading(true);
-              runAction(Save, setLoading);
-            }}
-            disabled={Loading}
-          >
-            {SaveButtonText ? t(SaveButtonText) : t("Save")}
-          </Button>
-          {Loading && (
-            <CircularProgress
-              size={24}
-              style={{
-                color: "green",
-                position: "absolute",
-                top: "50%",
-                left: "50%",
-                marginTop: -12,
-                marginLeft: -12,
-              }}
-            />
-          )}
-        </div>
+          {SaveButtonText ? t(SaveButtonText) : t("Save")}
+        </ActionButton>
       )}
     </DialogActions>
   );

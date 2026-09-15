@@ -11,8 +11,8 @@ import CloseIcon from "@mui/icons-material/Close";
 
 import Helper from "helper";
 import { colors } from "@/theme/colors";
-import { elevation, radius, space } from "@/theme/tokens";
-import { gridToolbarButtonSx } from "@/theme/controlStyles";
+import { radius, space } from "@/theme/tokens";
+import { dialogActionSx, dialogPaperSx } from "@/theme/controlStyles";
 
 /**
  * Shared pieces of the account dialogs - the contact prompt, change password,
@@ -166,16 +166,9 @@ export const fieldLabelSx = {
   "& .MuiFormLabel-asterisk": { color: colors.status.danger },
 };
 
-// Dialog actions are the one place a 30px toolbar button is too small a target.
-export const dialogActionSx = (rank) => ({
-  ...gridToolbarButtonSx[rank],
-  height: "36px",
-});
-
-export const dialogPaperSx = {
-  borderRadius: radius.md,
-  boxShadow: elevation[4],
-};
+// Moved to theme/controlStyles so every dialog shares them; re-exported here so
+// the account dialogs keep importing from one place.
+export { dialogActionSx, dialogPaperSx };
 
 /** Icon badge + title + one line of explanation, with an optional close button. */
 export function DialogHeader({

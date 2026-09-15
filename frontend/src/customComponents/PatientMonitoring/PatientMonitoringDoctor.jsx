@@ -23,6 +23,11 @@ import BtnPatientMonitor from "customComponents/PatientMonitoring/Actions/BtnPat
 import BtnRemovePatient from "customComponents/PatientMonitoring/Actions/BtnRemovePatient";
 import BtnRemoteVisit from "customComponents/PatientMonitoring/Actions/BtnRemoteVisit";
 import ShowJournals from "customComponents/PatientMonitoring/ShowJournals";
+import {
+  AwaitingReplyCell,
+  LastContactCell,
+  LastReadingCell,
+} from "customComponents/PatientMonitoring/RosterCells";
 import RemoteVisitList from "customComponents/PatientPlatform/RemoteVisitList";
 
 // helper
@@ -388,6 +393,37 @@ class PatientMonitoringDoctor extends React.Component {
       Flex: 1,
     });
 
+    /*
+     * The state of the relationship, not just its existence.
+     *
+     * Ordering matters: "хариу хүлээж буй" sits next to the register number
+     * because it is the only column that means DO SOMETHING, and a doctor
+     * scanning this list left-to-right should meet it before the diagnoses.
+     *
+     * All three are attached per page by the controller in two batched queries.
+     * None is sortable or filterable: they are computed, so the server cannot
+     * order by them without a different query, and a sort arrow that silently
+     * does nothing is worse than no arrow.
+     */
+    FieldLists.splice(3, 0, {
+      Name: "AwaitingReply",
+      Label: t("Хариу хүлээж буй"),
+      NoFilter: true,
+      NoSorting: true,
+    });
+    FieldLists.push({
+      Name: "LastContact",
+      Label: t("Сүүлд холбогдсон"),
+      NoFilter: true,
+      NoSorting: true,
+    });
+    FieldLists.push({
+      Name: "LastReading",
+      Label: t("Даралт · судас"),
+      NoFilter: true,
+      NoSorting: true,
+    });
+
     return (
       <Box
         sx={{
@@ -448,6 +484,11 @@ class PatientMonitoringDoctor extends React.Component {
             Width="100%"
             HideSearchText={false}
             Search={this.SearchAll}
+            // Without this the refresh button still RENDERS - RangeDate only
+            // hides it for `hideRefresh` - and handleRefresh calls an undefined
+            // callback, so the one obviously clickable control on the screen did
+            // nothing. Every other caller passes Refresh; this one did not.
+            Refresh={this.GetData}
             ChangeValue={(StartDate, EndDate) => {
               this.SearchOption.SearchField =
                 Helper.BaseCrudHelper.SetSearchField(
@@ -509,9 +550,14 @@ class PatientMonitoringDoctor extends React.Component {
                 Field: "Patient.p_registration",
                 Component: <ShowPatient />,
               },
+              { Field: "AwaitingReply", Component: <AwaitingReplyCell /> },
               { Field: "Journals", Component: <ShowJournals /> },
+              { Field: "LastContact", Component: <LastContactCell /> },
+              { Field: "LastReading", Component: <LastReadingCell /> },
             ]}
-            widthPattern="40c, 130l, 130l, 120l, 110c, 260l, 130r"
+            // number, surname, forename, awaiting, register, start, ICD10,
+            // last contact, reading, actions
+            widthPattern="40c, 130l, 130l, 90c, 120l, 110c, 220l, 120c, 110c, 130r"
             RowActions={[
               {
                 Component: <QuestionButton />,

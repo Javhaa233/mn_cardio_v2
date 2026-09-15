@@ -488,9 +488,20 @@ The sidebar, topbar and Creative Tim shell **used to be** off-limits. The custom
 that during the AdviceHome rebuild, so the shell is now in scope to restyle. Branding (the MN CARDIO
 name and the ЗСҮТ identity) is still not yours to change.
 
-Not yet done: the sidebar and navbar restyle itself. The design tokens it should use already exist
-(see below), so that work is now a matter of pointing `sidebarStyle.js` and `adminNavbarLinksStyle.js`
-at them.
+The admin shell restyle is done: `sidebarStyle.js` is on the brand gradient, and the top bar was
+rebuilt as `components/Navbars/{AdminNavbar,TopBarIconButton,ProfileMenu,TopBarOverflowMenu}` on
+`topBarTokens.js` (48px). Still legacy: `PatientNavbar` (60px, Creative Tim), `AuthNavbar`, and the
+dropdowns that import `adminNavbarLinksStyle.js` (notification list, open-tabs menu).
+
+### The whole-system consistency program (started 2026-09-15)
+
+About 6 of 65 screens were on the design system; the rest mixed template looks. The restyle runs in
+phases — shared components first (buttons, dialogs, alerts → states and tabs → form controls and
+sections → files and replies), then screens group by group — and the per-screen checklist, with every
+tab, popup, reply and file flow, is `frontend/docs/ui-consistency.md`. Standing decisions: popups
+**keep** their window behaviour (drag / minimize / maximize) and are only restyled; buttons use brand
+ranks (one filled `cyanInk` primary per bar, outlined neutral secondary, red only for destructive — no
+green Save); the program is visual only and does not include the long-form feature contract below.
 
 ### The design system — read before writing any UI
 

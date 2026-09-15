@@ -1,9 +1,23 @@
 import React, { Component, createRef } from "react";
 import { withTranslation } from "react-i18next";
 
+import ToggleButton from "@mui/material/ToggleButton";
+import ToggleButtonGroup from "@mui/material/ToggleButtonGroup";
+import QuestionAnswerIcon from "@mui/icons-material/QuestionAnswer";
+import ForumIcon from "@mui/icons-material/Forum";
+import DescriptionIcon from "@mui/icons-material/Description";
+import VideoCameraFrontIcon from "@mui/icons-material/VideoCameraFront";
+
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
 import CustomTab from "customComponents/CustomTab";
+
+import MonitorQuestion from "customComponents/PatientMonitoring/MonitorQuestion";
+import PatientMonitoring from "customComponents/PatientMonitoring/PatientMonitoring";
+import PatientAdvicePanel from "customComponents/AdviceFeed/PatientAdvicePanel";
+import PressureChart from "customComponents/PatientPlatform/PressureChart";
+import RemoteVisitList from "customComponents/PatientPlatform/RemoteVisitList";
+import EvisitPanel from "customComponents/PatientPlatform/EvisitPanel";
 
 import {
   PatientInfo,
@@ -107,6 +121,25 @@ class PatientShow extends Component {
       RegisterNo: null,
       ParamsRead: false,
       NewPatientOpen: false,
+      // Which band of tabs is showing. 'records' is every tab this page has
+      // ever had, unchanged and default, so nobody's existing workflow moves.
+      TabGroup: "records",
+      /*
+       * The resolved patient id, for the new bands only.
+       *
+       * `PatientId` above is NEVER SET: SetPatientId pushes the id into ~25
+       * table refs and does not call setState, so state.PatientId is 0 for the
+       * life of the page. The existing tabs work because each table receives
+       * the id through its ref, not through the prop GetTabs passes it - which
+       * is always 0.
+       *
+       * A separate key rather than fixing that in place: setting PatientId
+       * would re-render all 22 existing tabs with a prop that has been 0 since
+       * they were written, and several of them fetch on a PatientId prop
+       * change as well as on the ref call. That is a change to every tab on
+       * this page to serve two new ones, and not one to make blind.
+       */
+      ContactPatientId: 0,
     };
 
     // refs
@@ -166,6 +199,10 @@ class PatientShow extends Component {
   SetPatientId = (PatientId) => {
     const { RegisterNo } = this.state;
     if (PatientId) {
+      // See the ContactPatientId note in the constructor.
+      if (this.state.ContactPatientId !== PatientId) {
+        this.setState({ ContactPatientId: PatientId });
+      }
       this.PatientActionsRef.SetValues &&
         this.PatientActionsRef.SetValues({
           PatientId,
@@ -646,9 +683,115 @@ class PatientShow extends Component {
     return tabs;
   };
 
+  /**
+   * The Харилцаа band: everything a doctor does WITH this patient rather than
+   * TO their record.
+   *
+   * These lived as dialogs hanging off a row of the Хувийн хяналт grid, which
+   * is why a doctor could not see a question and the patient's last blood
+   * pressure at the same time. They are panels here instead.
+   *
+   * Every one of them is gated on the monitoring list server-side, so a patient
+   * the doctor does not monitor gets a stated reason rather than an empty box -
+   * see DoctorApiHelper's header on the NOT_MONITORED contract.
+   */
+  GetContactTabs = () => {
+    const { ContactPatientId: PatientId, RegisterNo } = this.state;
+    if (!PatientId) return [];
+
+    return [
+      {
+        tabButton: "Асуулт",
+        tabIcon: <QuestionAnswerIcon />,
+        tabContent: (
+          <div style={{ height: TAB_GRID_MAX_HEIGHT }}>
+            <MonitorQuestion
+              PatientId={PatientId}
+              Patient={{ p_registration: RegisterNo }}
+            />
+          </div>
+        ),
+      },
+      {
+        tabButton: "Зөвлөгөө",
+        tabIcon: <ForumIcon />,
+        tabContent: (
+          <PatientAdvicePanel
+            PatientId={PatientId}
+            RegisterNo={RegisterNo}
+            Height={TAB_GRID_MAX_HEIGHT}
+          />
+        ),
+      },
+    ];
+  };
+
+  /**
+   * The Хяналт band: what the patient records about themselves between visits.
+   *
+   * PatientMonitoring is the vitals grid the doctor already had in a dialog.
+   * PressureChart was written for the patient portal and pointed at a
+   * token-scoped endpoint; it is reused here against the doctor route, which is
+   * access-audited and row-capped.
+   */
+  GetMonitoringTabs = () => {
+    const { ContactPatientId: PatientId, RegisterNo } = this.state;
+    if (!PatientId) return [];
+
+    return [
+      {
+        tabButton: "Даралт, судас",
+        tabIcon: <MonitorHeartIcon />,
+        tabContent: (
+          <PressureChart PatientId={PatientId} Height={TAB_GRID_MAX_HEIGHT} />
+        ),
+      },
+      {
+        tabButton: "Тэмдэглэл",
+        tabIcon: <DescriptionIcon />,
+        tabContent: (
+          <PatientMonitoring
+            ObjectName="PatientMonitoring"
+            CustomRender={true}
+            PatientId={PatientId}
+            Patient={{ p_registration: RegisterNo }}
+          />
+        ),
+      },
+      {
+        // The queue and the three triage actions.
+        tabButton: "Цахим үзлэг",
+        tabIcon: <VideoCameraFrontIcon />,
+        tabContent: (
+          <EvisitPanel PatientId={PatientId} Height={TAB_GRID_MAX_HEIGHT} />
+        ),
+      },
+      {
+        // The record. Kept alongside because the legacy route it reads is
+        // still the only one that returns the attachments on a visit.
+        tabButton: "Үзлэгийн түүх",
+        tabIcon: <HistoryIcon />,
+        tabContent: (
+          <RemoteVisitList
+            PatientId={PatientId}
+            Patient={{ p_registration: RegisterNo }}
+          />
+        ),
+      },
+    ];
+  };
+
+  TabsForGroup = () => {
+    const { TabGroup } = this.state;
+    if (TabGroup === "contact") return this.GetContactTabs();
+    if (TabGroup === "monitoring") return this.GetMonitoringTabs();
+    return this.GetTabs();
+  };
+
   render() {
     const { t } = this.props;
-    const { PatientId, RegisterNo, ParamsRead } = this.state;
+    const { PatientId, RegisterNo, ParamsRead, TabGroup, ContactPatientId } =
+      this.state;
 
     const containerStyle = {
       width: "100%",
@@ -883,8 +1026,35 @@ class PatientShow extends Component {
                 />
               </GridItem>
               <GridItem xs={12} sm={12} md={8}>
+                {/* A band selector ABOVE the tab strip rather than 27 pills in
+                    one scrolling row. CustomTab is untouched - it still just
+                    receives an array - so this cannot affect any other screen
+                    that uses it. 'records' is the existing 22 tabs, unchanged
+                    and default. */}
+                <ToggleButtonGroup
+                  exclusive
+                  size="small"
+                  value={TabGroup}
+                  onChange={(e, v) => v && this.setState({ TabGroup: v })}
+                  sx={{ mb: 1 }}
+                >
+                  <ToggleButton value="records">
+                    {t("Эмнэлгийн бүртгэл")}
+                  </ToggleButton>
+                  <ToggleButton value="contact" disabled={!ContactPatientId}>
+                    {t("Харилцаа")}
+                  </ToggleButton>
+                  <ToggleButton value="monitoring" disabled={!ContactPatientId}>
+                    {t("Хяналт")}
+                  </ToggleButton>
+                </ToggleButtonGroup>
+
                 <CustomTab
-                  tabs={this.GetTabs()}
+                  // Remount on band change: CustomTab keeps its own selected
+                  // index, and carrying index 7 from a 22-tab band into a
+                  // 2-tab one renders nothing at all.
+                  key={TabGroup}
+                  tabs={this.TabsForGroup()}
                   sideBar={true}
                   wrapped={true}
                   fillHeight={false}

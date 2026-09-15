@@ -4,7 +4,7 @@
  */
 
 import colors from "./colors";
-import { radius, motion } from "./tokens";
+import { radius, motion, elevation } from "./tokens";
 
 /**
  * Label styles for horizontal layout
@@ -320,6 +320,39 @@ export const gridToolbarButtonSx = {
 };
 
 /**
+ * The same three ranks at dialog size. A dialog footer is the one place a 30px
+ * toolbar button is too small a target, so only the height changes.
+ */
+export const dialogActionSx = (rank) => ({
+  ...gridToolbarButtonSx[rank],
+  height: "36px",
+});
+
+/**
+ * A dialog is a surface on the canvas, so it takes the page-surface radius
+ * (see docs/ui-consistency.md, "Surface radius") and the dialog elevation.
+ */
+export const dialogPaperSx = {
+  borderRadius: radius.lg,
+  boxShadow: elevation[4],
+};
+
+/**
+ * Which rank a legacy `components/CustomButtons/Button` colour stands for.
+ *
+ * Those colours were the template's palette, not meanings: Save was green,
+ * Print teal, Delete red, New purple, all filled. Mapping them to ranks
+ * keeps all 89 call sites untouched while the bar reads the way the grid
+ * toolbars already do - one filled action, everything else outlined, red only
+ * for what destroys something.
+ */
+export const legacyButtonRank = (color) => {
+  if (color === "primary" || color === "success") return "primary";
+  if (color === "danger" || color === "rose") return "danger";
+  return "neutral";
+};
+
+/**
  * DataGrid/Table styles
  */
 export const gridSx = {
@@ -460,6 +493,8 @@ export default {
   numberInputSx,
   fileUploadSx,
   gridToolbarButtonSx,
+  dialogActionSx,
+  dialogPaperSx,
   gridSx,
   modalSx,
   cardSx,
