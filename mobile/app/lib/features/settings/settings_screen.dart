@@ -13,6 +13,7 @@ import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../auth/server_settings_sheet.dart';
 import '../access_log/access_log_screen.dart';
+import '../auth/biometric_password_dialog.dart';
 import '../auth/terms_screen.dart';
 import '../consents/consents_screen.dart';
 import '../profile/profile_controller.dart';
@@ -238,6 +239,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (!mounted) return;
     if (auth.lastError != null && value) {
       AppSnack.error(context, auth.lastError!);
+      return;
+    }
+
+    // Гарсны дараа ч хурууны хээгээр нэвтрэхийн тулд нэвтрэх мэдээлэл
+    // хадгалагдах ёстой. Апп нээснээс хойш нууц үгээр нэвтрээгүй бол
+    // санах ойд байхгүй — нэг удаа асууна.
+    if (value && auth.biometricEnabled && auth.needsPasswordForBiometric) {
+      final password = await askBiometricPassword(context);
+      if (!mounted) return;
+      if (password == null || password.trim().isEmpty) {
+        AppSnack.info(
+          context,
+          'Нууц үг оруулаагүй тул гарсны дараа нууц үгээр нэвтэрнэ.',
+        );
+        return;
+      }
+      await auth.saveBiometricPassword(password.trim());
+      if (!mounted) return;
+      AppSnack.success(context, 'Хурууны хээгээр нэвтрэх тохируулагдлаа.');
     }
   }
 
