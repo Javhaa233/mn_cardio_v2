@@ -13,6 +13,7 @@ import '../evisits/evisits_screen.dart';
 import '../questions/questions_screen.dart';
 import '../rehab/rehab_screen.dart';
 import '../reminders/reminders_screen.dart';
+import 'notification_router.dart';
 import 'notifications_controller.dart';
 
 /// Мэдэгдэл дээр дарахад холбогдох хэсэг рүү шилжүүлнэ.
@@ -34,6 +35,14 @@ Future<void> openNotification(
     await Navigator.of(context).push(
       MaterialPageRoute<void>(builder: (_) => screen),
     );
+  }
+
+  // Чатын мэдэгдэл эмч, үйлчлүүлэгч хоёуланд ижил: өрөө рүү нь оруулна.
+  // Сервер өрөө тус бүрд НЭГ мөр бичдэг — шинэ мессеж ирэх бүрд түүнийгээ
+  // дарж бичдэг тул жагсаалт мессеж болгоноор дүүрэхгүй (API.md §2.8).
+  if (object == 'ChatRoom') {
+    if (id > 0) return openChatRoomById(context, id);
+    return;
   }
 
   // Хандалтын мэдэгдэл нь ямар ч бичлэгийн нэрээр ирж болно (Visit, Patient,

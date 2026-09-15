@@ -29,6 +29,12 @@ Future<void> routeNotificationPayload(String payload) async {
   }
 }
 
+/// Өрөөний дугаараар чат нээх — мэдэгдлийн жагсаалтаас ч дуудагдана.
+Future<void> openChatRoomById(BuildContext context, int chatRoomId) async {
+  final navigator = Navigator.of(context);
+  await _openChatRoom(navigator, context, chatRoomId);
+}
+
 Future<void> _openChatRoom(
   NavigatorState navigator,
   BuildContext context,

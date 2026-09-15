@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import '../../core/network/envelope.dart';
 import '../../core/util/json_read.dart';
+import '../../shared/widgets/attachment_view.dart';
 import '../../core/util/mn_format.dart';
 import '../journal/journal_entry.dart';
 
@@ -380,6 +381,7 @@ class DoctorAdvice {
     this.date,
     this.patientId,
     this.commentCount = 0,
+    this.files = const <Attachment>[],
   });
 
   final int idData;
@@ -390,6 +392,9 @@ class DoctorAdvice {
   final DateTime? date;
   final int? patientId;
   final int commentCount;
+
+  /// Асуумжид хавсаргасан зураг, дуу бичлэг, баримт (API.md §6).
+  final List<Attachment> files;
 
   /// Тасалбруудын ихэнх дээр `Body` хоосон бөгөөд агуулга нь эхний хариунд
   /// байдаг (API.md §3, 2.4). Жагсаалтад хариу ирдэггүй тул энд зөвхөн
@@ -405,6 +410,10 @@ class DoctorAdvice {
         date: J.date(json, <String>['date_creation']),
         patientId: J.intOf(json, <String>['adv_id_patient']),
         commentCount: J.intOf(json, <String>['commentCount']) ?? 0,
+        files: J
+            .list(json, <String>['files'])
+            .map(Attachment.fromJson)
+            .toList(growable: false),
       );
 }
 
@@ -415,6 +424,7 @@ class DoctorAdviceComment {
     required this.comment,
     this.date,
     this.authorUserId,
+    this.files = const <Attachment>[],
   });
 
   final int idData;
@@ -422,12 +432,19 @@ class DoctorAdviceComment {
   final DateTime? date;
   final int? authorUserId;
 
+  /// Хариултын хавсралт — эмч ихэвчлэн ЗЦБ эсвэл дуу бичлэгээр хариулдаг.
+  final List<Attachment> files;
+
   factory DoctorAdviceComment.fromJson(Map<String, dynamic> json) =>
       DoctorAdviceComment(
         idData: J.intOf(json, <String>['id_data']) ?? 0,
         comment: J.strOr(json, <String>['adv_com_comment']),
         date: J.date(json, <String>['date_creation']),
         authorUserId: J.intOf(json, <String>['id']),
+        files: J
+            .list(json, <String>['files'])
+            .map(Attachment.fromJson)
+            .toList(growable: false),
       );
 }
 
@@ -443,6 +460,13 @@ class DoctorAdviceDetail {
     if (ticket.hasBody) return ticket.body.trim();
     if (comments.isNotEmpty) return comments.first.comment.trim();
     return '';
+  }
+
+  /// Гол агуулгын хамт харагдах хавсралтууд — `Body` хоосон үед эхний хариу
+  /// гол агуулга болдог тул түүний файлууд ч энд орно.
+  List<Attachment> get displayFiles {
+    if (ticket.hasBody || comments.isEmpty) return ticket.files;
+    return <Attachment>[...ticket.files, ...comments.first.files];
   }
 
   List<DoctorAdviceComment> get thread {
