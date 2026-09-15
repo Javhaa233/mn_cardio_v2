@@ -269,6 +269,33 @@ if (-not (Test-Path $plistPath)) {
     }
 }
 
+# --- 5б. iOS: мэдэгдлийн delegate --------------------------------------------
+
+Write-Step 'iOS AppDelegate-д мэдэгдлийн delegate тохируулж байна'
+
+# Энэ мөргүйгээр iOS мэдэгдлийг харуулна ч ДАРАХАД апп юу ч мэдэхгүй:
+# onDidReceiveNotificationResponse дуудагдахгүй тул чатын мэдэгдлээс
+# яриа руу орохгүй. flutter_local_notifications-ийн заавал хийх алхам.
+$appDelegatePath = 'ios/Runner/AppDelegate.swift'
+if (-not (Test-Path $appDelegatePath)) {
+    Write-Host '    ios/Runner/AppDelegate.swift олдсонгүй (macOS дээр үүсгэнэ). Алгаслаа.' -ForegroundColor Yellow
+} elseif ((Get-Content $appDelegatePath -Raw -Encoding UTF8) -match 'UNUserNotificationCenter.current\(\).delegate') {
+    Write-Skip 'AppDelegate.swift'
+} else {
+    $appDelegate = Get-Content $appDelegatePath -Raw -Encoding UTF8
+    if ($appDelegate -notmatch 'import UserNotifications') {
+        $appDelegate = $appDelegate -replace 'import UIKit', "import UIKit`r`nimport UserNotifications", 1
+    }
+    $delegateLine = @'
+    if #available(iOS 10.0, *) {
+      UNUserNotificationCenter.current().delegate = self as UNUserNotificationCenterDelegate
+    }
+'@
+    $appDelegate = $appDelegate -replace '(?m)^(\s*)return super\.application\(application, didFinishLaunchingWithOptions: launchOptions\)', "$delegateLine`r`n`$1return super.application(application, didFinishLaunchingWithOptions: launchOptions)", 1
+    Set-Content -Path $appDelegatePath -Value $appDelegate -Encoding UTF8 -NoNewline
+    Write-Ok 'AppDelegate.swift-д delegate нэмэгдлээ'
+}
+
 # --- 6. Багцууд --------------------------------------------------------------
 
 Write-Step 'Багцуудыг татаж байна (flutter pub get)'
