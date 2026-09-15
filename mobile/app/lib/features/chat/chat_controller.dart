@@ -1,16 +1,33 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/network/api_exception.dart';
+import '../../core/notifications/local_notifications.dart';
 import '../../core/util/async_state.dart';
 import 'chat_models.dart';
 import 'chat_repository.dart';
 import 'chat_socket.dart';
 
 final Uuid _uuid = Uuid();
+
+/// Хэрэглэгч яг одоо аль өрөөг нээж харж байгаа.
+///
+/// Харж буй яриандаа мэдэгдэл авах нь утгагүй — Messenger ч тэгдэггүй. Гэхдээ
+/// апп ар талдаа орсон бол нээлттэй өрөөнийх нь мэдэгдэл хэрэгтэй, тиймээс
+/// аппын төлөвийг хамт шалгана.
+class ChatPresence {
+  ChatPresence._();
+
+  static int? activeRoomId;
+
+  static bool shouldNotify(int chatRoomId) {
+    if (activeRoomId != chatRoomId) return true;
+    return WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed;
+  }
+}
 
 /// Чатын өрөөнүүдийн жагсаалт ба нийт уншаагүйн тоо.
 class ChatRoomsController extends ChangeNotifier {
@@ -41,6 +58,8 @@ class ChatRoomsController extends ChangeNotifier {
   int get totalUnread =>
       rooms.fold<int>(0, (int sum, ChatRoom r) => sum + r.unreadCount);
 
+  bool _askedPermission = false;
+
   Future<void> load({bool refresh = false}) async {
     _emit(refresh && _state.hasData
         ? _state.toRefreshing()
@@ -51,6 +70,12 @@ class ChatRoomsController extends ChangeNotifier {
       _socket.me = result.me;
       _emit(AsyncState<List<ChatRoom>>.ready(result.rooms));
       await _socket.connect();
+      // Мэдэгдлийн зөвшөөрлийг чат бэлэн болмогц нэг л удаа асууна: шинэ
+      // мессежийг мэдэгдэх цорын ганц зам энэ (push түлхүүр ирээгүй).
+      if (!_askedPermission) {
+        _askedPermission = true;
+        unawaited(LocalNotifications.requestPermission());
+      }
     } on ApiException catch (e) {
       _emit(AsyncState<List<ChatRoom>>.error(e, data: _state.data));
     }
@@ -67,6 +92,15 @@ class ChatRoomsController extends ChangeNotifier {
         current.indexWhere((ChatRoom r) => r.chatRoomId == message.chatRoomId);
     if (index == -1) {
       // Танихгүй өрөө — шинэ яриа эхэлсэн байж болно.
+      if (!(_me?.matches(message.userType, message.userId) ?? message.isMine)) {
+        _notify(
+          chatRoomId: message.chatRoomId,
+          title: message.senderName.trim().isEmpty
+              ? 'Шинэ мессеж'
+              : message.senderName.trim(),
+          body: _preview(message),
+        );
+      }
       load(refresh: true);
       return;
     }
@@ -90,6 +124,54 @@ class ChatRoomsController extends ChangeNotifier {
         (ChatRoom r) => r.chatRoomId == room.chatRoomId && !identical(r, updated),
       );
     _emit(AsyncState<List<ChatRoom>>.ready(next));
+
+    if (!isMine && !room.isMuted) {
+      final sender = message.senderName.trim();
+      final preview = _preview(message);
+      _notify(
+        chatRoomId: room.chatRoomId,
+        title: room.isGroup
+            ? room.name
+            : (sender.isNotEmpty ? sender : room.name),
+        body: room.isGroup && sender.isNotEmpty ? '$sender: $preview' : preview,
+      );
+    }
+  }
+
+  /// Өөр дэлгэц дээр байхад ирсэн мессежийг төхөөрөмжийн мэдэгдлээр хэлнэ.
+  ///
+  /// Дарахад яг тэр өрөө нээгдэнэ — ачаанд өрөөний дугаар явна
+  /// (features/notifications/notification_router.dart).
+  void _notify({
+    required int chatRoomId,
+    required String title,
+    required String body,
+  }) {
+    if (!ChatPresence.shouldNotify(chatRoomId)) return;
+    unawaited(
+      LocalNotifications.showChat(
+        chatRoomId: chatRoomId,
+        title: title,
+        body: body,
+      ),
+    );
+  }
+
+  /// Түгжээний дэлгэц дээр эмнэлгийн бичвэр харуулахгүй байх нь зөв ч
+  /// хавсралт бүхий мессежид харуулах текст огт байхгүй — юу ирснийг нь
+  /// хэлэхгүй бол мэдэгдэл хоосон болно (серверийн PushPreview-тэй нэг ёсон).
+  String _preview(ChatMessage message) {
+    final text = message.text.trim();
+    if (text.isNotEmpty) {
+      return text.length > 120 ? '${text.substring(0, 119)}…' : text;
+    }
+    for (final a in message.attachments) {
+      if (a.isAudio) return '🎤 Дуут мессеж';
+      if (a.isVideo) return '🎬 Видео бичлэг';
+      if (a.isImage) return '📷 Зураг';
+    }
+    if (message.hasAttachments) return '📎 Файл';
+    return 'Шинэ мессеж';
   }
 
   /// Өрөө уншигдсаныг жагсаалтад тусгана.

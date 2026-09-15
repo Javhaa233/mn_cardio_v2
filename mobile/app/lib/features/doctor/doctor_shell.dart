@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/notifications/local_notifications.dart';
+import '../notifications/notification_router.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_rooms_screen.dart';
 import 'doctor_home_screen.dart';
@@ -25,6 +27,11 @@ class _DoctorShellState extends State<DoctorShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Апп хаалттай байхад мэдэгдэл дээр дарсан бол тэр хэсэг рүү нь очно.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final payload = LocalNotifications.takeLaunchPayload();
+      if (payload != null) routeNotificationPayload(payload);
+    });
   }
 
   @override

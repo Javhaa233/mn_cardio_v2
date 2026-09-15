@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 
+import 'core/app_navigator.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/network/api_client.dart';
 import 'core/storage/secure_store.dart';
@@ -40,6 +41,8 @@ class MnCardioApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      // Мэдэгдэл дээр дарахад энэ түлхүүрээр шилжинэ (core/app_navigator.dart).
+      navigatorKey: appNavigatorKey,
       title: 'МнКардио',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.light(),

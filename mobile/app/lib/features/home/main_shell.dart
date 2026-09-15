@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/auth/auth_controller.dart';
+import '../../core/notifications/local_notifications.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_rooms_screen.dart';
 import '../journal/journal_screen.dart';
+import '../notifications/notification_router.dart';
 import '../settings/settings_screen.dart';
 import 'home_screen.dart';
 import '../../shared/theme/app_colors.dart';
@@ -24,6 +26,11 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Апп хаалттай байхад мэдэгдэл дээр дарсан бол тэр хэсэг рүү нь очно.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final payload = LocalNotifications.takeLaunchPayload();
+      if (payload != null) routeNotificationPayload(payload);
+    });
   }
 
   @override

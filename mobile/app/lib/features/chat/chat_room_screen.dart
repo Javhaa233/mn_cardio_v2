@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/network/api_client.dart';
+import '../../core/notifications/local_notifications.dart';
 import '../../core/network/api_exception.dart';
 import '../../core/storage/secure_store.dart';
 import '../../core/util/mn_format.dart';
@@ -40,6 +41,10 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Энэ өрөөг харж байхад түүний мэдэгдэл илүүц, мөн хуучин мэдэгдэл
+    // мэдэгдлийн төвд үлдэх ёсгүй.
+    ChatPresence.activeRoomId = widget.room.chatRoomId;
+    LocalNotifications.clearChat(widget.room.chatRoomId);
     _controller = ChatConversationController(
       repo: context.read<ChatRepository>(),
       socket: context.read<ChatSocket>(),
@@ -53,6 +58,9 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    if (ChatPresence.activeRoomId == widget.room.chatRoomId) {
+      ChatPresence.activeRoomId = null;
+    }
     _scroll
       ..removeListener(_onScroll)
       ..dispose();

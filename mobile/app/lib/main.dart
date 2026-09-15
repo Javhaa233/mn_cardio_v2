@@ -14,6 +14,7 @@ import 'core/storage/prefs.dart';
 import 'core/network/envelope_interceptor.dart';
 import 'core/storage/secure_store.dart';
 import 'core/update/update_controller.dart';
+import 'features/notifications/notification_router.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -52,6 +53,9 @@ Future<void> main() async {
 
   // Мэдэгдлийн сувгийг урьдчилан бэлдэнэ. Зөвшөөрлийг энд асуухгүй —
   // хэрэглэгч сануулга үүсгэх мөчид асуувал яагаад гэдэг нь ойлгомжтой.
+  // Мэдэгдэл дээр дарахад хаашаа очихыг features давхарга шийднэ — core нь
+  // дэлгэцүүдийг мэдэхгүй байх ёстой.
+  LocalNotifications.onTap = routeNotificationPayload;
   await LocalNotifications.init();
   await reminders.load();
 
