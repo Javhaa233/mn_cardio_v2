@@ -558,6 +558,13 @@ class DoctorRepository {
     await _api.postMultipart(path, form: form);
   }
 
+  /// Нэг үзлэгийн хэвлэх хувилбар (PDF) — `GET /api/doctor/visits/:id/print`.
+  ///
+  /// JSON дугтуй биш, **файл** буцаана. Эх сурвалжийн тэмдэглэгээг сервер
+  /// өөрөө тавина (§1.8).
+  Future<List<int>> fetchVisitPdf(int id) =>
+      _api.downloadBytes('/api/doctor/visits/$id/print');
+
   /// Эмчийн ажлын дараалал. `scope=mine` анхдагч, `unassigned` нь миний
   /// үйлчлүүлэгчдийн эзэнгүй хүсэлт, `all` нь зөвхөн админд.
   Future<Paged<DoctorEvisit>> fetchEvisits({
