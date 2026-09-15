@@ -121,6 +121,7 @@ class ChatRepository {
     required List<File> files,
     ChatMe? me,
     void Function(int sent, int total)? onProgress,
+    int? durationMs,
   }) async {
     for (final file in files) {
       if (!isAllowedFile(file.path)) {
@@ -156,6 +157,7 @@ class ChatRepository {
         messageId: messageId,
         files: files,
         onProgress: onProgress,
+        durationMs: durationMs,
       );
     } on ApiException catch (e) {
       uploadError = e;
@@ -194,6 +196,7 @@ class ChatRepository {
     required int messageId,
     required List<File> files,
     void Function(int sent, int total)? onProgress,
+    int? durationMs,
   }) async {
     final fields = <String, dynamic>{
       'LinkedObjectInfo': jsonEncode(<String, dynamic>{
@@ -207,7 +210,14 @@ class ChatRepository {
       fields['File$i'] =
           await MultipartFile.fromFile(files[i].path, filename: name);
       // Шинэ файл: `id_data` байхгүй, харин `Name` заавал.
-      fields['File${i}Info'] = jsonEncode(<String, dynamic>{'Name': name});
+      //
+      // Бичлэгийн урт: бичиж байхдаа мэдэж байгаа тул шууд явуулна. Сервер
+      // `ffprobe`-оор дахин хэмжиж дарж бичнэ; `ffmpeg` байхгүй хост дээр бол
+      // энэ тоо л үлдэнэ — үгүй бол хэрэглэгч `–:--` харна (CHAT-MEDIA §4).
+      fields['File${i}Info'] = jsonEncode(<String, dynamic>{
+        'Name': name,
+        if (i == 0 && durationMs != null) 'DurationMs': durationMs,
+      });
     }
 
     await _api.upload(

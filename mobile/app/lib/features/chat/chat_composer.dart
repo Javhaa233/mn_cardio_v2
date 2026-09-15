@@ -1,10 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:record/record.dart';
 
+import '../../core/util/mn_format.dart';
+import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/app_snack.dart';
 import 'chat_repository.dart';
 
@@ -14,20 +19,24 @@ import 'chat_repository.dart';
 /// Техникийн шаардлагын "текстээс гадна зураг, дуу бичлэг, баримт бичиг
 /// хавсаргах" шаардлага.
 ///
-/// Микрофоноор шууд дуу бичих боломжийг 2026-09-11-нд хассан. Аудио файл
-/// "Баримт бичиг" цэсээр хавсаргагдсан хэвээр — шаардлагын "дуу бичлэг" хэсэг
-/// тэгж хангагдана.
+/// Микрофоноор шууд дуу бичиж илгээнэ (2026-09-15). Текст хоосон үед илгээх
+/// товч микрофон болж, дарахад бичлэг эхэлнэ — мессенжерүүдийн зуршил.
+/// Бичлэгийг `m4a`/AAC-аар хадгална: iPhone `webm`-ийг тоглуулдаггүй.
 class ChatComposer extends StatefulWidget {
   const ChatComposer({
     super.key,
     required this.onSendText,
     required this.onSendFiles,
+    required this.onSendVoice,
     required this.onTyping,
     this.sending = false,
   });
 
   final Future<void> Function(String text) onSendText;
   final Future<void> Function(List<File> files, String caption) onSendFiles;
+
+  /// Дуут мессеж — уртыг нь сервер рүү дамжуулахын тулд тусад нь.
+  final Future<void> Function(File file, int durationMs) onSendVoice;
   final VoidCallback onTyping;
   final bool sending;
 
@@ -43,6 +52,13 @@ class _ChatComposerState extends State<ChatComposer> {
 
   /// Текст бичигдсэн эсэх — товч микрофон уу, "илгээх" үү гэдгийг шийднэ.
   bool _hasText = false;
+
+  final AudioRecorder _recorder = AudioRecorder();
+  bool _recording = false;
+  bool _preparing = false;
+  DateTime? _recordStartedAt;
+  Duration _elapsed = Duration.zero;
+  Timer? _ticker;
 
   @override
   void initState() {
@@ -61,11 +77,118 @@ class _ChatComposerState extends State<ChatComposer> {
 
   @override
   void dispose() {
+    _ticker?.cancel();
+    // Бичиж байхад дэлгэц хаагдвал микрофоныг заавал сулална.
+    unawaited(_recorder.dispose());
     _input
       ..removeListener(_onTextChanged)
       ..dispose();
     _focus.dispose();
     super.dispose();
+  }
+
+  // -------------------------------------------------------------------
+  // Дуут мессеж
+  // -------------------------------------------------------------------
+
+  Future<void> _startRecording() async {
+    if (_recording || _preparing) return;
+    setState(() => _preparing = true);
+    try {
+      // Зөвшөөрлийг энд асууна — хэрэглэгч яагаад гэдгийг мэдэж байна.
+      if (!await _recorder.hasPermission()) {
+        if (mounted) {
+          AppSnack.error(context, 'Микрофон ашиглах зөвшөөрөл өгнө үү.');
+        }
+        return;
+      }
+
+      final dir = await getTemporaryDirectory();
+      final path = p.join(
+        dir.path,
+        'voice_${DateTime.now().millisecondsSinceEpoch}.m4a',
+      );
+      await _recorder.start(
+        // AAC/M4A: iOS, Android хоёулаа шууд тоглуулна. 64 kbps нь ярианд
+        // хангалттай бөгөөд 50 МБ-ын хязгаарт олон минут багтана.
+        const RecordConfig(
+          encoder: AudioEncoder.aacLc,
+          bitRate: 64000,
+          sampleRate: 44100,
+          numChannels: 1,
+        ),
+        path: path,
+      );
+      if (!mounted) return;
+      setState(() {
+        _recording = true;
+        _recordStartedAt = DateTime.now();
+        _elapsed = Duration.zero;
+      });
+      _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
+        final start = _recordStartedAt;
+        if (!mounted || start == null) return;
+        setState(() => _elapsed = DateTime.now().difference(start));
+      });
+    } catch (_) {
+      if (mounted) AppSnack.error(context, 'Бичлэг эхлүүлж чадсангүй.');
+    } finally {
+      if (mounted) setState(() => _preparing = false);
+    }
+  }
+
+  Future<void> _cancelRecording() async {
+    _ticker?.cancel();
+    try {
+      final path = await _recorder.stop();
+      if (path != null) {
+        final file = File(path);
+        if (file.existsSync()) await file.delete();
+      }
+    } catch (_) {
+      // Файл устгаж чадаагүй нь хэрэглэгчид хамаагүй.
+    }
+    if (!mounted) return;
+    setState(() {
+      _recording = false;
+      _recordStartedAt = null;
+      _elapsed = Duration.zero;
+    });
+  }
+
+  Future<void> _stopAndSend() async {
+    _ticker?.cancel();
+    final started = _recordStartedAt;
+    String? path;
+    try {
+      path = await _recorder.stop();
+    } catch (_) {
+      path = null;
+    }
+    if (!mounted) return;
+
+    final duration = started == null
+        ? _elapsed
+        : DateTime.now().difference(started);
+    setState(() {
+      _recording = false;
+      _recordStartedAt = null;
+      _elapsed = Duration.zero;
+    });
+
+    if (path == null) {
+      AppSnack.error(context, 'Бичлэг хадгалагдсангүй.');
+      return;
+    }
+    final file = File(path);
+    if (!file.existsSync() || duration.inMilliseconds < 700) {
+      // Санамсаргүй дарахад хоосон мессеж явахаас сэргийлнэ.
+      if (file.existsSync()) await file.delete();
+      if (mounted) AppSnack.info(context, 'Бичлэг хэтэрхий богино байна.');
+      return;
+    }
+
+    await widget.onSendVoice(file, duration.inMilliseconds);
   }
 
   @override
@@ -86,6 +209,13 @@ class _ChatComposerState extends State<ChatComposer> {
               files: _pending,
               onRemove: (File f) => setState(() => _pending.remove(f)),
             ),
+            if (_recording)
+              _RecordingBar(
+                elapsed: _elapsed,
+                onCancel: _cancelRecording,
+                onSend: _stopAndSend,
+              )
+            else
             Padding(
               padding: const EdgeInsets.fromLTRB(8, 8, 8, 8),
               child: Row(
@@ -116,11 +246,18 @@ class _ChatComposerState extends State<ChatComposer> {
                     ),
                   ),
                   const SizedBox(width: 6),
-                  _SendButton(
-                    sending: widget.sending,
-                    canSend: _hasText || _pending.isNotEmpty,
-                    onSend: _send,
-                  ),
+                  // Бичих зүйлгүй үед микрофон — Messenger-ийн зуршил.
+                  if (!_hasText && _pending.isEmpty)
+                    _MicButton(
+                      busy: _preparing || widget.sending,
+                      onPressed: _startRecording,
+                    )
+                  else
+                    _SendButton(
+                      sending: widget.sending,
+                      canSend: _hasText || _pending.isNotEmpty,
+                      onSend: _send,
+                    ),
                 ],
               ),
             ),
@@ -374,5 +511,127 @@ class _PendingStrip extends StatelessWidget {
       return Icons.audio_file_outlined;
     }
     return Icons.insert_drive_file_outlined;
+  }
+}
+
+/// Бичиж байх үеийн мөр — цаг, цуцлах, илгээх.
+class _RecordingBar extends StatelessWidget {
+  const _RecordingBar({
+    required this.elapsed,
+    required this.onCancel,
+    required this.onSend,
+  });
+
+  final Duration elapsed;
+  final VoidCallback onCancel;
+  final VoidCallback onSend;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
+      child: Row(
+        children: <Widget>[
+          const _PulsingDot(),
+          const SizedBox(width: 10),
+          Text(
+            MnFormat.duration(elapsed.inSeconds),
+            style: theme.textTheme.titleSmall,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Дуу бичиж байна…',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+          TextButton(onPressed: onCancel, child: const Text('Цуцлах')),
+          const SizedBox(width: 4),
+          SizedBox(
+            width: 48,
+            height: 48,
+            child: FilledButton(
+              onPressed: onSend,
+              style: FilledButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(48, 48),
+                shape: const CircleBorder(),
+              ),
+              child: const Icon(Icons.send_rounded, size: 20),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PulsingDot extends StatefulWidget {
+  const _PulsingDot();
+
+  @override
+  State<_PulsingDot> createState() => _PulsingDotState();
+}
+
+class _PulsingDotState extends State<_PulsingDot>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _controller.drive(Tween<double>(begin: 0.35, end: 1)),
+      child: Container(
+        width: 12,
+        height: 12,
+        decoration: const BoxDecoration(
+          color: AppColors.danger,
+          shape: BoxShape.circle,
+        ),
+      ),
+    );
+  }
+}
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.busy, required this.onPressed});
+
+  final bool busy;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 48,
+      height: 48,
+      child: FilledButton(
+        onPressed: busy ? null : onPressed,
+        style: FilledButton.styleFrom(
+          padding: EdgeInsets.zero,
+          minimumSize: const Size(48, 48),
+          shape: const CircleBorder(),
+        ),
+        child: busy
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.mic_rounded, size: 20),
+      ),
+    );
   }
 }

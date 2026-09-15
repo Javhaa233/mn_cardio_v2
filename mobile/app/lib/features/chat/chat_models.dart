@@ -180,11 +180,46 @@ class ChatAttachment {
     this.ext,
     this.thumbnailSrc,
     this.type,
+    this.kind,
+    this.generatedName,
+    this.durationMs,
+    this.mediaState,
   });
 
   final int fileId;
   final String name;
   final String? ext;
+
+  /// `audio` · `video` · `image` · `file`. **Өргөтгөлөөр биш үүгээр салгана**:
+  /// `.webm` нь видео, `.weba` нь дуу — контейнер нь ижил (CHAT-MEDIA §2).
+  final String? kind;
+
+  /// Сервер дээрх файлын нэр. Хөрвүүлэлтийн дараа ч өөрчлөгддөггүй тул
+  /// тоглуулах холбоос, кэшийн түлхүүр болно.
+  final String? generatedName;
+
+  /// Бичлэгийн урт (мс). Татахаас өмнө `0:42` гэж харуулна.
+  final int? durationMs;
+
+  /// `null` · `pending` · `done` · `failed`. **Хавсралтыг нуух шалтгаан биш** —
+  /// `pending` үед эх бичлэг аль хэдийн тоглогдоно.
+  final String? mediaState;
+
+  /// Toglуулах, татах зам. Токен нь толгойгоор явна.
+  String? get streamUrl {
+    final name = (generatedName ?? '').trim();
+    if (name.isEmpty) return null;
+    return '/api/Media/stream/$name';
+  }
+
+  bool get isVideo {
+    if ((kind ?? '').toLowerCase() == 'video') return true;
+    final e = (ext ?? '').toLowerCase().replaceAll('.', '');
+    return const <String>['mp4', 'm4v', 'mov'].contains(e);
+  }
+
+  /// Хөрвүүлэлт хийгдэж байгаа — тоглуулахад саад биш.
+  bool get isConverting => (mediaState ?? '') == 'pending';
 
   /// Зурган хавсралтын жижиг урьдчилсан харагдац (base64 data URI).
   final String? thumbnailSrc;
@@ -192,6 +227,7 @@ class ChatAttachment {
   final String? type;
 
   bool get isImage {
+    if ((kind ?? '').toLowerCase() == 'image') return true;
     final t = (type ?? '').toLowerCase();
     if (t.contains('image')) return true;
     final e = (ext ?? '').toLowerCase().replaceAll('.', '');
@@ -200,8 +236,11 @@ class ChatAttachment {
   }
 
   bool get isAudio {
+    if ((kind ?? '').toLowerCase() == 'audio') return true;
+    // `kind` ирээгүй хуучин мессежид өргөтгөлөөр таана. `webm` нь видео байж
+    // болох тул энд оруулахгүй — түүнийг `kind` шийднэ.
     final e = (ext ?? '').toLowerCase().replaceAll('.', '');
-    return const <String>['mp3', 'm4a', 'aac', 'ogg', 'wav', 'webm']
+    return const <String>['mp3', 'm4a', 'aac', 'ogg', 'wav', 'weba']
         .contains(e);
   }
 
@@ -217,6 +256,12 @@ class ChatAttachment {
       ext: J.str(info, <String>['ext']),
       thumbnailSrc: J.str(json, <String>['FileSrc']),
       type: J.str(json, <String>['Type']),
+      kind: J.str(json, <String>['Kind']) ?? J.str(info, <String>['Kind']),
+      generatedName: J.str(info, <String>['generated_name', 'GeneratedName']),
+      durationMs: J.intOf(json, <String>['DurationMs']) ??
+          J.intOf(info, <String>['DurationMs', 'duration_ms']),
+      mediaState: J.str(json, <String>['MediaState']) ??
+          J.str(info, <String>['MediaState', 'media_state']),
     );
   }
 }

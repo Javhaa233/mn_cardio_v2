@@ -10,6 +10,7 @@ import '../../core/network/api_exception.dart';
 import '../../core/util/json_read.dart';
 import '../../core/util/mn_format.dart';
 import 'app_snack.dart';
+import 'media_views.dart';
 
 /// Асуулт, хариун дээрх нэг хавсралт — API.md §9.4.
 ///
@@ -57,10 +58,10 @@ class Attachment {
       );
 }
 
-/// Хавсралтыг харуулж, дарахад татаж нээнэ.
+/// Хавсралт.
 ///
-/// Урьдчилан татахгүй: эмнэлгийн сүлжээ удаан байж болох бөгөөд хэрэглэгч
-/// нээгээгүй файлыг татах шалтгаангүй.
+/// Зураг, дуу бичлэгийг **шууд** харуулж, сонсгоно — татаад өөр програмаар
+/// нээх шаардлагагүй. Бусад файлыг дарахад татаж нээнэ.
 class AttachmentChip extends StatefulWidget {
   const AttachmentChip({
     super.key,
@@ -111,6 +112,39 @@ class _AttachmentChipState extends State<AttachmentChip> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final size = widget.attachment.size;
+    final url = widget.attachment.url;
+
+    if (url != null && widget.attachment.isImage) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => FullScreenImage(
+                api: widget.api,
+                url: url,
+                title: widget.attachment.fileName,
+              ),
+            ),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 230, maxHeight: 260),
+            child: AuthedImage(api: widget.api, url: url, width: 230),
+          ),
+        ),
+      );
+    }
+
+    if (url != null && widget.attachment.isAudio) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: AudioMessagePlayer(
+          api: widget.api,
+          url: url,
+          fileName: widget.attachment.fileName,
+        ),
+      );
+    }
 
     return InkWell(
       onTap: _open,

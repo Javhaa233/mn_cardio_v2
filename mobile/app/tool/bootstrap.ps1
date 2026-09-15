@@ -96,6 +96,8 @@ $permissions = @'
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!-- Чатын хавсралт: зураг авах -->
+    <!-- Чатын дуут мессеж -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.CAMERA" />
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
@@ -250,6 +252,8 @@ if (-not (Test-Path $plistPath)) {
     $usage = @'
 	<key>NSFaceIDUsageDescription</key>
 	<string>МнКардио аппад нууц үг оруулахгүйгээр аюулгүй нэвтрэхэд Face ID ашиглана.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Эмчдээ дуут мессеж илгээхийн тулд микрофон ашиглана.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Эмчдээ зураг илгээхийн тулд камер ашиглана.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

@@ -6,8 +6,11 @@ import 'package:flutter/material.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:provider/provider.dart';
 
+import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/storage/secure_store.dart';
 import '../../core/util/mn_format.dart';
+import '../../shared/widgets/media_views.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/state_views.dart';
 import 'chat_composer.dart';
@@ -219,6 +222,16 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                     );
                     _afterSend(error);
                   },
+                  onSendVoice: (File file, int durationMs) async {
+                    controller.stopTyping();
+                    final error = await controller.sendAttachments(
+                      files: <File>[file],
+                      // Уртыг нь сервер рүү дамжуулна: `ffprobe` ажиллах
+                      // хүртэл (эсвэл огт байхгүй бол) энэ тоо л харагдана.
+                      durationMs: durationMs,
+                    );
+                    _afterSend(error);
+                  },
                 );
               },
             ),
@@ -412,7 +425,11 @@ class _MessageBubble extends StatelessWidget {
   }
 }
 
-/// Хавсралт — зураг бол урьдчилан харагдац, бусад нь татаж нээх мөр.
+/// Хавсралт.
+///
+/// Зураг, дуу, видеог **шууд** харуулна: татаад системийн програмаар нээх нь
+/// мессенжерийн зуршилд харш бөгөөд эмч, үйлчлүүлэгч хоёрын хоорондох хурдан
+/// харилцааг удаашруулдаг. Бусад төрлийн файлыг л татаж нээнэ.
 class _AttachmentView extends StatefulWidget {
   const _AttachmentView({required this.attachment});
 
@@ -427,6 +444,84 @@ class _AttachmentViewState extends State<_AttachmentView> {
 
   @override
   Widget build(BuildContext context) {
+    final attachment = widget.attachment;
+    final url = attachment.streamUrl;
+    final api = context.read<ApiClient>();
+
+    // Зураг — бөмбөлөг дотор шууд, дарахад бүтэн дэлгэцээр.
+    if (url != null && attachment.isImage) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: GestureDetector(
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => FullScreenImage(
+                api: api,
+                url: url,
+                title: attachment.name,
+              ),
+            ),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 230, maxHeight: 260),
+            child: AuthedImage(api: api, url: url, width: 230),
+          ),
+        ),
+      );
+    }
+
+    // Дуут мессеж — бөмбөлөг дотроос шууд сонсоно.
+    if (url != null && attachment.isAudio) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: AudioMessagePlayer(
+          api: api,
+          url: url,
+          fileName: attachment.name,
+          durationMs: attachment.durationMs,
+        ),
+      );
+    }
+
+    // Видео — жижиг хавтан, дарахад тоглуулагч нээгдэнэ.
+    if (url != null && attachment.isVideo) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: InkWell(
+          onTap: () => _openVideo(url),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            width: 230,
+            height: 130,
+            decoration: BoxDecoration(
+              color: Colors.black87,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            alignment: Alignment.center,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                const Icon(Icons.play_circle_fill_rounded,
+                    size: 46, color: Colors.white70),
+                if (attachment.durationMs != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      MnFormat.duration(attachment.durationMs! ~/ 1000),
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return _fileRow(context);
+  }
+
+  Widget _fileRow(BuildContext context) {
     final theme = Theme.of(context);
     final attachment = widget.attachment;
     final thumbnail = _decodeThumbnail(attachment.thumbnailSrc);
@@ -458,11 +553,9 @@ class _AttachmentViewState extends State<_AttachmentView> {
               )
             else
               Icon(
-                attachment.isAudio
-                    ? Icons.play_circle_outline_rounded
-                    : attachment.isImage
-                        ? Icons.image_outlined
-                        : Icons.insert_drive_file_outlined,
+                attachment.isImage
+                    ? Icons.image_outlined
+                    : Icons.insert_drive_file_outlined,
                 size: 26,
                 color: theme.colorScheme.primary,
               ),
@@ -482,17 +575,29 @@ class _AttachmentViewState extends State<_AttachmentView> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    _busy
-                        ? 'Татаж байна…'
-                        : attachment.isAudio
-                            ? 'Сонсохын тулд дарна уу'
-                            : 'Нээхийн тулд дарна уу',
+                    _busy ? 'Татаж байна…' : 'Нээхийн тулд дарна уу',
                     style: theme.textTheme.bodySmall?.copyWith(fontSize: 11),
                   ),
                 ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openVideo(String url) async {
+    // Видеог урсгалаар тоглуулна — токен нь толгойгоор явна.
+    final token = await context.read<SecureStore>().readAccessToken();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => VideoMessageScreen(
+          api: context.read<ApiClient>(),
+          url: url,
+          token: token,
+          title: widget.attachment.name,
         ),
       ),
     );

@@ -346,6 +346,7 @@ class ChatConversationController extends ChangeNotifier {
     required List<File> files,
     String text = '',
     void Function(int sent, int total)? onProgress,
+    int? durationMs,
   }) async {
     if (files.isEmpty) return null;
     _sending = true;
@@ -373,6 +374,7 @@ class ChatConversationController extends ChangeNotifier {
         files: files,
         me: _me,
         onProgress: onProgress,
+        durationMs: durationMs,
       );
       _replaceOptimistic(clientMsgId, saved);
       _failedFiles.remove(clientMsgId);
