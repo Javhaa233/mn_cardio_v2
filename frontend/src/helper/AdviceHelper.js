@@ -166,6 +166,22 @@ AdviceHelper.prototype.SaveComment = async (
   );
 };
 
+/**
+ * A short-lived, playable URL for one Advice or AdviceComment attachment.
+ *
+ * A browser <audio> cannot send an Authorization header, so it cannot use
+ * /api/Media/stream. The server mints a ticket scoped to one file and one user
+ * instead, redeemed at /api/Media/t/<ticket>. Passed to VoiceNote as FetchLink;
+ * chat has its own because the two authorize differently.
+ */
+AdviceHelper.prototype.GetAttachmentLink = async ({ FileId }, callback) => {
+  await Helper.BaseCrudHelper.CallService(
+    "/Advice/GetAttachmentLink",
+    { FileId },
+    (resData) => callback && callback(resData),
+  );
+};
+
 AdviceHelper.prototype.CustomSave = async (Data, callback) => {
   await Helper.BaseCrudHelper.CallService(
     "/Advice/CustomSave",

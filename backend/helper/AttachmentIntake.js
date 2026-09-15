@@ -31,6 +31,8 @@ const BaseControllerHelper = require('./BaseControllerHelper');
 const BaseHelper = require('./BaseHelper');
 const ImageHelper = require('./ImageHelper');
 const MediaSniff = require('./MediaSniff');
+const MediaStream = require('./MediaStream');
+const MediaMeta = require('./MediaMeta');
 const { Models } = require('../config/DB');
 const {
   MAX_UPLOAD_CEILING,
@@ -288,9 +290,31 @@ async function ListFor({ LinkedObjectName, Ids }) {
     raw: true,
   });
 
+  /*
+   * Durations for anything playable, in ONE query for the whole page.
+   *
+   * A client deciding between an audio player and a download chip should not
+   * have to guess from the extension, and a player with no length shows
+   * "-:--" until the bytes arrive. `kind` comes from the same classifier the
+   * streaming layer uses, so the two can never disagree about whether a
+   * '.webm' is audio or video.
+   *
+   * MediaMeta is SchemaProbe-gated: where add_file_media_columns.sql has not
+   * run this returns an empty map and every duration is null. The player still
+   * plays; it just cannot label the length in advance.
+   */
+  const playable = rows.filter((r) => {
+    const k = MediaStream.Kind(r.ext);
+    return k === 'audio' || k === 'video';
+  });
+  const metaById = playable.length
+    ? await MediaMeta.Read(playable.map((r) => r.id_data))
+    : new Map();
+
   const byId = new Map();
   rows.forEach((r) => {
     const list = byId.get(r.LinkedObjectId) || [];
+    const meta = metaById.get(r.id_data) || null;
     list.push({
       id: r.id_data,
       // original_name is stored WITHOUT its extension (BaseController strips it
@@ -299,6 +323,9 @@ async function ListFor({ LinkedObjectName, Ids }) {
       name: r.ext ? r.original_name + '.' + r.ext : r.original_name,
       ext: r.ext,
       size: r.size,
+      kind: MediaStream.Kind(r.ext),
+      durationMs: meta ? meta.DurationMs : null,
+      mediaState: meta ? meta.MediaState : null,
       url: '/api/Media/stream/' + r.generated_name,
     });
     byId.set(r.LinkedObjectId, list);

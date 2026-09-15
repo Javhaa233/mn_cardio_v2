@@ -21,8 +21,10 @@ import { useChatContext } from "customComponents/Chat/ChatContext";
  * is right for "saved successfully" and completely wrong for an incoming
  * message - it would interrupt a doctor mid-form, several times a conversation.
  *
- * Bottom-LEFT on purpose. The chat dock lives bottom-right, so a toast there
- * would cover the very thing it is telling you to open.
+ * Top-RIGHT, under the navbar's notification bell. Bottom-left sat on top of
+ * the sidebar, and bottom-right would cover the chat dock it points to. The
+ * same message also lands in the bell (one row per room), so the toast
+ * appearing next to the bell ties the two together.
  *
  * The provider decides when to raise this: never while you are already looking
  * at that conversation, and the OS notification is used instead when the tab is
@@ -45,7 +47,9 @@ export default function ChatToast() {
         chat.DismissToast();
       }}
       autoHideDuration={8000}
-      anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+      anchorOrigin={{ vertical: "top", horizontal: "right" }}
+      // Clear the navbar (the bell sits in it) instead of covering it.
+      sx={{ top: { xs: 64, sm: 72 } }}
     >
       <Box
         sx={{

@@ -6,28 +6,40 @@ import PropTypes from "prop-types";
 import { styled } from "@mui/material/styles";
 import Button from "@mui/material/Button";
 
-import {
-  grayColor,
-  roseColor,
-  primaryColor,
-  infoColor,
-  successColor,
-  warningColor,
-  dangerColor,
-  whiteColor,
-  blackColor,
-  twitterColor,
-  facebookColor,
-  googleColor,
-  linkedinColor,
-  pinterestColor,
-  youtubeColor,
-  tumblrColor,
-  behanceColor,
-  dribbbleColor,
-  redditColor,
-  hexToRgb,
-} from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { radius, motion } from "@/theme/tokens";
+import { gridToolbarButtonSx, legacyButtonRank } from "@/theme/controlStyles";
+
+/**
+ * The Creative Tim button, kept for its 89 call sites and restyled onto the
+ * brand ranks.
+ *
+ * It used to paint the template's palette - green `success`, teal `info`, red
+ * `danger`, pink `rose`, orange `warning` - each filled, uppercase, with a
+ * coloured drop shadow that grew on hover. A dialog footer or an action bar
+ * therefore showed three or four equally loud buttons. The `color` prop is now
+ * read as a rank (see `legacyButtonRank`): `primary`/`success` fill with
+ * `cyanInk`, `danger`/`rose` are outlined red, everything else is outlined
+ * neutral. The props and their layout meaning (`size`, `round`, `justIcon`,
+ * `simple`, `block`, `fullWidth`, `link`) are unchanged.
+ *
+ * Two colours are chrome, not ranks, and keep their meaning:
+ *   - `white` on a coloured bar (the sidebar toggle, `simple`) is white text;
+ *     on its own it is a white button, i.e. neutral.
+ *   - `transparent` is a ghost that inherits the surrounding colour.
+ *
+ * Sizes: `theme.js` MuiButton.root forces padding, min-height and font size
+ * with `!important`, so `size="sm"`/`"lg"` never changed them in practice and
+ * no longer try to. `justIcon` keeps its square geometry.
+ */
+
+/** Text colour for a rank when the button has no fill (`simple`, `link`). */
+const quietColor = (rank, color) => {
+  if (color === "white") return colors.text.white;
+  if (rank === "primary") return colors.brand.cyanInk;
+  if (rank === "danger") return colors.status.danger;
+  return colors.brand.ink;
+};
 
 const StyledButton = styled(Button, {
   shouldForwardProp: (prop) =>
@@ -41,469 +53,23 @@ const StyledButton = styled(Button, {
       "justIcon",
       "muiClasses",
     ].includes(prop),
-})(({
-  theme,
-  color,
-  round,
-  fullWidth,
-  simple,
-  block,
-  link,
-  justIcon,
-  size,
-}) => {
-  const btnColors = {
-    primary: {
-      backgroundColor: primaryColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(primaryColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(primaryColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(primaryColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: primaryColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(primaryColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(primaryColor[0]) +
-          ", 0.2)",
-      },
-    },
-    info: {
-      backgroundColor: infoColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(infoColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(infoColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(infoColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: infoColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(infoColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(infoColor[0]) +
-          ", 0.2)",
-      },
-    },
-    success: {
-      backgroundColor: successColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(successColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(successColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(successColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: successColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(successColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(successColor[0]) +
-          ", 0.2)",
-      },
-    },
-    warning: {
-      backgroundColor: warningColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(warningColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(warningColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(warningColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: warningColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(warningColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(warningColor[0]) +
-          ", 0.2)",
-      },
-    },
-    danger: {
-      backgroundColor: dangerColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(dangerColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(dangerColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(dangerColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: dangerColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(dangerColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(dangerColor[0]) +
-          ", 0.2)",
-      },
-    },
-    rose: {
-      backgroundColor: roseColor[0],
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(roseColor[0]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(roseColor[0]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(roseColor[0]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: roseColor[0],
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(roseColor[0]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(roseColor[0]) +
-          ", 0.2)",
-      },
-    },
-    white: {
-      "&,&:focus,&:hover": { backgroundColor: whiteColor, color: grayColor[0] },
-    },
-    twitter: {
-      backgroundColor: twitterColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(twitterColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(twitterColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(twitterColor) +
-        ", 0.12)",
-      "&:hover,&:focus,&:visited": {
-        backgroundColor: twitterColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(twitterColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(twitterColor) +
-          ", 0.2)",
-      },
-    },
-    facebook: {
-      backgroundColor: facebookColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(facebookColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(facebookColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(facebookColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: facebookColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(facebookColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(facebookColor) +
-          ", 0.2)",
-      },
-    },
-    google: {
-      backgroundColor: googleColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(googleColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(googleColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(googleColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: googleColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(googleColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(googleColor) +
-          ", 0.2)",
-      },
-    },
-    linkedin: {
-      backgroundColor: linkedinColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(linkedinColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(linkedinColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(linkedinColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: linkedinColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(linkedinColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(linkedinColor) +
-          ", 0.2)",
-      },
-    },
-    pinterest: {
-      backgroundColor: pinterestColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(pinterestColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(pinterestColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(pinterestColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: pinterestColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(pinterestColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(pinterestColor) +
-          ", 0.2)",
-      },
-    },
-    youtube: {
-      backgroundColor: youtubeColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(youtubeColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(youtubeColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(youtubeColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: youtubeColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(youtubeColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(youtubeColor) +
-          ", 0.2)",
-      },
-    },
-    tumblr: {
-      backgroundColor: tumblrColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(tumblrColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(tumblrColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(tumblrColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: tumblrColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(tumblrColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(tumblrColor) +
-          ", 0.2)",
-      },
-    },
-    github: {
-      backgroundColor: grayColor[7],
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(grayColor[6]) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(grayColor[6]) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(grayColor[6]) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: grayColor[7],
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(grayColor[6]) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(grayColor[6]) +
-          ", 0.2)",
-      },
-    },
-    behance: {
-      backgroundColor: behanceColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(behanceColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(behanceColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(behanceColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: behanceColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(behanceColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(behanceColor) +
-          ", 0.2)",
-      },
-    },
-    dribbble: {
-      backgroundColor: dribbbleColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(dribbbleColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(dribbbleColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(dribbbleColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: dribbbleColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(dribbbleColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(dribbbleColor) +
-          ", 0.2)",
-      },
-    },
-    reddit: {
-      backgroundColor: redditColor,
-      color: whiteColor,
-      boxShadow:
-        "0 2px 2px 0 rgba(" +
-        hexToRgb(redditColor) +
-        ", 0.14), 0 3px 1px -2px rgba(" +
-        hexToRgb(redditColor) +
-        ", 0.2), 0 1px 5px 0 rgba(" +
-        hexToRgb(redditColor) +
-        ", 0.12)",
-      "&:hover,&:focus": {
-        backgroundColor: redditColor,
-        color: whiteColor,
-        boxShadow:
-          "0 14px 26px -12px rgba(" +
-          hexToRgb(redditColor) +
-          ", 0.42), 0 4px 23px 0px rgba(" +
-          hexToRgb(blackColor) +
-          ", 0.12), 0 8px 10px -5px rgba(" +
-          hexToRgb(redditColor) +
-          ", 0.2)",
-      },
-    },
-    transparent: {
-      "&,&:focus,&:hover": {
-        color: "inherit",
-        background: "transparent",
-        boxShadow: "none",
-      },
-    },
-  };
+})(({ color, round, fullWidth, simple, block, link, justIcon, size }) => {
+  const rank = legacyButtonRank(color);
+  const quiet = simple || link;
 
-  return {
-    minHeight: "auto",
+  const base = {
+    ...gridToolbarButtonSx[rank],
+    height: "auto",
     minWidth: "auto",
-    backgroundColor: grayColor[0],
-    color: whiteColor,
-    boxShadow:
-      "0 2px 2px 0 rgba(" +
-      hexToRgb(grayColor[0]) +
-      ", 0.14), 0 3px 1px -2px rgba(" +
-      hexToRgb(grayColor[0]) +
-      ", 0.2), 0 1px 5px 0 rgba(" +
-      hexToRgb(grayColor[0]) +
-      ", 0.12)",
-    border: "none",
-    borderRadius: "3px",
     position: "relative",
-    padding: "12px 30px",
     margin: ".3125rem 1px",
-    fontSize: "12px",
-    fontWeight: "400",
-    textTransform: "uppercase",
-    letterSpacing: "0",
-    willChange: "box-shadow, transform",
-    transition:
-      "box-shadow 0.2s cubic-bezier(0.4, 0, 1, 1), background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
-    lineHeight: "1.42857143",
+    lineHeight: 1.43,
+    letterSpacing: 0,
     textAlign: "center",
-    whiteSpace: "nowrap",
     verticalAlign: "middle",
     touchAction: "manipulation",
     cursor: "pointer",
-    "&:hover,&:focus": {
-      color: whiteColor,
-      backgroundColor: grayColor[0],
-      boxShadow:
-        "0 14px 26px -12px rgba(" +
-        hexToRgb(grayColor[0]) +
-        ", 0.42), 0 4px 23px 0px rgba(" +
-        hexToRgb(blackColor) +
-        ", 0.12), 0 8px 10px -5px rgba(" +
-        hexToRgb(grayColor[0]) +
-        ", 0.2)",
-    },
+    transition: `background-color ${motion.fast}, border-color ${motion.fast}, color ${motion.fast}`,
     "& .fab,& .fas,& .far,& .fal,& .material-icons": {
       position: "relative",
       display: "inline-block",
@@ -523,44 +89,51 @@ const StyledButton = styled(Button, {
       marginRight: "4px",
       verticalAlign: "middle",
     },
-    ...(size === "sm" && {
-      padding: "0.4rem 1.25rem 0.32rem",
-      fontSize: "0.6875rem",
-      lineHeight: "1.5",
-      borderRadius: "0.2rem",
-    }),
-    ...(size === "lg" && {
-      padding: "1.125rem 2.25rem",
-      fontSize: "0.875rem",
-      lineHeight: "1.333333",
-      borderRadius: "0.2rem",
-    }),
-    ...(fullWidth && { width: "100%" }),
-    ...(color && btnColors[color]),
-    ...(simple && {
-      "&,&:focus,&:hover": {
-        color: whiteColor,
-        background: "transparent",
-        boxShadow: "none",
-      },
-      ...(color && {
-        "&,&:focus,&:hover,&:visited": {
-          color:
-            (btnColors[color] && btnColors[color].backgroundColor) || color,
-        },
-      }),
-    }),
-    ...(userProvidedLink) =>
-      link && {
-        "&,&:hover,&:focus": {
+    "& .MuiButton-startIcon svg, & .MuiButton-endIcon svg": {
+      width: "16px",
+      height: "16px",
+      marginRight: 0,
+    },
+  };
+
+  const chrome =
+    color === "transparent"
+      ? {
+          color: "inherit",
           backgroundColor: "transparent",
-          color: grayColor[0],
+          border: "1px solid transparent",
+          "&:hover": {
+            backgroundColor: colors.brand.tint,
+            borderColor: "transparent",
+            boxShadow: "none",
+          },
+        }
+      : {};
+
+  const quietStyles = quiet
+    ? {
+        color: quietColor(rank, color),
+        backgroundColor: "transparent",
+        border: "1px solid transparent",
+        "&:hover": {
           boxShadow: "none",
+          borderColor: "transparent",
+          backgroundColor:
+            color === "white" ? "rgba(255, 255, 255, 0.14)" : colors.brand.tint,
         },
-      },
+      }
+    : {};
+
+  return {
+    ...base,
+    ...chrome,
+    ...quietStyles,
+    ...(fullWidth && { width: "100%" }),
     ...(justIcon && {
-      paddingLeft: "12px",
-      paddingRight: "12px",
+      // `!important` because theme.js forces `padding: 4.5px 10px !important`
+      // on every MUI button: inside a 41px square that leaves a 22px glyph
+      // 19px of room, and it spilled off-centre to the right.
+      padding: "0 !important",
       fontSize: "20px",
       height: "41px",
       minWidth: "41px",
@@ -590,15 +163,8 @@ const StyledButton = styled(Button, {
         "& svg": { width: "17px", height: "17px" },
       }),
     }),
-    ...(round && { borderRadius: "30px" }),
+    ...(round && { borderRadius: radius.pill }),
     ...(block && { width: "100% !important" }),
-    ...(link && {
-      "&,&:hover,&:focus": {
-        backgroundColor: "transparent",
-        color: grayColor[0],
-        boxShadow: "none",
-      },
-    }),
   };
 });
 
@@ -641,6 +207,8 @@ const RegularButton = forwardRef((props, ref) => {
 });
 
 RegularButton.propTypes = {
+  // The template's names are kept so call sites still type-check; each one maps
+  // to a rank, see legacyButtonRank.
   color: PropTypes.oneOf([
     "primary",
     "info",

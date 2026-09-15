@@ -7,7 +7,7 @@ import { Avatar, IconButton, Rating, Typography, Box } from "@mui/material";
 import LikeIcon from "@mui/icons-material/ThumbUpOutlined";
 import ThumbUpAltIcon from "@mui/icons-material/ThumbUpAlt";
 // custom components
-import PostMedia from "customComponents/AdviceFeed/PostMedia";
+import AdviceAttachments from "customComponents/AdviceFeed/AdviceAttachments";
 import UserDialogLink from "customComponents/DoctorProfile/UserDialogLink";
 // helper
 import Helper from "helper";
@@ -26,12 +26,13 @@ import { radius, space } from "@/theme/tokens";
  * deliberately drops: liking, the author's 5-star rating, and the full
  * untruncated text. The preview is a glance; this is the conversation.
  *
- * Attachments go through the feed's PostMedia, not the old AdviceFileInfo. That
+ * Attachments go through AdviceAttachments, not the old AdviceFileInfo. That
  * component's hover download and zoom controls were unreachable - its `&:hover
  * $downloadDiv` selector is JSS syntax inside an emotion styled(), so it never
  * matched anything - and its viewer blocked Esc and could not page between
- * images. PostMedia's lightbox does all three and fetches the full-resolution
- * original rather than the thumbnail.
+ * images. The PostMedia lightbox underneath does all three and fetches the
+ * full-resolution original rather than the thumbnail. AdviceAttachments adds
+ * the other half: a voice note gets a player rather than a download chip.
  */
 
 // Reply photos are evidence attached to a message, not the subject of the
@@ -166,7 +167,7 @@ export default function Comment(props) {
               overflow: "hidden",
             }}
           >
-            <PostMedia Files={Data.Files} FullBleedMargin="0px" />
+            <AdviceAttachments Files={Data.Files} FullBleedMargin="0px" />
           </Box>
         ) : null}
 

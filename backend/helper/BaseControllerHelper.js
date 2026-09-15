@@ -345,8 +345,55 @@ class BaseControllerHelper {
   };
 
   // Add organization filter for non-admin users (show only own org + child orgs data)
+  /**
+   * Force a staff member onto their OWN working set, whatever the client asked for.
+   *
+   * WHY THIS IS NOT AddOrgFilter'S JOB. That filter answers "which organisation
+   * may see this row"; this answers "whose personal list is this". A doctor's
+   * monitoring list is not organisation data - two doctors in one hospital keep
+   * separate lists - so the organisation filter passes it through untouched.
+   *
+   * WHAT IT CLOSES. PatientMonitoringDoctor rows are selected by `user_id`, and
+   * that filter was set in the BROWSER (PatientMonitoringDoctor.jsx) and never
+   * re-asserted. PatientScope only constrains RoleId 4, so any doctor could put
+   * a colleague's id in the request and read their patient list - or ask
+   * ExportExcel for it as a spreadsheet.
+   *
+   * The rule is the one /api/doctor/monitoring already follows (mobile/API.md
+   * §29): the doctor comes from the token, never from the body. The client may
+   * still send `user_id`; it is stripped and replaced rather than merged, or a
+   * second contradictory filter would simply return nothing and look like a bug.
+   *
+   * RoleId 1 keeps the ability to look at another doctor's list - support needs
+   * it, and an administrator can already read the table directly.
+   *
+   * Called from BOTH read paths. AddOrgFilter covers BaseGetList; BuildExport
+   * does not go through AddOrgFilter at all, which is exactly how an export
+   * becomes a way around a read guard.
+   */
+  OWNED_BY_STAFF = { PatientMonitoringDoctor: 'user_id' };
+
+  ApplyOwnerScope = function ({ ObjectName, LogedUser, Option }) {
+    if (!LogedUser || !Option) return;
+
+    const Field = this.OWNED_BY_STAFF[ObjectName];
+    if (!Field) return;
+
+    // Patients never reach these objects; PatientScope refuses them separately.
+    if (PatientScope.IsPatient(LogedUser)) return;
+    if (String(LogedUser.RoleId) === '1') return;
+    if (!LogedUser.Id) return;
+
+    Option.SearchField = (Option.SearchField || []).filter((f) => !f || f.Field !== Field);
+    Option.SearchField.push({ Field, Value: LogedUser.Id, Op: 'Equals' });
+  };
+
   AddOrgFilter = async function ({ ObjectName, LogedUser, Option }) {
     if (!LogedUser || !Option) return;
+
+    // Personal working sets first: this must run even for RoleId 1's early
+    // return below, and before the Patient branch's p_registration shortcut.
+    this.ApplyOwnerScope({ ObjectName, LogedUser, Option });
 
     // Patients are scoped by their own identity, not by organisation. This runs
     // first and returns, so none of the staff logic below - including the
@@ -1146,6 +1193,51 @@ class BaseControllerHelper {
   };
 
   /**
+   * Columns an export carries that the ModelConfig does not declare.
+   *
+   * WHY THIS EXISTS. Export columns come from the config's GridField set, so a
+   * screen whose value is in a column the CONTROLLER injects exports without
+   * it. The monitoring list is exactly that: the doctor got four columns -
+   * surname, forename, register number, start date - and neither the diagnoses
+   * nor the outstanding-question count, which are the only two things that
+   * screen adds over a plain patient list. A register of patients with no
+   * diagnoses on it is a list of names.
+   *
+   * Deliberately a small map rather than a general plugin system: each entry
+   * has to fetch its own data in ONE query for the whole export (these run with
+   * no row limit), so each one is a considered addition, not a hook anybody can
+   * hang work off.
+   *
+   * `Build` receives the whole page and returns a Map of PK -> string.
+   */
+  EXPORT_ENRICH = {
+    PatientMonitoringDoctor: {
+      Name: 'Journals',
+      Label: 'ICD10',
+      // Which column on the exported row the returned Map is keyed by.
+      Key: 'patient_id',
+      Build: async (Data) => {
+        const Ids = [...new Set(Data.map((r) => r.patient_id).filter(Boolean))];
+        const Rows = await Models.Journal.GetRealJournalDataForPatients(Ids);
+        const ByPatient = new Map();
+        (Rows || []).forEach((j) => {
+          // jr_type 5 is the ICD10 reference; jr_label is "CODE Label".
+          if (!j.JournalRef || String(j.JournalRef.jr_type) !== '5') return;
+          if (!j.JournalRef.jr_label) return;
+          const list = ByPatient.get(j.PatientId) || [];
+          list.push(j.JournalRef.jr_label);
+          ByPatient.set(j.PatientId, list);
+        });
+        // The grid shows codes only, for width. A spreadsheet has room for the
+        // whole label, and that is the part a reader cannot reconstruct.
+        const Out = new Map();
+        Data.forEach((r) => Out.set(r.patient_id, (ByPatient.get(r.patient_id) || []).join('; ')));
+        return Out;
+      },
+    },
+  };
+
+  /**
    * Everything an export needs, independent of the file format: the rows, the
    * column headers and the provenance block.
    *
@@ -1159,6 +1251,11 @@ class BaseControllerHelper {
     // Otherwise export becomes a bulk extraction route around the read guards.
     const Guard = PatientScope.ApplyPatientFilter({ ObjectName, LogedUser, Option });
     if (!Guard.Allowed) return null;
+
+    // This function does NOT call AddOrgFilter, so the owner rule has to be
+    // applied here explicitly - an export of someone else's personal list is
+    // the same disclosure as reading it, delivered as a file.
+    this.ApplyOwnerScope({ ObjectName, LogedUser, Option });
 
     const ModelConfig = await this.GetConfigData(ObjectName);
     if (!ModelConfig) {
@@ -1221,13 +1318,29 @@ class BaseControllerHelper {
             (s) => s.Name && (!s.GridField || s.GridField === true) && s.GridField !== false
           );
 
+    // Controller-injected columns, added only when the caller did not ask for an
+    // explicit ExportFields set (that set names declared fields by contract).
+    const Extra = Requested.length === 0 ? this.EXPORT_ENRICH[ObjectName] : null;
+    let ExtraValues = null;
+    if (Extra && Array.isArray(Data) && Data.length > 0) {
+      try {
+        ExtraValues = await Extra.Build(Data);
+      } catch (ex) {
+        // A missing extra column is worth less than the export itself.
+        console.log('BuildExport enrich failed for ' + ObjectName + ':', ex.message);
+        ExtraValues = null;
+      }
+    }
+
     const rows =
       Array.isArray(Data) && columns.length > 0
-        ? Data.map((data) =>
-            columns.map((value) =>
+        ? Data.map((data) => {
+            const line = columns.map((value) =>
               ObjectHelper.getStrData(ObjectHelper.getValue(data, value.Name), value)
-            )
-          )
+            );
+            if (ExtraValues) line.push(ExtraValues.get(data[Extra.Key]) || '');
+            return line;
+          })
         : [];
 
     // An exported file leaves the system and has to stand on its own, so it
@@ -1253,7 +1366,9 @@ class BaseControllerHelper {
 
     return {
       columns,
-      headers: columns.map((value) => this.translateLabel(value.Label)),
+      headers: columns
+        .map((value) => this.translateLabel(value.Label))
+        .concat(ExtraValues ? [this.translateLabel(Extra.Label)] : []),
       rows,
       provenance,
       // ObjectName is client-supplied and ends up in a path.

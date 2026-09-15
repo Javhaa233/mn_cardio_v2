@@ -19,7 +19,13 @@ import { durationLabel } from "customComponents/AdviceFeed/mediaUtils";
 import useMediaLink from "./useMediaLink";
 
 /**
- * A voice message inside a chat bubble.
+ * A voice message.
+ *
+ * Used by the chat bubble and by an Advice reply. `FetchLink` is which minting
+ * endpoint to ask for a playable URL - chat's by default - because the two
+ * surfaces authorize differently and must not share one endpoint. `Mine` is the
+ * chat bubble's outgoing colour regime and is simply left off elsewhere, where
+ * a reply is not "mine" or "theirs" in that sense.
  *
  * NO WAVEFORM, deliberately. Drawing one means decoding the whole clip in the
  * browser - the bytes a stream exists to avoid pulling - and it tells the
@@ -32,7 +38,7 @@ import useMediaLink from "./useMediaLink";
  * metadata arrives, and until then the label reads as a dash rather than 0:00 -
  * an honest "unknown" rather than a wrong number.
  */
-export default function VoiceNote({ File: F, Mine }) {
+export default function VoiceNote({ File: F, Mine, FetchLink }) {
   const { t } = useTranslation();
 
   /*
@@ -58,7 +64,10 @@ export default function VoiceNote({ File: F, Mine }) {
   const ServerMs = F && F.FileInfo && F.FileInfo.DurationMs;
   const State = F && F.FileInfo && F.FileInfo.MediaState;
 
-  const { url, loading, error, load, refresh } = useMediaLink(FileId);
+  const { url, loading, error, load, refresh } = useMediaLink(
+    FileId,
+    FetchLink,
+  );
 
   const audioRef = useRef(null);
   const [playing, setPlaying] = useState(false);

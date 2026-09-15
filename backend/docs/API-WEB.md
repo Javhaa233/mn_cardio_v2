@@ -35,11 +35,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 25 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 257 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 258 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 101 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **385** |
+| **Нийт** |  |  | **386** |
 
 api-layer задаргаа: `/api/patient` 39 · `/api/doctor` 41 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
@@ -70,19 +70,19 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 |---|---|---|---|---|
 | `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:46` |  |
 | `POST` | `/api/Test/RegexTest` | public | `TestController.js:47` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:37` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:38` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:39` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:40` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:41` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:42` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:43` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:44` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:45` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:46` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:47` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:48` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:49` | The same export as tab-separated text. |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:38` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:39` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:40` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:41` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:42` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:43` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:44` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:45` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:46` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:47` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:48` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:49` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:50` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
@@ -116,7 +116,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.3. Байгууллага, эмч, баг, зөвлөгөө (асуумж), хяналтын самбар — `controllers/organization/`
 
-Угтвар: `/api/DoctorsTeam`, `/api/Advice`, `/api/DoctorProfile`, `/api/Organization`, `/api/Dashboard` · 40 endpoint.
+Угтвар: `/api/DoctorsTeam`, `/api/Advice`, `/api/DoctorProfile`, `/api/Organization`, `/api/Dashboard` · 41 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -132,19 +132,20 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/DoctorsTeam/GetList` | token | `DoctorsTeamController.js:22` |  |
 | `POST` | `/api/DoctorsTeam/ExportDoctorsTeamPatient` | token | `DoctorsTeamController.js:23` |  |
 | `POST` | `/api/DoctorsTeam/DeleteDoctorsTeam` | token | `DoctorsTeamController.js:24` |  |
-| `POST` | `/api/Advice/GetList` | token | `AdviceController.js:14` |  |
-| `POST` | `/api/Advice/GetListCity` | token | `AdviceController.js:15` |  |
-| `POST` | `/api/Advice/GetListSoum` | token | `AdviceController.js:16` |  |
-| `POST` | `/api/Advice/GetComments` | token | `AdviceController.js:17` |  |
-| `POST` | `/api/Advice/CustomSave` | token | `AdviceController.js:18` |  |
-| `POST` | `/api/Advice/CheckByPatient` | token | `AdviceController.js:19` |  |
-| `POST` | `/api/Advice/SaveAdviceCommentRate` | token | `AdviceController.js:20` |  |
-| `POST` | `/api/Advice/GetAdviceCommentPoint` | token | `AdviceController.js:21` |  |
-| `POST` | `/api/Advice/CreateComment` | token | `AdviceController.js:22` |  |
-| `POST` | `/api/Advice/GetFeed` | token | `AdviceController.js:23` |  |
-| `POST` | `/api/Advice/GetTicket` | token | `AdviceController.js:24` | One ticket, enriched exactly the way a feed card is. |
-| `POST` | `/api/Advice/GetStats` | token | `AdviceController.js:25` |  |
-| `POST` | `/api/Advice/CustomSaveAndPublish` | token | `AdviceController.js:26` | Create a ticket and publish it in one action. |
+| `POST` | `/api/Advice/GetList` | token | `AdviceController.js:18` |  |
+| `POST` | `/api/Advice/GetListCity` | token | `AdviceController.js:19` |  |
+| `POST` | `/api/Advice/GetListSoum` | token | `AdviceController.js:20` |  |
+| `POST` | `/api/Advice/GetComments` | token | `AdviceController.js:21` |  |
+| `POST` | `/api/Advice/CustomSave` | token | `AdviceController.js:22` |  |
+| `POST` | `/api/Advice/CheckByPatient` | token | `AdviceController.js:23` |  |
+| `POST` | `/api/Advice/SaveAdviceCommentRate` | token | `AdviceController.js:24` |  |
+| `POST` | `/api/Advice/GetAdviceCommentPoint` | token | `AdviceController.js:25` |  |
+| `POST` | `/api/Advice/CreateComment` | token | `AdviceController.js:26` |  |
+| `POST` | `/api/Advice/GetFeed` | token | `AdviceController.js:27` |  |
+| `POST` | `/api/Advice/GetTicket` | token | `AdviceController.js:28` | One ticket, enriched exactly the way a feed card is. |
+| `POST` | `/api/Advice/GetStats` | token | `AdviceController.js:29` |  |
+| `POST` | `/api/Advice/CustomSaveAndPublish` | token | `AdviceController.js:30` | Create a ticket and publish it in one action. |
+| `POST` | `/api/Advice/GetAttachmentLink` | token | `AdviceController.js:31` | A short-lived URL a browser <audio> can actually fetch. |
 | `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:14` |  |
 | `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:15` |  |
 | `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:16` |  |
@@ -229,8 +230,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/Chat/GetChatRoomUsers` | token + patient allowed | `ChatController.js:66` |  |
 | `POST` | `/api/Chat/AddUserToChatRoom` | token + patient allowed | `ChatController.js:67` |  |
 | `POST` | `/api/Chat/RemoveUserFromChatRoom` | token + patient allowed | `ChatController.js:68` |  |
-| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:69` | The people you can start a chat with. |
-| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:70` | The aimag / soum lists for the directory's filters. |
+| `POST` | `/api/Chat/SearchUsers` | token + patient allowed | `ChatController.js:69` | The people you can start a chat with. Optional `OrganizationId`. |
+| `POST` | `/api/Chat/GetDirectoryFilters` | token + patient allowed | `ChatController.js:70` | `Organizations` (the picker's filter), plus legacy aimag / soum lists. |
 | `POST` | `/api/Chat/DownloadAttachment` | token + patient allowed | `ChatController.js:71` |  |
 | `POST` | `/api/Chat/GetAttachmentLink` | token + patient allowed | `ChatController.js:72` | A URL a player can actually open. |
 | `POST` | `/api/Notification/GetListData` | token + patient allowed | `NotificationController.js:7` |  |
@@ -630,4 +631,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-14. Нийт endpoint: 385._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-15. Нийт endpoint: 386._

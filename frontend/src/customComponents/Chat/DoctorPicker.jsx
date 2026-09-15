@@ -1,12 +1,7 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  Autocomplete,
   Avatar,
   Box,
   Checkbox,
@@ -16,7 +11,6 @@ import {
   ListItemAvatar,
   ListItemButton,
   ListItemText,
-  MenuItem,
   TextField,
   Typography,
 } from "@mui/material";
@@ -33,22 +27,21 @@ import { colors } from "@/theme/colors";
  * only commits once you pick a row and then press a separate button. For "who do
  * I want to message?" that reads as "there are no doctors".
  *
- * So this shows people immediately and lets you narrow them down three ways -
- * by aimag, by soum/district, and by free text over name, profession and
- * organisation. Clicking a row IS the action; there is no second step.
+ * So this shows people immediately and lets you narrow them down two ways -
+ * by organisation, and by free text over name, profession and organisation.
+ * Clicking a row IS the action; there is no second step.
  *
  * Paging is append-on-scroll. The server caps a page at 50, and there are ~3290
  * doctors, so without this only the first 50 were ever reachable.
  *
- * The aimag and soum filters are keyed by NAME, not by addr_prov_city id: the
- * ids and the stored names disagree on real rows (id 10 is Дундговь, yet rows
- * carry ProvCityName 'Улаанбаатар'), so filtering by id pulled Адаацаг doctors
- * into a search for the capital. See SearchUsers in ChatController.
+ * Organisation is the only filter because it is the only location a doctor
+ * account is created with (the admin form sets OrganizationId and nothing
+ * else). The old aimag / soum selects were built from DoctorsProfile address
+ * columns that newer accounts leave empty, so they hid most doctors.
  */
 
 const DEBOUNCE_MS = 350;
 const PAGE_SIZE = 50;
-const ALL = "__all__";
 
 export default function DoctorPicker({
   Multiple,
@@ -59,8 +52,7 @@ export default function DoctorPicker({
   const { t } = useTranslation();
 
   const [query, setQuery] = useState("");
-  const [province, setProvince] = useState(ALL);
-  const [soum, setSoum] = useState(ALL);
+  const [organization, setOrganization] = useState(null);
 
   const [rows, setRows] = useState([]);
   const [total, setTotal] = useState(0);
@@ -68,7 +60,7 @@ export default function DoctorPicker({
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
 
-  const [filters, setFilters] = useState({ Provinces: [], Soums: [] });
+  const [organizations, setOrganizations] = useState([]);
 
   // Guards against a slow early response overwriting a newer one.
   const seq = useRef(0);
@@ -81,20 +73,14 @@ export default function DoctorPicker({
     let cancelled = false;
     Helper.ChatHelper.GetDirectoryFilters((res) => {
       if (cancelled || !res || !res.Success || !res.Data) return;
-      setFilters({
-        Provinces: res.Data.Provinces || [],
-        Soums: res.Data.Soums || [],
-      });
+      setOrganizations(res.Data.Organizations || []);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  const soumOptions = useMemo(() => {
-    if (province === ALL) return [];
-    return filters.Soums.filter((s) => s.ProvinceName === province);
-  }, [filters.Soums, province]);
+  const organizationId = organization ? organization.Id : null;
 
   /* ----------------------------------------------------------------- *
    * Results
@@ -111,8 +97,7 @@ export default function DoctorPicker({
           SearchText: query.trim(),
           PageSize: PAGE_SIZE,
           PageNumber: pageNumber,
-          ProvinceName: province === ALL ? "" : province,
-          SoumName: soum === ALL ? "" : soum,
+          OrganizationId: organizationId || undefined,
         },
         (res) => {
           if (mine !== seq.current) return;
@@ -131,7 +116,7 @@ export default function DoctorPicker({
         },
       );
     },
-    [query, province, soum],
+    [query, organizationId],
   );
 
   // Any change to the query or the filters restarts from page 0.
@@ -145,7 +130,7 @@ export default function DoctorPicker({
       query ? DEBOUNCE_MS : 0,
     );
     return () => clearTimeout(id);
-  }, [query, province, soum, fetchPage]);
+  }, [query, organizationId, fetchPage]);
 
   const onScroll = useCallback(() => {
     const el = viewportRef.current;
@@ -164,46 +149,61 @@ export default function DoctorPicker({
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
-      {/* Aimag / soum.
-          No floating `label` on these: the app's controls are 32px tall
+      {/* Organisation.
+          No floating `label`: the app's controls are 32px tall
           (CONTROL.fontSize / theme.js), and an outlined MUI label has nowhere to
           float to in that height - it lands on top of the value. The meaning
-          lives in the default option text instead. */}
-      <Box sx={{ display: "flex", gap: 1, mb: 1 }}>
-        <TextField
-          select
+          lives in the placeholder instead. Typeahead, because there are
+          hundreds of organisations. Hidden when there is nothing to choose
+          from (a patient's care-team directory). */}
+      {organizations.length > 0 ? (
+        <Autocomplete
           size="small"
           fullWidth
-          value={province}
-          onChange={(e) => {
-            setProvince(e.target.value);
-            setSoum(ALL); // a soum from the old aimag would match nothing
+          sx={{ mb: 1 }}
+          options={organizations}
+          value={organization}
+          onChange={(_e, value) => setOrganization(value)}
+          getOptionLabel={(o) => (o && o.Name) || ""}
+          isOptionEqualToValue={(o, v) => o.Id === v.Id}
+          renderOption={(props, o) => {
+            // React warns when `key` arrives inside a spread.
+            const { key, ...rest } = props;
+            return (
+              <li key={o.Id} {...rest}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 1,
+                    width: "100%",
+                  }}
+                >
+                  <span>{o.Name}</span>
+                  <Typography
+                    variant="caption"
+                    component="span"
+                    sx={{ color: colors.brand.inkMuted, flexShrink: 0 }}
+                  >
+                    {o.Count}
+                  </Typography>
+                </Box>
+              </li>
+            );
           }}
-        >
-          <MenuItem value={ALL}>{t("Бүх аймаг / хот")}</MenuItem>
-          {filters.Provinces.map((p) => (
-            <MenuItem key={p.Name} value={p.Name}>
-              {p.Name} ({p.Count})
-            </MenuItem>
-          ))}
-        </TextField>
-
-        <TextField
-          select
-          size="small"
-          fullWidth
-          value={soum}
-          disabled={province === ALL || soumOptions.length === 0}
-          onChange={(e) => setSoum(e.target.value)}
-        >
-          <MenuItem value={ALL}>{t("Бүх сум / дүүрэг")}</MenuItem>
-          {soumOptions.map((s) => (
-            <MenuItem key={s.Name} value={s.Name}>
-              {s.Name} ({s.Count})
-            </MenuItem>
-          ))}
-        </TextField>
-      </Box>
+          noOptionsText={t("Илэрц олдсонгүй")}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder={t("Бүх байгууллага")}
+              inputProps={{
+                ...params.inputProps,
+                "aria-label": t("Байгууллага"),
+              }}
+            />
+          )}
+        />
+      ) : null}
 
       <TextField
         autoFocus
@@ -300,12 +300,7 @@ export default function DoctorPicker({
                 }}
                 primary={d.Name || d.FullName || t("Нэргүй")}
                 secondary={
-                  [
-                    d.profession,
-                    d.OrganizationName,
-                    d.SoumDistName,
-                    d.ProvCityName,
-                  ]
+                  [d.profession, d.OrganizationName]
                     .filter(Boolean)
                     .join(" · ") || null
                 }

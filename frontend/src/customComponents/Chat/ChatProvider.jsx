@@ -7,6 +7,7 @@ import React, {
 } from "react";
 
 import Helper from "helper";
+import { PlayNotificationSound } from "helper/NotificationSound";
 import { ChatContext } from "customComponents/Chat/ChatContext";
 import {
   mergeMany,
@@ -550,6 +551,11 @@ export default function ChatProvider({ children }) {
         typeof document !== "undefined" &&
         document.visibilityState === "visible";
       if (watchingThisRoom) return;
+
+      // The chime for chat lives here, not in the bell, because only this
+      // handler knows whether the reader is already looking at the room. The
+      // bell stays silent for its ChatRoom rows so nobody hears it twice.
+      PlayNotificationSound();
 
       setToast({
         Key: msg.Id || Date.now(),

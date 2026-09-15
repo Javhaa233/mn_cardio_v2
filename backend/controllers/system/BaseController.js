@@ -14,6 +14,7 @@ const ImageHelper = require('../../helper/ImageHelper');
 const MediaSniff = require('../../helper/MediaSniff');
 const MediaStream = require('../../helper/MediaStream');
 const MediaMeta = require('../../helper/MediaMeta');
+const MediaTranscode = require('../../helper/MediaTranscode');
 // Flags, ChatIdentity, ChatHelper, PatientScope and AdviceScopeHelper moved to
 // helper/FileAccessHelper.js with the two functions that used them.
 const { CheckContact } = require('../../helper/ContactValidation');
@@ -532,6 +533,39 @@ async function uploadFile(req, res) {
                       ClaimedMs < 24 * 60 * 60 * 1000
                     ) {
                       await MediaMeta.Write(NewFileId, { DurationMs: ClaimedMs });
+                    }
+
+                    /*
+                     * NORMALISE AUDIO TO M4A/AAC, for every surface except chat.
+                     *
+                     * A browser records WebM/Opus whenever it cannot record
+                     * audio/mp4 - Firefox always, Chrome before 130 - and an
+                     * iPhone will not play it. The clip uploads, the row is
+                     * written, and the recipient hears silence.
+                     *
+                     * Chat handles this itself in ChatController.CommitMessage,
+                     * because it has a commit step and this does not run for
+                     * every one of its files. Advice has no commit step: the
+                     * reply is saved and the files are posted here, and this is
+                     * the only place that sees them. So the enqueue lives here
+                     * for everything else.
+                     *
+                     * ChatMessages is EXCLUDED rather than left to be harmless:
+                     * MediaTranscode.Enqueue does not deduplicate its queue
+                     * (helper/MediaTranscode.js:359-372), so including chat here
+                     * would transcode every voice note twice.
+                     *
+                     * Fire-and-forget by contract - Enqueue returns immediately
+                     * and never throws - so an upload is never held up by it,
+                     * and a host with no ffmpeg degrades to media_state
+                     * 'failed' while still serving the original bytes.
+                     */
+                    if (
+                      NewFileId &&
+                      FileKind === 'audio' &&
+                      LinkedObjectInfo.LinkedObjectName !== 'ChatMessages'
+                    ) {
+                      MediaTranscode.Enqueue([NewFileId]);
                     }
                   }
                 }

@@ -1,81 +1,18 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { styled } from "@mui/material/styles";
-import { Dialog, DialogContent, IconButton } from "@mui/material";
-import MuiDialogTitle from "@mui/material/DialogTitle";
-
-import CloseIcon from "@mui/icons-material/Close";
-import CropSquareIcon from "@mui/icons-material/CropSquare";
-import FilterNoneIcon from "@mui/icons-material/FilterNone";
-import MinimizeIcon from "@mui/icons-material/Minimize";
+import { Dialog, DialogContent } from "@mui/material";
 
 import BaseLoading from "customComponents/BaseLoading";
-import BaseLabel from "customComponents/BaseViewControls/BaseLabel";
 import { renderDetailViewFields } from "baseComponents/renderDetailViewFields.jsx";
 import { useBaseForm } from "baseComponents/useBaseForm";
 import { useDialogWindow } from "baseComponents/useDialogWindow";
 import BaseDialogActions from "baseComponents/BaseDialogActions";
-
-/* ================= STYLES ================= */
-
-const StyledDialogTitle = styled(MuiDialogTitle)(() => ({
-  margin: 0,
-  padding: "10px 12px",
-  cursor: "move",
-  userSelect: "none",
-  background:
-    "linear-gradient(180deg, rgba(245,247,250,1) 0%, rgba(236,240,244,1) 100%)",
-  borderBottom: "1px solid rgba(0,0,0,0.06)",
-}));
-
-const WindowButton = styled(IconButton)(({ theme }) => ({
-  width: 22,
-  height: 22,
-  padding: 0,
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.15)",
-  color: theme.palette.grey[700],
-  backgroundColor: "rgba(255,255,255,0.9)",
-  "&:hover": { backgroundColor: "rgba(255,255,255,1)" },
-}));
-
-/* ================= TITLE ================= */
-
-const DialogTitle = ({
-  children,
-  onClose,
-  onMinimize,
-  onMaximize,
-  isMaximized,
-  onPointerDown,
-}) => (
-  <StyledDialogTitle onPointerDown={onPointerDown}>
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-      }}
-    >
-      <BaseLabel Label={children} Size="16px" Weight="400" Color="#878787" />
-      <div style={{ display: "flex", gap: 8 }}>
-        <WindowButton onClick={onMinimize}>
-          <MinimizeIcon sx={{ fontSize: 16 }} />
-        </WindowButton>
-        <WindowButton onClick={onMaximize}>
-          {isMaximized ? (
-            <FilterNoneIcon sx={{ fontSize: 16 }} />
-          ) : (
-            <CropSquareIcon sx={{ fontSize: 16 }} />
-          )}
-        </WindowButton>
-        <WindowButton onClick={onClose}>
-          <CloseIcon sx={{ fontSize: 16 }} />
-        </WindowButton>
-      </div>
-    </div>
-  </StyledDialogTitle>
-);
+// The window chrome is BaseDialog's; this file used to carry its own copy.
+import {
+  DialogTitle,
+  resizeGripStyle,
+  windowPaperSx,
+} from "customComponents/BaseDialog";
 
 /* ================= MAIN ================= */
 
@@ -158,21 +95,7 @@ export default function UsersDetail(props) {
       <div
         data-resize-handle="true"
         onPointerDown={onResizePointerDown}
-        style={{
-          position: "absolute",
-          width: "18px",
-          height: "18px",
-          right: 0,
-          bottom: 0,
-          cursor: "nwse-resize",
-          zIndex: 1301,
-          touchAction: "none",
-          background: "linear-gradient(135deg, transparent 50%, #9e9e9e 50%)",
-          backgroundSize: "12px 12px",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "bottom right",
-          borderBottomRightRadius: "4px",
-        }}
+        style={resizeGripStyle}
       />
     ) : null;
 
@@ -186,6 +109,7 @@ export default function UsersDetail(props) {
       PaperProps={{
         ref: paperRef,
         sx: {
+          ...windowPaperSx,
           position: "fixed",
           top: pos.y + 8,
           left: pos.x + 8,
@@ -206,9 +130,14 @@ export default function UsersDetail(props) {
     >
       <DialogTitle
         onClose={Close}
-        onMinimize={toggleMinimize}
-        onMaximize={toggleMaximize}
-        isMaximized={isMaximized}
+        Movable={true}
+        WinBoxStyle={true}
+        ShowMinimize={true}
+        ShowMaximize={true}
+        IsMaximized={isMaximized}
+        IsMinimized={isMinimized}
+        onMinimizeToggle={toggleMinimize}
+        onMaximizeToggle={toggleMaximize}
         onPointerDown={onTitlePointerDown}
       >
         {t(displayTitle)}

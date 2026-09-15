@@ -254,7 +254,13 @@ class CVDInspectionAndManagement extends Component {
       );
       this.setState({ Journals: JournalsUpdate });
     } else {
-      alert("Сонгогдсон утга байна");
+      this.setState({
+        Alert: Helper.BaseCrudHelper.ShowAlert(
+          "Сонгогдсон утга байна",
+          false,
+          () => this.setState({ Alert: null }),
+        ),
+      });
     }
   };
 

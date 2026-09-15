@@ -1,6 +1,21 @@
 import React, { useEffect, useState, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { List, ListItem, Avatar, Box, Typography, Paper } from "@mui/material";
+import {
+  List,
+  ListItem,
+  Avatar,
+  Box,
+  Chip,
+  IconButton,
+  Tooltip,
+  Typography,
+  Paper,
+} from "@mui/material";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+
+// AttachmentIntake.MAX_FILES_PER_POST on the server. Refusing the surplus in
+// the browser is friendlier than having the server drop it after the upload.
+const MAX_FILES = 5;
 
 import Button from "components/CustomButtons/Button";
 
@@ -18,11 +33,14 @@ export default function MonitorQuestion(props) {
   const [Loading, setLoading] = useState(false);
   const [Comments, setComments] = useState([]);
   const [CommentBody, setCommentBody] = useState("");
+  const [Files, setFiles] = useState([]);
+  const [Saving, setSaving] = useState(false);
   const [Alert, setAlert] = useState(null);
   // Null when rendered in a layout with no chat dock.
   const chat = useChatContext();
 
   const listRef = useRef(null);
+  const fileRef = useRef(null);
 
   const SearchOption = Helper.BaseCrudHelper.GetSearchOption();
   SearchOption.PageOption.Limit = 1000;
@@ -56,27 +74,67 @@ export default function MonitorQuestion(props) {
     );
   };
 
+  /**
+   * Answer the patient.
+   *
+   * THIS USED TO GO THROUGH /BaseObject/create ON VisitComments, and that is
+   * why a doctor answering on the web left the patient's phone silent: the
+   * generic create writes the row and stops. It notifies nobody, and it has
+   * nowhere to put a file, so anything the patient attached could be read here
+   * but never answered in kind.
+   *
+   * POST /api/doctor/monitoring/:patientId/questions writes the same row
+   * through the same BaseCreate, then stores attachments against it and calls
+   * NotifyPatient. That notification is the acceptance criterion for tracker
+   * rows 36 and 37 - "асуулт эмчид хүрнэ", "зөвлөгөө мэдэгдэлтэйгээр хүрнэ" -
+   * and the mobile client has had it since 2026-09-11 while the web did not.
+   *
+   * It also applies the monitoring gate server-side, so a doctor who is not
+   * monitoring this patient is refused here rather than silently writing a row.
+   */
   const SaveComment = async () => {
-    const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
-    if (!CommentBody.trim() || !LogedUser) return;
+    const hasText = CommentBody.trim().length > 0;
+    if ((!hasText && Files.length === 0) || !PatientId || Saving) return;
 
-    await Helper.BaseCrudHelper.BaseCreate(
-      {
-        ObjectName: "VisitComments",
-        Data: {
-          user_id: LogedUser.Id,
-          comment: CommentBody,
-          is_doctor: "1",
-          patient_id: PatientId,
-        },
-      },
-      (resData) => {
-        if (resData?.Success) {
-          setCommentBody("");
-          GetCommentData();
-        }
-      },
-    );
+    setSaving(true);
+    const res = await Helper.DoctorApiHelper.ReplyPatientQuestion(PatientId, {
+      Comment: CommentBody,
+      Files,
+    });
+    setSaving(false);
+
+    if (!res.success) {
+      setAlert(
+        Helper.BaseCrudHelper.ShowAlert(
+          Helper.DoctorApiHelper.IsNotMonitored(res)
+            ? t("Энэ иргэн таны хяналтад байхгүй тул хариулах боломжгүй.")
+            : res.message || t("Алдаа гарлаа"),
+          false,
+          () => setAlert(null),
+        ),
+      );
+      return;
+    }
+
+    // Attachments are refused individually rather than failing the reply, so a
+    // partial success is a real outcome and has to be said out loud - the reply
+    // is already saved and retrying would double-post it.
+    const rejected = (res.data && res.data.rejected) || [];
+    if (rejected.length > 0) {
+      setAlert(
+        Helper.BaseCrudHelper.ShowAlert(
+          t("Хариулт хадгалагдлаа. Зарим файл хавсрагдсангүй") +
+            ": " +
+            rejected.map((r) => r.Name + " - " + r.Message).join("; "),
+          false,
+          () => setAlert(null),
+        ),
+      );
+    }
+
+    setCommentBody("");
+    setFiles([]);
+    GetCommentData();
   };
 
   /**
@@ -227,14 +285,62 @@ export default function MonitorQuestion(props) {
             Rows="5"
             ChangeValue={(name, value) => setCommentBody(value)}
           />
+
+          {Files.length > 0 ? (
+            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
+              {Files.map((f, i) => (
+                <Chip
+                  key={f.name + i}
+                  size="small"
+                  label={f.name}
+                  onDelete={() =>
+                    setFiles((prev) => prev.filter((_, n) => n !== i))
+                  }
+                />
+              ))}
+            </Box>
+          ) : null}
         </div>
+
+        {/* The patient has been able to attach photos to a question since
+            2026-09-14; until now the doctor could read them and not reply in
+            kind. Same allowlist and 10-file cap the server enforces. */}
+        <input
+          ref={fileRef}
+          type="file"
+          multiple
+          hidden
+          aria-label={t("Файл хавсаргах")}
+          onChange={(e) => {
+            const picked = Array.from(e.target.files || []);
+            setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
+            e.target.value = "";
+          }}
+        />
+        <Tooltip title={t("Файл хавсаргах")}>
+          <span>
+            <IconButton
+              size="small"
+              aria-label={t("Файл хавсаргах")}
+              disabled={Saving || Files.length >= MAX_FILES}
+              onClick={() => fileRef.current && fileRef.current.click()}
+            >
+              <AttachFileIcon fontSize="small" />
+            </IconButton>
+          </span>
+        </Tooltip>
+
         <Button
           color="info"
           size="sm"
           onClick={SaveComment}
+          // A file-only answer is legitimate - an annotated ECG needs no words.
+          disabled={
+            Saving || (!CommentBody.trim() && Files.length === 0) || !PatientId
+          }
           style={{ boxShadow: "none" }}
         >
-          {t("Send")}
+          {Saving ? t("Илгээж байна...") : t("Send")}
         </Button>
       </Paper>
     </Box>

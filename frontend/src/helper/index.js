@@ -5,6 +5,7 @@ import BaseHelper from "./BaseHelper";
 import ChatHelper from "./ChatHelper";
 import ChatSocketHelper from "./ChatSocketHelper";
 import DashboardHelper from "./DashboardHelper";
+import DoctorApiHelper from "./DoctorApiHelper";
 import DoctorsProfileHelper from "./DoctorsProfileHelper";
 import DoctorTeamHelper from "./DoctorTeamHelper";
 import EditObjectHelper from "./EditObjectHelper";
@@ -30,6 +31,7 @@ export default {
   ChatHelper,
   ChatSocketHelper,
   DashboardHelper,
+  DoctorApiHelper,
   DoctorsProfileHelper,
   DoctorTeamHelper,
   EditObjectHelper,

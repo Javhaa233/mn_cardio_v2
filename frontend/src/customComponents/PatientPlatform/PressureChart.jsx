@@ -45,6 +45,17 @@ ChartJS.register(
  * aggregation - and it derives the patient from the verified token, so no
  * patient identifier is sent from here.
  *
+ * DUAL-SOURCE, added for the doctor's monitoring workspace. Given a PatientId
+ * it reads GET /api/doctor/monitoring/:id/journal instead, which returns the
+ * SAME { labels, series } shape - so nothing below this line changes. Without
+ * one it behaves exactly as before, patient-token-scoped. The doctor route is
+ * access-audited and capped at 365 rows; a legacy
+ * POST /PatientMonitoring/getPressureChartData returns a similar shape and is
+ * neither, which is why it stays unused.
+ *
+ * A doctor who is not monitoring this patient gets NOT_MONITORED, and that is
+ * a stated reason rather than a failure - see the message branch below.
+ *
  * Every outcome is drawn: loading, load failure with a retry, an empty log,
  * and the chart itself. Previously only the last one existed, and a response
  * that was not an array replaced the chart's { labels, datasets } shape with
@@ -66,7 +77,7 @@ const HasValue = (Values) => Values.some((Value) => Value !== null);
 
 const CHART_HEIGHT = "280px";
 
-export default function PressureChart({ RefreshKey }) {
+export default function PressureChart({ RefreshKey, PatientId = null }) {
   const { t } = useTranslation();
 
   const [State, setState] = useState({
@@ -82,13 +93,21 @@ export default function PressureChart({ RefreshKey }) {
   // screen instead of flashing a spinner over it - the first render already
   // starts in the loading state, which is the one time a spinner is right.
   const Fetch = useCallback(async () => {
-    const Result = await Helper.PatientApiHelper.GetJournalSummary({});
+    const Result = PatientId
+      ? await Helper.DoctorApiHelper.GetMonitoringJournal(PatientId, {})
+      : await Helper.PatientApiHelper.GetJournalSummary({});
 
     if (!Result || !Result.success) {
       return {
         isLoading: false,
         LoadFailed: true,
-        Message: (Result && Result.message) || "",
+        // The monitoring gate is a rule, not a fault. Saying "хяналтад
+        // байхгүй" is useful; "Алдаа гарлаа" sends the doctor looking for a
+        // bug that is not there.
+        Message:
+          Result && Result.code === "NOT_MONITORED"
+            ? "Энэ иргэн таны хяналтад байхгүй байна"
+            : (Result && Result.message) || "",
         Summary: null,
       };
     }
@@ -99,7 +118,7 @@ export default function PressureChart({ RefreshKey }) {
       Message: "",
       Summary: Result.data || null,
     };
-  }, []);
+  }, [PatientId]);
 
   const Retry = useCallback(() => {
     setState({

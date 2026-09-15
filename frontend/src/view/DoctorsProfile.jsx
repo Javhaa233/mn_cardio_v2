@@ -12,7 +12,7 @@ import BaseDialog from "customComponents/BaseDialog";
 import DoctorCrudActions from "customComponents/DoctorProfile/DoctorCrudActions";
 import BaseListManual from "baseComponents/BaseListManual";
 import RangeDate from "customComponents/RangeDate";
-import DoctorsProfileForm from "customComponents/Forms/DoctorsProfileForm";
+import DoctorEditDialog from "customComponents/DoctorProfile/DoctorEditDialog";
 import ChangePassword from "customComponents/DoctorProfile/ChangePassword";
 // helper
 import Helper from "helper";
@@ -47,8 +47,6 @@ const EXPORT_FIELDS = [
 
 export default function DoctorsProfile() {
   const { t } = useTranslation();
-  const dialogRef = useRef(null);
-  const formRef = useRef(null);
   const doctorCrudActionsRef = useRef(null);
   const baseListRef = useRef(null);
   const changePasswordRef = useRef(null);
@@ -159,41 +157,16 @@ export default function DoctorsProfile() {
     if (dialogEditObject === undefined) return null;
 
     return (
-      <BaseDialog
-        ref={(ref) => (dialogRef.current = ref)}
-        Close={() => setDialogEditObject(undefined)}
-        Title={dialogEditObject ? t("Edit doctor") : t("doctor")}
-        ShowSave={true}
-        Save={(resetLoading) => {
-          console.log("Save initiated from DoctorsProfile view");
-          // Get the actual form instance (withRef: true requires getWrappedInstance())
-          const formInstance = formRef.current?.getWrappedInstance
-            ? formRef.current.getWrappedInstance()
-            : formRef.current;
-
-          if (formInstance && formInstance.Save) {
-            formInstance.Save((success) => {
-              console.log(
-                "Save completed in DoctorsProfile view, success:",
-                success,
-              );
-              onSaved(success);
-              resetLoading && resetLoading();
-            });
-          } else {
-            resetLoading && resetLoading();
-          }
-        }}
-      >
-        <DoctorsProfileForm
-          ref={(ref) => (formRef.current = ref)}
-          ObjectName="DoctorsProfile"
-          DataId={dialogEditObject ? dialogEditObject.id_data : null}
-        />
-      </BaseDialog>
+      <DoctorEditDialog
+        // Remount per record so a previous doctor's values never linger.
+        key={dialogEditObject ? dialogEditObject.id_data : "new"}
+        DataId={dialogEditObject ? dialogEditObject.id_data : null}
+        Config={config}
+        OnClose={() => setDialogEditObject(undefined)}
+        OnSaved={() => onSaved(true)}
+      />
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogEditObject, onSaved]);
+  }, [dialogEditObject, onSaved, config]);
 
   const changePasswordDialog = useMemo(() => {
     if (!openChangePassword) return null;
@@ -219,8 +192,6 @@ export default function DoctorsProfile() {
       if (Array.isArray(rows) && rows.length === 1) {
         const last = rows[rows.length - 1];
         if (last) {
-          console.log("Selected row data:", last);
-          console.log("id_data:", last.id_data, "id:", last.id);
           doctorCrudActionsRef.current?.SetValues &&
             doctorCrudActionsRef.current.SetValues(last);
           setSelectedDoctor({ DoctorId: last.id_data, UserId: last.UserId });

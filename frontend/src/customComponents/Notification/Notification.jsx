@@ -1,8 +1,6 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 // translation
 import { useTranslation } from "react-i18next";
-// import socketIOClient from "socket.io-client";
-// import { Manager, Target, Popper } from "react-popper";
 import { OverlayScrollbarsComponent } from "overlayscrollbars-react";
 import {
   List,
@@ -21,11 +19,19 @@ import {
 import Notifications from "@mui/icons-material/Notifications";
 import NotificationsNoneOutlinedIcon from "@mui/icons-material/NotificationsNoneOutlined";
 import AccessTimeIcon from "@mui/icons-material/AccessTime";
+import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 
 // core components
 import TopBarIconButton from "components/Navbars/TopBarIconButton";
 // helper
 import Helper from "helper";
+import { NotificationSocket } from "helper/ChatSocketHelper";
+import { PlayNotificationSound } from "helper/NotificationSound";
+import { useChatContext } from "customComponents/Chat/ChatContext";
+import {
+  IsChatNotification,
+  OpenChatNotification,
+} from "customComponents/Notification/chatNotification";
 // history
 import customHistory from "customHistory";
 
@@ -33,6 +39,7 @@ import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/comp
 
 export default function Notification() {
   const { t } = useTranslation();
+  const chat = useChatContext();
 
   const [openNotification, setOpenNotification] = useState(null);
   const [Data, setData] = useState([]);
@@ -40,7 +47,9 @@ export default function Notification() {
   const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
 
   var SearchOption = Helper.BaseCrudHelper.GetSearchOption();
-  SearchOption.OrderBy = { Field: "Id", Type: "desc" };
+  // CreateDate, not Id: a chat row is rewritten in place on every new message
+  // (one row per room), so its Id is old but its CreateDate is the latest.
+  SearchOption.OrderBy = { Field: "CreateDate", Type: "desc" };
   SearchOption.PageOption = { Page: 0, Limit: 10 };
 
   const handleClickNotification = (event) => {
@@ -53,26 +62,55 @@ export default function Notification() {
 
   const handleCloseNotification = () => setOpenNotification(null);
 
-  const GetData = async () => {
+  const GetData = async (after) => {
     if (LogedUser) {
       SearchOption.SearchField = [
         { Field: "ToUserId", Value: LogedUser.Id, Op: "Equals" },
       ];
-      await Helper.NotificationHelper.GetListData(
-        SearchOption,
-        (resData) =>
-          resData && setData(Array.isArray(resData.Data) ? resData.Data : []),
-      );
+      await Helper.NotificationHelper.GetListData(SearchOption, (resData) => {
+        if (!resData) return;
+        const rows = Array.isArray(resData.Data) ? resData.Data : [];
+        setData(rows);
+        after && after(rows);
+      });
     }
   };
 
   const unreadCount =
     Data && Array.isArray(Data) ? Data.filter((s) => !s.Seen).length : 0;
 
+  const GetDataRef = useRef(GetData);
+  GetDataRef.current = GetData;
+
   useEffect(() => {
     GetData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Live: the server emits `newNotification` with the row's Id. Refetch so the
+  // badge and list are current, and chime for anything that is not a chat row -
+  // ChatProvider already chimed for chat, and only it knows whether the reader
+  // is looking at that conversation.
+  useEffect(() => {
+    if (!LogedUser) return undefined;
+    NotificationSocket.Connect();
+    const off = NotificationSocket.On("newNotification", (NotificationId) => {
+      GetDataRef.current((rows) => {
+        const row = rows.find((r) => String(r.Id) === String(NotificationId));
+        if (!row || !IsChatNotification(row)) PlayNotificationSound();
+      });
+    });
+    return off;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Reading a chat marks its bell row seen on the server; follow that here.
+  const unreadChats = chat ? chat.unreadTotal : 0;
+  const prevUnreadChats = useRef(unreadChats);
+  useEffect(() => {
+    if (unreadChats < prevUnreadChats.current) GetDataRef.current();
+    prevUnreadChats.current = unreadChats;
+  }, [unreadChats]);
 
   return (
     <Box
@@ -210,6 +248,13 @@ export default function Notification() {
                               alignItems="flex-start"
                               component="div"
                               onClick={() => {
+                                if (IsChatNotification(item)) {
+                                  OpenChatNotification(chat, item, () =>
+                                    GetDataRef.current(),
+                                  );
+                                  handleCloseNotification();
+                                  return;
+                                }
                                 Helper.NotificationHelper.Seen(item, () => {
                                   // In-app navigation, so the doctor's other
                                   // work is not torn down. item.Url is
@@ -248,7 +293,9 @@ export default function Notification() {
                                   height: 40,
                                 }}
                               >
-                                {item.CreateDoctorsProfile ? (
+                                {IsChatNotification(item) ? (
+                                  <ChatBubbleOutlineIcon fontSize="small" />
+                                ) : item.CreateDoctorsProfile ? (
                                   item.CreateDoctorsProfile.FullName.charAt(
                                     0,
                                   ).toUpperCase()

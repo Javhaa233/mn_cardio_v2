@@ -912,8 +912,18 @@ exports.listAdvice = async (req, res) => {
       grouped.forEach((g) => counts.set(g.adv_com_id_adv, Number(g.Total) || 0));
     }
 
+    // The ticket's own attachments, one query for the page. Replies are not
+    // expanded in a list view, so their files wait for getAdvice.
+    const filesByAdvice = await AttachmentIntake.ListFor({
+      LinkedObjectName: 'Advice',
+      Ids: ids,
+    });
+
     const data = rows.map((r) =>
-      Object.assign({}, r, { commentCount: counts.get(r.id_data) || 0 })
+      Object.assign({}, r, {
+        commentCount: counts.get(r.id_data) || 0,
+        files: filesByAdvice.get(r.id_data) || [],
+      })
     );
 
     return ok(res, data, { total: count, limit, offset, filter });
@@ -942,7 +952,28 @@ exports.getAdvice = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, { ticket, comments });
+    /*
+     * Attachments on the ticket and on every reply.
+     *
+     * A зөвлөгөө answer is often an ECG strip or - since the reply composer
+     * gained a recorder - a voice note, so a text-only detail screen shows a
+     * blank where the answer is. `url` points at /api/Media/stream, which is
+     * header-authenticated and supports byte ranges, so a player can seek.
+     */
+    const [filesByAdvice, filesByComment] = await Promise.all([
+      AttachmentIntake.ListFor({ LinkedObjectName: 'Advice', Ids: [id] }),
+      AttachmentIntake.ListFor({
+        LinkedObjectName: 'AdviceComment',
+        Ids: comments.map((c) => c.id_data),
+      }),
+    ]);
+
+    return ok(res, {
+      ticket: Object.assign({}, ticket, { files: filesByAdvice.get(id) || [] }),
+      comments: comments.map((c) =>
+        Object.assign({}, c, { files: filesByComment.get(c.id_data) || [] })
+      ),
+    });
   } catch (ex) {
     return serverError(res, ex, 'getAdvice');
   }

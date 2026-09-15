@@ -254,14 +254,49 @@ class BaseCrudHelper {
   };
 
   // Confirm & Alert
-  ShowConfirm = function (Message, ConfirmFunc, HideFunction) {
+  // Options.Destructive: the Yes button deletes or removes something, so it is
+  // drawn red instead of as the filled primary.
+  ShowConfirm = function (Message, ConfirmFunc, HideFunction, Options = {}) {
     return (
       <BaseAlert
         Hide={HideFunction}
         Type="Confirm"
         Message={Message}
         Confirm={ConfirmFunc}
+        Destructive={!!Options.Destructive}
       />
+    );
+  };
+
+  /**
+   * An alert for code that has nowhere to render one - a download helper, say,
+   * with no component state to hold the element. It mounts its own small React
+   * root, inside the app theme, and removes it on OK. Components should keep
+   * using ShowAlert and render the element themselves.
+   */
+  ShowAlertDetached = async function (Message, Success = false) {
+    const [{ createRoot }, { ThemeProvider }, { default: theme }] =
+      await Promise.all([
+        import("react-dom/client"),
+        import("@mui/material/styles"),
+        import("@/theme.js"),
+      ]);
+    const Host = document.createElement("div");
+    document.body.appendChild(Host);
+    const Root = createRoot(Host);
+    const Hide = () => {
+      Root.unmount();
+      Host.remove();
+    };
+    Root.render(
+      <ThemeProvider theme={theme}>
+        <BaseAlert
+          Type="Message"
+          Message={Message}
+          success={Success}
+          Hide={Hide}
+        />
+      </ThemeProvider>,
     );
   };
 
@@ -624,14 +659,9 @@ class BaseCrudHelper {
 
               // Show error message to user
               const errorMessage = result.Message || "File download failed";
-              if (window.BaseAlert && window.BaseAlert.show) {
-                window.BaseAlert.show({
-                  type: "error",
-                  message: errorMessage,
-                });
-              } else {
-                alert(errorMessage);
-              }
+              // No component to render into here, so the alert mounts itself. This was a
+              // browser alert(): `window.BaseAlert` is never defined anywhere.
+              this.ShowAlertDetached(errorMessage, false);
 
               callback && callback({ success: false, error: errorMessage });
               return;
@@ -659,14 +689,9 @@ class BaseCrudHelper {
             process.env.NODE_ENV === "development" && console.log({ err });
 
             // Show error message to user
-            if (window.BaseAlert && window.BaseAlert.show) {
-              window.BaseAlert.show({
-                type: "error",
-                message: errorMessage,
-              });
-            } else {
-              alert(errorMessage);
-            }
+            // No component to render into here, so the alert mounts itself. This was a
+            // browser alert(): `window.BaseAlert` is never defined anywhere.
+            this.ShowAlertDetached(errorMessage, false);
 
             callback && callback({ success: false, error: errorMessage });
           });

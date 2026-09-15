@@ -3,7 +3,13 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material
 import { styled } from "@mui/material/styles";
-import { DialogContent, Dialog, Paper, IconButton } from "@mui/material";
+import {
+  DialogContent,
+  Dialog,
+  Paper,
+  IconButton,
+  Typography,
+} from "@mui/material";
 import MuiDialogTitle from "@mui/material/DialogTitle";
 // @mui/icons-material
 import CloseIcon from "@mui/icons-material/Close";
@@ -11,10 +17,11 @@ import CropSquareIcon from "@mui/icons-material/CropSquare";
 import FilterNoneIcon from "@mui/icons-material/FilterNone";
 import MinimizeIcon from "@mui/icons-material/Minimize";
 
-import BaseLabel from "customComponents/BaseViewControls/BaseLabel";
 import BaseDialogActions from "baseComponents/BaseDialogActions";
 import { useDialogWindow } from "baseComponents/useDialogWindow";
 import { useIsCompact } from "helper/useResponsive";
+import { colors } from "@/theme/colors";
+import { radius, elevation, motion } from "@/theme/tokens";
 
 // --- STYLED COMPONENTS ---
 
@@ -29,50 +36,88 @@ const StyledDialogTitle = styled(MuiDialogTitle, {
   // anywhere on the header did nothing at all. It now applies only when the
   // dialog is actually draggable (never on a compact screen).
   touchAction: movable ? "none" : "auto",
-  padding: "10px 12px",
-  background:
-    "linear-gradient(180deg, rgba(245, 247, 250, 1) 0%, rgba(236, 240, 244, 1) 100%)",
-  borderBottom: "1px solid rgba(0,0,0,0.06)",
+  userSelect: movable ? "none" : "auto",
+  // A flat white bar, as on the account dialogs. It used to be a grey gradient
+  // with a #878787 title - the lightest text in the dialog on its most
+  // important line. The hairline under it comes from the content's `dividers`.
+  padding: "8px 10px 8px 20px",
+  minHeight: "48px",
+  display: "flex",
+  alignItems: "center",
+  backgroundColor: colors.brand.surface,
+  borderTopLeftRadius: "inherit",
+  borderTopRightRadius: "inherit",
 }));
 
-const StyledCloseButton = styled(IconButton)(({ theme }) => ({
-  fontSize: "18px",
-  padding: "4px",
-  color: theme.palette.grey[700],
-}));
-
-const WindowControlButton = styled(IconButton)(({ theme }) => ({
-  width: 22,
-  height: 22,
+/**
+ * Minimize / maximize / close. Quiet until hovered: the title is what the eye
+ * should land on, not three bordered circles beside it.
+ */
+const WindowControlButton = styled(IconButton, {
+  shouldForwardProp: (prop) => prop !== "danger",
+})(({ danger }) => ({
+  width: 30,
+  height: 30,
   padding: 0,
-  borderRadius: 999,
-  border: "1px solid rgba(0,0,0,0.15)",
-  color: theme.palette.grey[700],
-  backgroundColor: "rgba(255,255,255,0.9)",
+  borderRadius: radius.sm,
+  color: colors.brand.inkDim,
+  backgroundColor: "transparent",
+  transition: `background-color ${motion.fast}, color ${motion.fast}`,
   "&:hover": {
-    backgroundColor: "rgba(255,255,255,1)",
+    backgroundColor: danger ? "rgba(220, 53, 69, 0.08)" : colors.brand.tint,
+    color: danger ? colors.status.danger : colors.brand.ink,
+  },
+  "&.Mui-focusVisible": {
+    outline: `2px solid ${colors.brand.focus}`,
+    outlineOffset: "1px",
   },
 }));
 
-const StyledDialogContent = styled(DialogContent)(({ theme }) => ({
-  "&::-webkit-scrollbar": { width: "12px", height: "12px" },
-  "&::-webkit-scrollbar-track": {
-    backgroundColor: "rgba(136, 136, 136, 0.1)",
-    "&:hover": { backgroundColor: "rgba(173, 173, 173, 0.4)" },
-  },
+const StyledDialogContent = styled(DialogContent)(() => ({
+  "&::-webkit-scrollbar": { width: "10px", height: "10px" },
+  "&::-webkit-scrollbar-track": { backgroundColor: "transparent" },
   "&::-webkit-scrollbar-thumb": {
-    backgroundColor: "rgba(136, 136, 136, 0.6)",
-    borderRadius: "6px",
-    width: "12px",
-    "&:hover": { backgroundColor: "rgba(136, 136, 136, 0.9)" },
+    backgroundColor: colors.brand.hairlineStrong,
+    borderRadius: radius.pill,
+    border: "2px solid transparent",
+    backgroundClip: "content-box",
+    "&:hover": { backgroundColor: colors.brand.inkDim },
   },
   display: "flex",
   flexDirection: "column",
 }));
 
+/** The corner grip on a resizable window, in the brand hairline. */
+export const resizeGripStyle = {
+  position: "absolute",
+  width: "18px",
+  height: "18px",
+  right: 0,
+  bottom: 0,
+  cursor: "nwse-resize",
+  zIndex: 1301,
+  touchAction: "none",
+  background: `linear-gradient(135deg, transparent 55%, ${colors.brand.hairlineStrong} 55%)`,
+  backgroundSize: "10px 10px",
+  backgroundRepeat: "no-repeat",
+  backgroundPosition: "bottom 3px right 3px",
+  borderBottomRightRadius: radius.lg,
+};
+
+/** Paper styles shared by the two window implementations. */
+export const windowPaperSx = {
+  backgroundColor: colors.brand.surface,
+  borderRadius: radius.lg,
+  boxShadow: elevation[4],
+};
+
 // --- TITLE COMPONENT ---
 
-const DialogTitle = (props) => {
+/**
+ * The window title bar, exported so `baseComponents/BaseDetailView` draws the
+ * same one instead of a second copy.
+ */
+export const DialogTitle = (props) => {
   const {
     children,
     headerContent,
@@ -102,6 +147,8 @@ const DialogTitle = (props) => {
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
+          width: "100%",
+          minWidth: 0,
         }}
       >
         <div
@@ -115,50 +162,47 @@ const DialogTitle = (props) => {
           {headerContent ? (
             headerContent
           ) : (
-            <BaseLabel
-              Label={children}
-              Size="16px"
-              Weight="400"
-              Color="#878787"
-            />
+            // component="div": DialogTitle is already an h2, and a nested bare
+            // heading would be reachable by _misc.scss.
+            <Typography
+              variant="h4"
+              component="div"
+              noWrap
+              title={typeof children === "string" ? children : undefined}
+              sx={{ color: colors.brand.ink, minWidth: 0 }}
+            >
+              {children}
+            </Typography>
           )}
         </div>
 
-        {WinBoxStyle ? (
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {ShowMinimize && (
-              <WindowControlButton
-                aria-label={IsMinimized ? "restore" : "minimize"}
-                onClick={onMinimizeToggle}
-              >
-                <MinimizeIcon sx={{ fontSize: 16 }} />
-              </WindowControlButton>
-            )}
-            {ShowMaximize && (
-              <WindowControlButton
-                aria-label={IsMaximized ? "restore" : "maximize"}
-                onClick={onMaximizeToggle}
-              >
-                {IsMaximized ? (
-                  <FilterNoneIcon sx={{ fontSize: 16 }} />
-                ) : (
-                  <CropSquareIcon sx={{ fontSize: 16 }} />
-                )}
-              </WindowControlButton>
-            )}
-            {onClose && (
-              <WindowControlButton aria-label="close" onClick={onClose}>
-                <CloseIcon sx={{ fontSize: 16 }} />
-              </WindowControlButton>
-            )}
-          </div>
-        ) : (
-          onClose && (
-            <StyledCloseButton aria-label="close" onClick={onClose}>
-              <CloseIcon />
-            </StyledCloseButton>
-          )
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {WinBoxStyle && ShowMinimize && (
+            <WindowControlButton
+              aria-label={IsMinimized ? "restore" : "minimize"}
+              onClick={onMinimizeToggle}
+            >
+              <MinimizeIcon sx={{ fontSize: 18 }} />
+            </WindowControlButton>
+          )}
+          {WinBoxStyle && ShowMaximize && (
+            <WindowControlButton
+              aria-label={IsMaximized ? "restore" : "maximize"}
+              onClick={onMaximizeToggle}
+            >
+              {IsMaximized ? (
+                <FilterNoneIcon sx={{ fontSize: 16 }} />
+              ) : (
+                <CropSquareIcon sx={{ fontSize: 18 }} />
+              )}
+            </WindowControlButton>
+          )}
+          {onClose && (
+            <WindowControlButton danger aria-label="close" onClick={onClose}>
+              <CloseIcon sx={{ fontSize: 20 }} />
+            </WindowControlButton>
+          )}
+        </div>
       </div>
     </StyledDialogTitle>
   );
@@ -243,21 +287,7 @@ const BaseDialog = React.forwardRef((props, ref) => {
       <div
         data-resize-handle="true"
         onPointerDown={onResizePointerDown}
-        style={{
-          position: "absolute",
-          width: "18px",
-          height: "18px",
-          right: 0,
-          bottom: 0,
-          cursor: "nwse-resize",
-          zIndex: 1301,
-          touchAction: "none",
-          background: "linear-gradient(135deg, transparent 50%, #9e9e9e 50%)",
-          backgroundSize: "12px 12px",
-          backgroundRepeat: "no-repeat",
-          backgroundPosition: "bottom right",
-          borderBottomRightRadius: "4px",
-        }}
+        style={resizeGripStyle}
       />
     ) : null;
 
@@ -296,6 +326,7 @@ const BaseDialog = React.forwardRef((props, ref) => {
         overflow: "visible",
       }
     : {
+        ...windowPaperSx,
         position: WinBoxStyle ? "fixed" : "relative",
         top: WinBoxStyle ? 8 : undefined,
         left: WinBoxStyle ? 8 : undefined,

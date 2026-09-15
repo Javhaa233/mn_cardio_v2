@@ -24,9 +24,15 @@ import Paginition from "baseComponents/BaseGrid/Pagination";
 import Helper from "helper";
 
 import customHistory from "customHistory";
+import { useChatContext } from "customComponents/Chat/ChatContext";
+import {
+  IsChatNotification,
+  OpenChatNotification,
+} from "customComponents/Notification/chatNotification";
 
 export default function AllNotifications() {
   const { t } = useTranslation();
+  const chat = useChatContext();
 
   const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
 
@@ -46,7 +52,8 @@ export default function AllNotifications() {
 
       var NotificationSearchOption = Helper.BaseCrudHelper.GetSearchOption();
       NotificationSearchOption.PageOption = currentPageOption || pageOption;
-      NotificationSearchOption.OrderBy = { Field: "Id", Type: "desc" };
+      // CreateDate: chat rows are rewritten in place, so Id order goes stale.
+      NotificationSearchOption.OrderBy = { Field: "CreateDate", Type: "desc" };
       NotificationSearchOption.SearchField = [
         { Field: "ToUserId", Value: LogedUser.Id, Op: "Equals" },
       ];
@@ -162,6 +169,12 @@ export default function AllNotifications() {
                     <ListItem
                       alignItems="flex-start"
                       onClick={() => {
+                        if (IsChatNotification(item)) {
+                          OpenChatNotification(chat, item, () =>
+                            GetData(pageOption),
+                          );
+                          return;
+                        }
                         Helper.NotificationHelper.Seen(item, () => {
                           if (item.Url) {
                             // Relative paths go through the router so the rest

@@ -6,7 +6,10 @@ import Typography from "@mui/material/Typography";
 import Collapse from "@mui/material/Collapse";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import SendIcon from "@mui/icons-material/Send";
+import MicIcon from "@mui/icons-material/Mic";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useTranslation } from "react-i18next";
 import Helper from "helper";
@@ -14,6 +17,9 @@ import BaseField from "baseComponents/BaseField";
 import SimpleSelect from "customComponents/SimpleSelect";
 import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
 import BaseFileUpload from "baseComponents/Controls/BaseFileUpload";
+import AudioRecorder from "customComponents/Chat/AudioRecorder";
+import { recorderUnavailableReason } from "customComponents/Chat/useMediaRecorder";
+import { ADVICE_UPLOAD_EXT, ADVICE_MAX_FILE_MB } from "./mediaUtils";
 import { colors } from "@/theme/colors";
 import { radius, space, elevation } from "@/theme/tokens";
 
@@ -40,7 +46,12 @@ export default function PostComposer({ onPublished }) {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
+  const [recording, setRecording] = useState(false);
   const user = useRef(Helper.AuthHelper.GetLogedUserLocal());
+
+  // Once per mount: a browser that cannot record will not start being able to,
+  // and a button that explains itself only once pressed should not be offered.
+  const recorderBlocked = React.useMemo(() => recorderUnavailableReason(), []);
 
   useEffect(() => {
     if (!open || fields.length) return;
@@ -270,12 +281,59 @@ export default function PostComposer({ onPublished }) {
                 />
               </Box>
 
-              <Box sx={{ mt: space[3] }}>
-                <BaseFileUpload
-                  Value={files}
-                  Config={{ Name: "Files" }}
-                  ChangeValue={(v) => setFiles(v || [])}
-                />
+              <Box
+                sx={{ mt: space[3], display: "flex", alignItems: "flex-start" }}
+              >
+                {recording ? (
+                  <AudioRecorder
+                    Active={recording}
+                    // The clip joins the attachment list; it is not posted on
+                    // its own the way a chat voice note is.
+                    DoneLabel={t("Хавсаргах")}
+                    OnDone={(file) => {
+                      setRecording(false);
+                      if (file) setFiles((prev) => [...prev, file]);
+                    }}
+                    OnCancel={() => setRecording(false)}
+                    OnError={(msg) => {
+                      setRecording(false);
+                      setError(t(msg));
+                    }}
+                  />
+                ) : (
+                  <>
+                    <Box sx={{ flex: 1 }}>
+                      <BaseFileUpload
+                        Value={files}
+                        Config={{ Name: "Files" }}
+                        ChangeValue={(v) => setFiles(v || [])}
+                        allowedFileTypes={ADVICE_UPLOAD_EXT}
+                        maxFileSize={ADVICE_MAX_FILE_MB}
+                      />
+                    </Box>
+
+                    <Tooltip
+                      title={
+                        recorderBlocked ? t(recorderBlocked) : t("Дуу бичих")
+                      }
+                    >
+                      {/* span: a disabled IconButton fires no events, and a
+                          Tooltip with nothing to listen to never opens - which
+                          is exactly the case that needs to explain itself. */}
+                      <span>
+                        <IconButton
+                          size="small"
+                          aria-label={t("Дуу бичих")}
+                          disabled={!!recorderBlocked}
+                          onClick={() => setRecording(true)}
+                          sx={{ ml: space[2], color: colors.brand.cyanInk }}
+                        >
+                          <MicIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  </>
+                )}
               </Box>
 
               <Box
