@@ -8,6 +8,7 @@ import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
 import '../diagnostics/diagnostics_screen.dart';
+import 'doctor_emd_screen.dart';
 import 'doctor_patient_extras.dart';
 import 'doctor_questions_screen.dart';
 import 'doctor_models.dart';
@@ -265,6 +266,18 @@ class _SummaryTab extends StatelessWidget {
               ),
               icon: const Icon(Icons.self_improvement_outlined, size: 18),
               label: const Text('Сэргээн засах'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DoctorEmdScreen(
+                    patientId: card.patient.idData,
+                    patientName: card.patient.fullName,
+                  ),
+                ),
+              ),
+              icon: const Icon(Icons.medication_outlined, size: 18),
+              label: const Text('ЭМД-ын эм'),
             ),
           ],
         ),

@@ -16,6 +16,15 @@ final Uuid _uuid = Uuid();
 class ChatRoomsController extends ChangeNotifier {
   ChatRoomsController(this._repo, this._socket) {
     _sub = _socket.messages.listen(_onIncoming);
+    // Токен хуучирахад socket өөрөө сэргээж чадахгүй: сервер тэр дороо
+    // салгадаг. HTTP дуудлага хийж токеноо шинэчлээд (interceptor хийнэ)
+    // шинэ токеноор дахин холбогдоно.
+    _socket.onTokenExpired = _refreshSession;
+  }
+
+  Future<void> _refreshSession() async {
+    await load(refresh: true);
+    await _socket.reconnectWithFreshToken();
   }
 
   final ChatRepository _repo;
@@ -138,6 +147,7 @@ class ChatConversationController extends ChangeNotifier {
         _socket = socket,
         _me = me {
     _sub = _socket.messages.listen(_onIncoming);
+    _typingSub = _socket.typingEvents.listen(_onTyping);
     _socket.joinRoom(chatRoomId);
   }
 
@@ -147,6 +157,42 @@ class ChatConversationController extends ChangeNotifier {
   ChatMe? _me;
 
   late final StreamSubscription<ChatMessage> _sub;
+  late final StreamSubscription<TypingEvent> _typingSub;
+
+  /// Илгээж чадаагүй мессежийн файлууд — дахин оролдоход хэрэгтэй.
+  final Map<String, List<File>> _failedFiles = <String, List<File>>{};
+
+  DateTime? _typingSentAt;
+  Timer? _typingStop;
+  Timer? _peerTypingClear;
+  bool _peerTyping = false;
+
+  /// Нөгөө тал бичиж байгаа эсэх.
+  bool get peerTyping => _peerTyping;
+
+  void _onTyping(TypingEvent event) {
+    if (event.chatRoomId != chatRoomId) return;
+    // Өөрийн эвентийг үл тоомсорлоно — сервер илгээгчид ч тарааж болно.
+    if (_me?.matches(event.userType, event.userId) ?? false) return;
+
+    _peerTypingClear?.cancel();
+    if (!event.isTyping) {
+      if (_peerTyping) {
+        _peerTyping = false;
+        notifyListeners();
+      }
+      return;
+    }
+    if (!_peerTyping) {
+      _peerTyping = true;
+      notifyListeners();
+    }
+    // Нөгөө тал аппаа хаавал `false` ирэхгүй тул өөрөө унтраана.
+    _peerTypingClear = Timer(const Duration(seconds: 6), () {
+      _peerTyping = false;
+      notifyListeners();
+    });
+  }
 
   /// Шинэхнээс нь хуучин руу эрэмбэлэгдсэн — `reverse: true` жагсаалтад тохирно.
   final List<ChatMessage> _messages = <ChatMessage>[];
@@ -236,7 +282,24 @@ class ChatConversationController extends ChangeNotifier {
 
   void _onIncoming(ChatMessage message) {
     if (message.chatRoomId != chatRoomId) return;
-    // Өөрийн илгээсэн мессеж socket-оор эргэж ирвэл давхардуулахгүй.
+
+    // Сервер `newMessage`-ийг HTTP хариунаас ӨМНӨ тарааж, илгээгч өөрөө ч
+    // хүлээн авагчдын дунд байдаг. Түр бөмбөлгийн `id` нь 0 тул зөвхөн
+    // id-аар шалгавал ижил мессеж хоёр удаа харагдана. Иймд эхлээд
+    // `ClientMsgId`-аар тааруулж, түр бөмбөлгөө "илгээгдсэн" болгоно.
+    final clientId = message.clientMsgId;
+    if (clientId != null && clientId.isNotEmpty) {
+      final index = _messages.indexWhere(
+        (ChatMessage m) => m.clientMsgId == clientId,
+      );
+      if (index != -1) {
+        _messages[index] = message.copyWith(sendState: ChatSendState.sent);
+        _emit(AsyncState<List<ChatMessage>>.ready(messages));
+        _markRead();
+        return;
+      }
+    }
+
     if (_messages.any((ChatMessage m) => m.id == message.id && m.id != 0)) {
       return;
     }
@@ -312,9 +375,12 @@ class ChatConversationController extends ChangeNotifier {
         onProgress: onProgress,
       );
       _replaceOptimistic(clientMsgId, saved);
+      _failedFiles.remove(clientMsgId);
       return null;
     } on ApiException catch (e) {
       _markOptimisticFailed(clientMsgId);
+      // Дахин оролдоход хавсралт алга болохгүйн тулд хадгална.
+      _failedFiles[clientMsgId] = List<File>.from(files);
       return e;
     } finally {
       _sending = false;
@@ -323,9 +389,20 @@ class ChatConversationController extends ChangeNotifier {
   }
 
   void _replaceOptimistic(String clientMsgId, ChatMessage saved) {
+    // Socket хувилбар нь HTTP хариунаас өмнө ирсэн байж болно. Тэр тохиолдолд
+    // ижил id-тай мөр аль хэдийн жагсаалтад байгаа тул түр бөмбөлгийг зүгээр
+    // л хасна — эс бөгөөс хоёр хуулбар үлдэнэ.
+    final existing =
+        _messages.indexWhere((ChatMessage m) => m.id == saved.id && m.id != 0);
     final index =
         _messages.indexWhere((ChatMessage m) => m.clientMsgId == clientMsgId);
-    if (index == -1) {
+
+    if (existing != -1 && existing != index) {
+      if (index != -1) _messages.removeAt(index);
+      _messages[_messages.indexWhere(
+        (ChatMessage m) => m.id == saved.id && m.id != 0,
+      )] = saved.copyWith(sendState: ChatSendState.sent);
+    } else if (index == -1) {
       _messages.insert(0, saved);
     } else {
       _messages[index] = saved.copyWith(sendState: ChatSendState.sent);
@@ -343,12 +420,34 @@ class ChatConversationController extends ChangeNotifier {
   }
 
   /// Илгээгдээгүй мессежийг жагсаалтаас хасна.
+  /// Дахин оролдоход илгээх файлууд.
+  List<File> failedFilesFor(String clientMsgId) =>
+      _failedFiles[clientMsgId] ?? const <File>[];
+
   void discardFailed(String clientMsgId) {
     _messages.removeWhere((ChatMessage m) => m.clientMsgId == clientMsgId);
     _emit(AsyncState<List<ChatMessage>>.ready(messages));
   }
 
-  void typing() => _socket.typing(chatRoomId);
+  /// "Бичиж байна" — 2 секундэд нэгээс олонгүй илгээж, 4 секунд бичихгүй бол
+  /// өөрөө унтраана. Сервер төлөвийг дамжуулдаг тул `false`-ыг заавал явуулна.
+  void typing() {
+    final now = DateTime.now();
+    final last = _typingSentAt;
+    if (last == null || now.difference(last) > const Duration(seconds: 2)) {
+      _typingSentAt = now;
+      _socket.typing(chatRoomId, isTyping: true);
+    }
+    _typingStop?.cancel();
+    _typingStop = Timer(const Duration(seconds: 4), stopTyping);
+  }
+
+  void stopTyping() {
+    _typingStop?.cancel();
+    _typingStop = null;
+    _typingSentAt = null;
+    _socket.typing(chatRoomId, isTyping: false);
+  }
 
   Future<void> _markRead() async {
     final newest = _messages
@@ -370,6 +469,9 @@ class ChatConversationController extends ChangeNotifier {
   @override
   void dispose() {
     _sub.cancel();
+    _typingStop?.cancel();
+    _peerTypingClear?.cancel();
+    _typingSub.cancel();
     _socket.leaveRoom(chatRoomId);
     super.dispose();
   }

@@ -106,7 +106,24 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   '${room.members.length} гишүүн',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
-              const _ConnectionSubtitle(),
+              // "Бичиж байна…" нь холболтын мэдэгдлээс чухал — эхэнд нь.
+              Consumer<ChatConversationController>(
+                builder: (
+                  BuildContext context,
+                  ChatConversationController controller,
+                  Widget? child,
+                ) {
+                  if (!controller.peerTyping) return child!;
+                  return Text(
+                    'бичиж байна…',
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(fontSize: 11.5),
+                  );
+                },
+                child: const _ConnectionSubtitle(),
+              ),
             ],
           ),
           actions: <Widget>[
@@ -189,10 +206,13 @@ class _ChatRoomScreenState extends State<ChatRoomScreen>
                   sending: controller.sending,
                   onTyping: controller.typing,
                   onSendText: (String text) async {
+                    // Илгээсэн даруйд "бичиж байна" төлөвийг унтраана.
+                    controller.stopTyping();
                     final error = await controller.sendText(text);
                     _afterSend(error);
                   },
                   onSendFiles: (List<File> files, String caption) async {
+                    controller.stopTyping();
                     final error = await controller.sendAttachments(
                       files: files,
                       text: caption,

@@ -150,9 +150,22 @@ class ChatRepository {
     }
 
     // 2. Файлууд.
-    await _uploadFiles(messageId: messageId, files: files, onProgress: onProgress);
+    ApiException? uploadError;
+    try {
+      await _uploadFiles(
+        messageId: messageId,
+        files: files,
+        onProgress: onProgress,
+      );
+    } on ApiException catch (e) {
+      uploadError = e;
+    }
 
-    // 3. Баталгаажуулалт.
+    // 3. Баталгаажуулалт — оруулалт бүтэлгүйтсэн ч ЗААВАЛ дуудна.
+    //
+    // Дуудахгүй бол `'P'` (хүлээгдэж буй) төлөвтэй хоосон мессеж илгээгчийн
+    // түүхэнд мөнхөд үлдэнэ. Нэг ч файл буугаагүй бол сервер өөрөө тэр мөрийг
+    // устгадаг (ChatController.js) — тиймээс энэ дуудлага цэвэрлэгээ ч хийнэ.
     final committed = await _api.legacyObject(
       '/api/Chat/CommitMessage',
       body: <String, dynamic>{
@@ -160,6 +173,7 @@ class ChatRepository {
         'ClientMsgId': clientMsgId,
       },
     );
+    if (uploadError != null) throw uploadError;
     return ChatMessage.fromJson(committed, me: me);
   }
 
