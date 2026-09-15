@@ -7,6 +7,7 @@ import '../consents/consents_screen.dart';
 import '../doctor/doctor_advice_screen.dart';
 import '../doctor/doctor_evisits_screen.dart';
 import '../doctor/doctor_monitoring_screen.dart';
+import '../doctor/doctor_questions_screen.dart';
 import '../doctor/doctor_repository.dart';
 import '../doctor/ticket_detail_screen.dart';
 import '../evisits/evisits_screen.dart';
@@ -30,6 +31,8 @@ Future<void> openNotification(
   final object = (item.linkObjectName ?? '').trim();
   final action = (item.action ?? '').trim();
   final id = item.linkObjectId ?? 0;
+  final patientId = item.patientId ?? 0;
+  final adviceId = item.adviceId ?? 0;
 
   Future<void> push(Widget screen) async {
     await Navigator.of(context).push(
@@ -79,24 +82,24 @@ Future<void> openNotification(
       return push(const DoctorEvisitsScreen());
 
     case 'Advice':
-      // Асуумжийг дугаараар нь татаад шууд нээнэ.
-      if (id > 0) {
-        final ticket = await context.read<DoctorRepository>().fetchTicket(id);
+    case 'AdviceComment':
+      // Сервер 2026-09-15-наас эцэг асуумжийн дугаарыг өгдөг болсон тул
+      // сэтгэгдлийн мэдэгдлээс ч яг тэр асуумж нээгдэнэ.
+      final ticketId = adviceId > 0 ? adviceId : (object == 'Advice' ? id : 0);
+      if (ticketId > 0) {
+        final ticket =
+            await context.read<DoctorRepository>().fetchTicket(ticketId);
         if (!context.mounted) return;
         if (ticket != null) return push(TicketDetailScreen(ticket: ticket));
       }
       if (!context.mounted) return;
       return push(const DoctorAdviceScreen());
 
-    case 'AdviceComment':
-      // Сэтгэгдлийн дугаараар асуумжийг олох зам серверт байхгүй тул
-      // өөрийн асуумжуудын жагсаалт руу аваачна.
-      return push(const DoctorAdviceScreen());
-
     case 'VisitComments':
-      // Сервер асуултын мөрийн дугаарыг өгдөг ч аль үйлчлүүлэгчийнх нь
-      // мэдэгддэггүй. Хяналтын жагсаалтаас сонгоно — BACKEND-ENDPOINTS-д
-      // бүртгэсэн (мэдэгдэлд `PatientId` нэмэх).
+      // `PatientId` ирдэг болсон — тэр үйлчлүүлэгчийн яриаг шууд нээнэ.
+      if (patientId > 0) {
+        return push(DoctorQuestionsScreen(patientId: patientId));
+      }
       return push(const DoctorMonitoringScreen());
 
     case 'PatientMonitoringDoctor':
