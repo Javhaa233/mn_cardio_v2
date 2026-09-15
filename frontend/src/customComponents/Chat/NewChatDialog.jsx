@@ -170,17 +170,15 @@ export default function NewChatDialog({ Open, OnClose }) {
               </Box>
             ) : null}
           </>
-        ) : (
+        ) : isPatient ? (
           <Typography
             variant="body2"
             component="div"
             sx={{ mb: 1.5, color: colors.brand.inkMuted }}
           >
-            {isPatient
-              ? t("Өөрийн эмчийг сонгоно уу")
-              : t("Эмчийг сонгоход яриа шууд эхэлнэ")}
+            {t("Өөрийн эмчийг сонгоно уу")}
           </Typography>
-        )}
+        ) : null}
 
         <DoctorPicker
           Multiple={groupMode}

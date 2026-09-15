@@ -6,7 +6,7 @@ import Typography from "@mui/material/Typography";
 import { useTranslation } from "react-i18next";
 import { colors } from "@/theme/colors";
 import { radius, space } from "@/theme/tokens";
-import PostMedia from "./PostMedia";
+import AdviceAttachments from "./AdviceAttachments";
 
 /**
  * The first few replies, rendered on the card itself.
@@ -28,9 +28,9 @@ import PostMedia from "./PostMedia";
  * very often an image - an ECG strip, an echo still - and a chip reading
  * "IMG_0431.jpg" is a second click hiding the actual content.
  *
- * Not a second comment component: the bubbles reuse PostMedia, so reply photos
- * get the same grid, the same lightbox and the same lazy loading as post
- * photos. The full thread - liking, rating, the composer - stays in
+ * Not a second comment component: the bubbles reuse AdviceAttachments, so reply
+ * photos get the same grid, the same lightbox and the same lazy loading as post
+ * photos, and a reply recorded as a voice note gets the same player. The full thread - liking, rating, the composer - stays in
  * ReplyThread; this is a preview and deliberately read-only.
  */
 
@@ -180,7 +180,7 @@ export default function CommentPreview({ Comments, CommentQty, onExpand }) {
                   overflow: "hidden",
                 }}
               >
-                <PostMedia
+                <AdviceAttachments
                   Files={c.Files}
                   FileTotal={c.FileTotal}
                   FullBleedMargin="0px"

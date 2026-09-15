@@ -107,10 +107,26 @@ const VIDEO_FOR = ['RehabExercise', 'ChatMessages'];
  */
 const CHAT_EXTRA_EXT = ['weba'];
 
+/*
+ * Where a BROWSER-RECORDED voice note may land.
+ *
+ * It is the recorder's own output format, so every surface that offers the
+ * microphone has to admit it or the feature is dead on Firefox and on Chrome
+ * before 130 - the user records, and the upload is refused for an extension
+ * they never chose. Advice replies record exactly the way chat does
+ * (customComponents/Chat/AudioRecorder.jsx is reused unmodified), so they
+ * belong here too.
+ *
+ * Still off the global list: 'weba' only ever arrives from a recorder, and a
+ * clinical form that has never seen one should not start accepting it as a
+ * side effect.
+ */
+const WEBA_FOR = ['ChatMessages', 'Advice', 'AdviceComment'];
+
 const AllowedExtFor = (LinkedObjectName) => {
   let List = ALLOWED_UPLOAD_EXT;
   if (VIDEO_FOR.indexOf(LinkedObjectName) !== -1) List = List.concat(ALLOWED_UPLOAD_EXT_VIDEO);
-  if (LinkedObjectName === 'ChatMessages') List = List.concat(CHAT_EXTRA_EXT);
+  if (WEBA_FOR.indexOf(LinkedObjectName) !== -1) List = List.concat(CHAT_EXTRA_EXT);
   return List;
 };
 
@@ -124,5 +140,6 @@ module.exports = {
   ALLOWED_UPLOAD_EXT,
   ALLOWED_UPLOAD_EXT_VIDEO,
   VIDEO_FOR,
+  WEBA_FOR,
   AllowedExtFor,
 };

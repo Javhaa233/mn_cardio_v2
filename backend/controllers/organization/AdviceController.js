@@ -9,6 +9,10 @@ const ModelHelper = require('../../helper/ModelHelper');
 const NotificationHelper = require('../../helper/NotificationHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
 const { BuildAdviceScope, GetLogedOrganization } = require('../../helper/AdviceScopeHelper');
+const { MayDownload } = require('../../helper/FileAccessHelper');
+const MediaStream = require('../../helper/MediaStream');
+const MediaMeta = require('../../helper/MediaMeta');
+const MediaTicket = require('../../helper/MediaTicket');
 
 // routes
 router.post('/GetList', GetList);
@@ -24,6 +28,7 @@ router.post('/GetFeed', GetFeed);
 router.post('/GetTicket', GetTicket);
 router.post('/GetStats', GetStats);
 router.post('/CustomSaveAndPublish', CustomSaveAndPublish);
+router.post('/GetAttachmentLink', GetAttachmentLink);
 
 async function GetAdviceCommentPoint(req, res) {
   try {
@@ -745,6 +750,9 @@ async function GetComments(req, res) {
         }
       }
 
+      // Voice notes need Kind and a length before the bytes are fetched.
+      await EnrichPlayable(AdviceComments.map((C) => C.Files));
+
       result.Data = AdviceComments;
     }
 
@@ -757,6 +765,146 @@ async function GetComments(req, res) {
     return res.send(JSON.stringify(errorResult));
   }
 }
+
+//#region Attachment playback
+
+/**
+ * Put Kind, DurationMs and MediaState on already-shaped attachments.
+ *
+ * The shapers (GetFileSrc / GetFileSrcThumbnailCached) build FileInfo out of
+ * the raw File row plus Name and Available. That is everything a download chip
+ * needs and not enough for a PLAYER: it cannot tell an audio file from a
+ * document before fetching it, and it has no length to show until the bytes
+ * arrive - so a voice note renders as "-:--" and then jumps.
+ *
+ * Same three fields chat puts on its own attachments in
+ * ChatController.AttachFileSources, so one renderer serves both.
+ *
+ * Takes ALL the lists on a page at once and issues ONE MediaMeta.Read for the
+ * lot. A feed page is 20 cards, each with its own files and two preview
+ * replies with theirs - reading per list would be sixty round trips to render
+ * one screen.
+ *
+ * MediaMeta is SchemaProbe-gated, so on a database where
+ * scripts/add_file_media_columns.sql has not run this writes Kind and leaves
+ * the duration null: the player still plays, it just cannot label the length
+ * until the file loads.
+ */
+async function EnrichPlayable(FileLists) {
+  const Lists = (FileLists || []).filter((L) => Array.isArray(L) && L.length);
+  if (!Lists.length) return;
+
+  const Ids = [];
+  Lists.forEach((List) => {
+    List.forEach((F) => {
+      const Info = F && F.FileInfo;
+      if (!Info) return;
+      const Kind = MediaStream.Kind(Info.ext);
+      Info.Kind = Kind;
+      // Only audio is queried. Video is not rendered on this surface (the
+      // customer did not take it in scope), so asking for its duration would
+      // be work for a label nothing shows.
+      if (Kind === 'audio' && Info.id_data) Ids.push(Info.id_data);
+    });
+  });
+
+  if (!Ids.length) return;
+
+  let MetaById;
+  try {
+    MetaById = await MediaMeta.Read(Ids);
+  } catch (ex) {
+    // A label is not worth failing a page for.
+    console.log('[AdviceController/EnrichPlayable] meta read failed:', ex.message);
+    return;
+  }
+
+  Lists.forEach((List) => {
+    List.forEach((F) => {
+      const Info = F && F.FileInfo;
+      if (!Info || Info.Kind !== 'audio') return;
+      const M = MetaById.get ? MetaById.get(parseInt(Info.id_data, 10)) : null;
+      Info.DurationMs = M ? M.DurationMs : null;
+      Info.MediaState = M ? M.MediaState : null;
+    });
+  });
+}
+
+/**
+ * A short-lived URL a browser <audio> can actually fetch.
+ *
+ * The streaming route /api/Media/stream/:generatedName wants an Authorization
+ * header, and an <audio> element cannot send one. So the same answer chat
+ * reached: mint a ticket naming ONE file and ONE user, and let
+ * MediaTicketController redeem it.
+ *
+ * A ticket is a claim, not a grant - redemption reloads the user and re-runs
+ * MayDownload, which for Advice and AdviceComment routes through
+ * AdviceScopeHelper.MayReadAdviceAttachment. So a doctor who loses sight of a
+ * ticket loses the outstanding links with it, and nothing here needs to know
+ * the Advice visibility rules. That is also why there is no new route on
+ * MediaTicketController: it is mounted ahead of the gated router and is only
+ * safe while it declares exactly one path.
+ *
+ * MayDownload is the real gate. The LinkedObjectName check above it only keeps
+ * this from quietly becoming a general-purpose minting endpoint for every
+ * object in the system.
+ */
+async function GetAttachmentLink(req, res) {
+  try {
+    const Fail = (Message) =>
+      res.send(JSON.stringify({ Success: false, Message, Data: null, Option: {} }));
+
+    const FileId = parseInt(req.body.FileId, 10);
+    if (!FileId || Number.isNaN(FileId)) return Fail('Мэдээлэл дутуу байна');
+
+    const FileRow = await Models.File.findByPk(FileId, { raw: true });
+    if (!FileRow || !FileRow.generated_name) return Fail('Файл олдсонгүй');
+    if (['Advice', 'AdviceComment'].indexOf(FileRow.LinkedObjectName) === -1) {
+      return Fail('Хандах эрхгүй байна');
+    }
+
+    const Stored = await MayDownload({
+      FileInfo: { generated_name: FileRow.generated_name },
+      LogedUser: req.LogedUser,
+    });
+    if (!Stored) return Fail('Хандах эрхгүй байна');
+
+    const Minted = MediaTicket.Mint({
+      generatedName: Stored.generated_name,
+      LogedUser: req.LogedUser,
+    });
+    if (!Minted) return Fail('Файл олдсонгүй');
+
+    const Meta = await MediaMeta.ReadOne(Stored.id_data);
+
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        Message: '',
+        Data: {
+          FileId: Stored.id_data,
+          Url: '/api/Media/t/' + Minted.Ticket,
+          ExpiresAt: Minted.ExpiresAt,
+          ExpiresInSeconds: Minted.ExpiresInSeconds,
+          Kind: MediaStream.Kind(Stored.ext),
+          ContentType: MediaStream.Disposition(Stored.ext).ContentType,
+          DurationMs: Meta ? Meta.DurationMs : null,
+          MediaState: Meta ? Meta.MediaState : null,
+          Name: Stored.original_name || '',
+          Ext: Stored.ext || '',
+          Size: Stored.size || 0,
+        },
+        Option: {},
+      })
+    );
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+//#endregion
 
 //#region Feed
 
@@ -1071,6 +1219,15 @@ async function AttachFeedMedia(Rows, Options) {
       });
     }
   }
+
+  // One pass over every list on the page - the tickets' own attachments and
+  // those of the preview replies - so the whole screen costs a single
+  // MediaMeta read rather than one per card.
+  await EnrichPlayable(
+    Rows.map((R) => R.Files).concat(
+      Rows.reduce((Acc, R) => Acc.concat((R.Comments || []).map((C) => C.Files)), [])
+    )
+  );
 
   return Rows;
 }

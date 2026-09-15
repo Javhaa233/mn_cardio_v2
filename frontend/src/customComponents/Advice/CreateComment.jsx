@@ -8,16 +8,25 @@ import {
   CardHeader,
   CardContent,
   CardActions,
+  IconButton,
+  Tooltip,
   Typography,
   Box,
 } from "@mui/material";
 // @mui/icons-material
 import SendIcon from "@mui/icons-material/Send";
+import MicIcon from "@mui/icons-material/Mic";
 // default components
 import Button from "components/CustomButtons/Button";
 // custom components
 import BaseFileUpload from "baseComponents/Controls/BaseFileUpload";
 import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
+import AudioRecorder from "customComponents/Chat/AudioRecorder";
+import { recorderUnavailableReason } from "customComponents/Chat/useMediaRecorder";
+import {
+  ADVICE_UPLOAD_EXT,
+  ADVICE_MAX_FILE_MB,
+} from "customComponents/AdviceFeed/mediaUtils";
 // helper
 import Helper from "helper";
 import { colors } from "@/theme/colors";
@@ -34,6 +43,13 @@ export default function CreateComment(props) {
   const [DoctorInfo, setDoctorInfo] = useState(null);
   const [Comment, setComment] = useState("");
   const [Files, setFiles] = useState([]);
+  const [Recording, setRecording] = useState(false);
+  const [RecordError, setRecordError] = useState(null);
+
+  // Checked once per mount rather than on click: a browser that cannot record
+  // will not start being able to, and a button that explains itself only after
+  // being pressed is a button that should not have been offered.
+  const RecorderBlocked = React.useMemo(() => recorderUnavailableReason(), []);
 
   useEffect(() => {
     const getDoctorInfo = async () => {
@@ -51,7 +67,27 @@ export default function CreateComment(props) {
     SaveComment({ Comment, Files }, () => {
       setComment("");
       setFiles([]);
+      setRecordError(null);
     });
+
+  /*
+   * A finished recording is APPENDED, not sent.
+   *
+   * Chat sends a voice note the instant recording stops, because there the clip
+   * is the whole message. A зөвлөгөө reply is usually a recording AND the words
+   * that frame it - "сонсоод үзээрэй, II холболт дээр..." - so it joins the
+   * attachment list and waits for Send like any other file.
+   *
+   * The recorder's output is already the exact shape both BaseFileUpload and
+   * BaseUploadFile expect - { FileSrc, File, Type, FileInfo: { Name,
+   * DurationMs } } - so nothing needs converting. DurationMs is what lets the
+   * player show a length before the bytes are fetched.
+   */
+  const AddRecording = (file) => {
+    setRecording(false);
+    if (!file) return;
+    setFiles((prev) => [...prev, file]);
+  };
 
   return (
     <Card
@@ -113,6 +149,15 @@ export default function CreateComment(props) {
         </Box>
       </CardContent>
 
+      {RecordError ? (
+        <Typography
+          variant="caption"
+          sx={{ display: "block", px: 1, pb: 0.5, color: colors.label.error }}
+        >
+          {t(RecordError)}
+        </Typography>
+      ) : null}
+
       <CardActions
         sx={{
           display: "flex",
@@ -123,57 +168,101 @@ export default function CreateComment(props) {
           pt: 0,
         }}
       >
-        {/* LEFT: File upload */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-
-            "& .fileinput": {
-              minHeight: 36,
-              padding: "0px !important",
-              display: "flex",
-              alignItems: "center",
-            },
-
-            "& .fileinput button": {
-              height: 36,
-              minHeight: 36,
-              padding: "0 12px",
-              lineHeight: "36px",
-            },
-          }}
-        >
-          <BaseFileUpload
-            Value={Files}
-            Config={{ Name: "Files" }}
-            ChangeValue={(value) => setFiles(value)}
-            WithLabel={false}
+        {/* While recording the row belongs to the recorder alone. There is
+            nothing useful to do during a recording, and the composer is not
+            wide enough to hold both without making each of them unusable -
+            the same call Chat/Composer.jsx makes. */}
+        {Recording ? (
+          <AudioRecorder
+            Active={Recording}
+            DoneLabel={t("Хавсаргах")}
+            OnDone={AddRecording}
+            OnCancel={() => setRecording(false)}
+            OnError={(msg) => {
+              setRecording(false);
+              setRecordError(msg);
+            }}
           />
-        </Box>
+        ) : (
+          <>
+            {/* LEFT: File upload + voice note */}
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
 
-        {/* RIGHT: Send button */}
-        <Button
-          color="info"
-          size="sm"
-          sx={{
-            height: 36,
-            minHeight: 36,
-            px: 1.5,
-            boxShadow: "none",
-            display: "flex",
-            alignItems: "center",
-          }}
-          onClick={Save}
-          // A photo-only reply is legitimate and every save path already
-          // supports one - AdviceComment.SaveComment, AdviceDetail and
-          // ReplyThread all check text OR files. Only this button forbade it,
-          // on a feed where the answer is very often an ECG strip and no words.
-          disabled={IsDisabled || (!Comment.trim() && Files.length === 0)}
-        >
-          {t("Send")}
-          <SendIcon sx={{ ml: 1, width: 16, height: 16 }} />
-        </Button>
+                "& .fileinput": {
+                  minHeight: 36,
+                  padding: "0px !important",
+                  display: "flex",
+                  alignItems: "center",
+                },
+
+                "& .fileinput button": {
+                  height: 36,
+                  minHeight: 36,
+                  padding: "0 12px",
+                  lineHeight: "36px",
+                },
+              }}
+            >
+              <BaseFileUpload
+                Value={Files}
+                Config={{ Name: "Files" }}
+                ChangeValue={(value) => setFiles(value)}
+                WithLabel={false}
+                allowedFileTypes={ADVICE_UPLOAD_EXT}
+                maxFileSize={ADVICE_MAX_FILE_MB}
+              />
+
+              <Tooltip
+                title={RecorderBlocked ? t(RecorderBlocked) : t("Дуу бичих")}
+              >
+                {/* span, because a disabled IconButton fires no events and a
+                    Tooltip with nothing to listen to never opens - which is
+                    exactly the case that needs to explain itself. */}
+                <span>
+                  <IconButton
+                    size="small"
+                    aria-label={t("Дуу бичих")}
+                    disabled={IsDisabled || !!RecorderBlocked}
+                    onClick={() => {
+                      setRecordError(null);
+                      setRecording(true);
+                    }}
+                    sx={{ ml: 1, color: colors.brand.cyanInk }}
+                  >
+                    <MicIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Box>
+
+            {/* RIGHT: Send button */}
+            <Button
+              color="info"
+              size="sm"
+              sx={{
+                height: 36,
+                minHeight: 36,
+                px: 1.5,
+                boxShadow: "none",
+                display: "flex",
+                alignItems: "center",
+              }}
+              onClick={Save}
+              // A photo-only reply is legitimate and every save path already
+              // supports one - AdviceComment.SaveComment, AdviceDetail and
+              // ReplyThread all check text OR files. Only this button forbade
+              // it, on a feed where the answer is very often an ECG strip and
+              // no words. A voice-note-only reply is the same case.
+              disabled={IsDisabled || (!Comment.trim() && Files.length === 0)}
+            >
+              {t("Send")}
+              <SendIcon sx={{ ml: 1, width: 16, height: 16 }} />
+            </Button>
+          </>
+        )}
       </CardActions>
     </Card>
   );

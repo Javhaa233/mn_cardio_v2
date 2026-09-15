@@ -7,7 +7,7 @@ import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
 // custom components
 import UserDialogLink from "customComponents/DoctorProfile/UserDialogLink";
-import PostMedia from "customComponents/AdviceFeed/PostMedia";
+import AdviceAttachments from "customComponents/AdviceFeed/AdviceAttachments";
 import {
   statusAccent,
   statusLabel,
@@ -31,8 +31,9 @@ import { radius, space } from "@/theme/tokens";
  * 1. The patient is a PILL, not a prefix. This used to render
  *    `"45,Эрэгтэй: <body>"` as one string, which made every ticket open with a
  *    fragment of demographics glued to the front of the clinical text.
- * 2. The ticket's own attachments render, via the feed's PostMedia grid. They
- *    were never shown here at all - the payload did not even carry them.
+ * 2. The ticket's own attachments render, via AdviceAttachments - the photo
+ *    grid for images and documents, a player for a voice note. They were never
+ *    shown here at all: the payload did not even carry them.
  * 3. The body is NOT clamped. The feed card clamps to six lines because it is a
  *    summary; this page is where the reader came to read the whole thing.
  */
@@ -185,7 +186,7 @@ export default function CommentHeader(props) {
         </Typography>
       )}
 
-      <PostMedia
+      <AdviceAttachments
         Files={Data.Files}
         FileTotal={Data.FileTotal}
         FullBleedMargin="0px"

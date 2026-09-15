@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Helper from "helper";
 
 /**
- * A playable URL for one chat attachment.
+ * A playable URL for one attachment.
  *
  * WHY THIS IS NOT BaseDownloadFileBlob. Every other attachment in the app is
  * fetched as a blob and handed to URL.createObjectURL, because auth is
@@ -24,8 +24,16 @@ import Helper from "helper";
  * The returned url is live for an hour. Nothing here refreshes it on a timer -
  * a bubble nobody touched for an hour does not need a fresh ticket, and the
  * player asks again if a stale one ever fails.
+ *
+ * `FetchLink` is WHICH minting endpoint to ask, and defaults to chat's so every
+ * existing caller is unchanged. Minting is per-surface because authorization is:
+ * chat authorizes by room membership and Advice by AdviceScopeHelper, and the
+ * one thing that must not happen is a single endpoint that will mint a ticket
+ * for any file in the system. Everything else in this hook - the lazy first
+ * load, the in-flight guard, the derived `forId`, the one retry on an expired
+ * ticket - is the same wherever it is used.
  */
-export default function useMediaLink(FileId) {
+export default function useMediaLink(FileId, FetchLink) {
   /*
    * The result carries the id it belongs to, rather than being reset by an
    * effect when FileId changes.
@@ -67,7 +75,8 @@ export default function useMediaLink(FileId) {
       setLoading(true);
       setErrorState({ forId: FileId, message: null });
 
-      Helper.ChatHelper.GetAttachmentLink({ FileId }, (res) => {
+      const Fetch = FetchLink || Helper.ChatHelper.GetAttachmentLink;
+      Fetch({ FileId }, (res) => {
         inFlight.current = false;
         if (!alive.current) return;
 
@@ -82,7 +91,7 @@ export default function useMediaLink(FileId) {
         setResult({ forId: FileId, url: res.Data.Url, meta: res.Data });
       });
     },
-    [FileId, url],
+    [FileId, url, FetchLink],
   );
 
   /** The ticket expired mid-session, or the file moved. Ask for a fresh one. */

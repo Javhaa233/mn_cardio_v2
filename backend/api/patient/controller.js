@@ -430,21 +430,42 @@ exports.listAdvice = async (req, res) => {
       subQuery: false,
     });
 
-    const data = rows.map((r) => {
-      const row = r.toJSON();
-      return {
-        id_data: row.id_data,
-        body: row.Body,
-        ticket_type: row.ticket_type,
-        closed: row.adv_ticket_closed,
-        date: row.date_creation,
-        comments: (row.AdviceComment || []).map((c) => ({
-          id_data: c.id_data,
-          comment: c.adv_com_comment,
-          date: c.date_creation,
-        })),
-      };
-    });
+    const plain = rows.map((r) => r.toJSON());
+
+    /*
+     * Attachments, which this used to drop entirely.
+     *
+     * A зөвлөгөө answer is very often an image or - since the reply composer
+     * gained a recorder - a voice note, and text-only was the app showing a
+     * blank where the answer was. Two calls rather than one because the ticket
+     * and its replies are different LinkedObjectNames; each is a single query
+     * for the whole page.
+     */
+    const [filesByAdvice, filesByComment] = await Promise.all([
+      AttachmentIntake.ListFor({
+        LinkedObjectName: 'Advice',
+        Ids: plain.map((r) => r.id_data),
+      }),
+      AttachmentIntake.ListFor({
+        LinkedObjectName: 'AdviceComment',
+        Ids: plain.reduce((acc, r) => acc.concat((r.AdviceComment || []).map((c) => c.id_data)), []),
+      }),
+    ]);
+
+    const data = plain.map((row) => ({
+      id_data: row.id_data,
+      body: row.Body,
+      ticket_type: row.ticket_type,
+      closed: row.adv_ticket_closed,
+      date: row.date_creation,
+      files: filesByAdvice.get(row.id_data) || [],
+      comments: (row.AdviceComment || []).map((c) => ({
+        id_data: c.id_data,
+        comment: c.adv_com_comment,
+        date: c.date_creation,
+        files: filesByComment.get(c.id_data) || [],
+      })),
+    }));
 
     return ok(res, data, { total: count, limit, offset });
   } catch (ex) {

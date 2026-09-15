@@ -1,6 +1,7 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Autocomplete from "@mui/material/Autocomplete";
 import Box from "@mui/material/Box";
 import FormLabel from "@mui/material/FormLabel";
 import IconButton from "@mui/material/IconButton";
@@ -8,15 +9,151 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import CloseIcon from "@mui/icons-material/Close";
 
+import Helper from "helper";
 import { colors } from "@/theme/colors";
 import { elevation, radius, space } from "@/theme/tokens";
 import { gridToolbarButtonSx } from "@/theme/controlStyles";
 
 /**
- * Shared pieces of the three account dialogs - the contact prompt, change
- * password and edit profile - so they read as one family: same header, same
- * label-above-field layout, same buttons.
+ * Shared pieces of the account dialogs - the contact prompt, change password,
+ * edit profile and the admin's doctor dialog - so they read as one family:
+ * same header, same label-above-field layout, same sections, same buttons.
  */
+
+export const fieldGridSx = {
+  display: "grid",
+  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+  columnGap: space[5],
+  rowGap: 0,
+};
+
+/** Icon + title over a hairline, then a two-column field grid. */
+export function FormSection({ Id, Icon, Title, Description, children }) {
+  return (
+    <Box role="group" aria-labelledby={Id} sx={{ minWidth: 0 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: space[2],
+          paddingBottom: space[2],
+          marginBottom: space[3],
+          borderBottom: `1px solid ${colors.brand.hairline}`,
+        }}
+      >
+        <Icon aria-hidden sx={{ fontSize: 20, color: colors.brand.cyanInk }} />
+        <Typography
+          id={Id}
+          variant="h5"
+          component="div"
+          sx={{ color: colors.brand.ink }}
+        >
+          {Title}
+        </Typography>
+        {Description ? (
+          <Typography
+            variant="caption"
+            component="div"
+            sx={{ color: colors.brand.inkDim, marginLeft: "auto" }}
+          >
+            {Description}
+          </Typography>
+        ) : null}
+      </Box>
+      <Box sx={fieldGridSx}>{children}</Box>
+    </Box>
+  );
+}
+
+/**
+ * Searchable organisation list. Searches the server as you type instead of
+ * pulling all ~700 organisations up front.
+ */
+export function OrganizationPicker({ Id, Value, OnChange, Disabled, Error }) {
+  const { t } = useTranslation();
+  const [Options, setOptions] = useState([]);
+  const [Query, setQuery] = useState("");
+  const [Loading, setLoading] = useState(false);
+  const [Open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (!Open) return undefined;
+    let Alive = true;
+    const Timer = setTimeout(
+      () => {
+        setLoading(true);
+        const SearchOption = Helper.BaseCrudHelper.GetSearchOption();
+        SearchOption.PageOption.Limit = 50;
+        SearchOption.SearchField = Query
+          ? [{ Field: "Name", Value: Query, Op: "Contains" }]
+          : [];
+        Helper.BaseCrudHelper.BaseGetList(
+          { ObjectName: "Organization", SearchOption },
+          (resData) => {
+            if (!Alive) return;
+            setLoading(false);
+            setOptions(
+              Array.isArray(resData && resData.Data) ? resData.Data : [],
+            );
+          },
+        );
+      },
+      Query ? 300 : 0,
+    );
+    return () => {
+      Alive = false;
+      clearTimeout(Timer);
+    };
+  }, [Open, Query]);
+
+  // The current value must be among the options or MUI cannot show it - but
+  // only while it matches what is typed, or a search for another name would
+  // "find" the current organisation.
+  const ValueMatches =
+    !!Value &&
+    (!Query ||
+      String(Value.Name || "")
+        .toLowerCase()
+        .includes(Query.toLowerCase()));
+  const AllOptions =
+    ValueMatches && !Options.some((Option) => Option.Id === Value.Id)
+      ? [Value, ...Options]
+      : Options;
+
+  return (
+    <Autocomplete
+      id={Id}
+      options={AllOptions}
+      value={Value}
+      disabled={Disabled}
+      open={Open}
+      onOpen={() => setOpen(true)}
+      onClose={() => setOpen(false)}
+      onChange={(event, Option) =>
+        OnChange(Option ? { Id: Option.Id, Name: Option.Name } : null)
+      }
+      onInputChange={(event, Text, reason) => {
+        if (reason === "input") setQuery(Text);
+        if (reason === "clear") setQuery("");
+      }}
+      getOptionLabel={(Option) => (Option && Option.Name) || ""}
+      isOptionEqualToValue={(A, B) => A.Id === B.Id}
+      filterOptions={(Items) => Items}
+      loading={Loading}
+      noOptionsText={t("No data")}
+      loadingText={t("Loading...")}
+      renderInput={(Params) => (
+        <TextField
+          {...Params}
+          size="small"
+          placeholder={t("Search organization")}
+          error={!!Error}
+          helperText={Error || " "}
+        />
+      )}
+    />
+  );
+}
 
 export const fieldLabelSx = {
   typography: "body2",

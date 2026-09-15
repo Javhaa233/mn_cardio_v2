@@ -6,6 +6,11 @@ import Helper from "helper";
 import { ListTile } from "customComponents/Home/Tiles";
 import { colors } from "@/theme/colors";
 import customHistory from "customHistory";
+import { useChatContext } from "customComponents/Chat/ChatContext";
+import {
+  IsChatNotification,
+  OpenChatNotification,
+} from "customComponents/Notification/chatNotification";
 
 /**
  * Unread notifications on the home rail.
@@ -23,6 +28,7 @@ const LIMIT = 5;
 
 export default function HomeNotifications() {
   const { t } = useTranslation();
+  const chat = useChatContext();
   // Read once, lazily. Deriving the initial state from it means the expired
   // session case never has to setState from inside the effect.
   const [me] = useState(() => {
@@ -42,7 +48,8 @@ export default function HomeNotifications() {
 
     const SearchOption = Helper.BaseCrudHelper.GetSearchOption();
     SearchOption.PageOption = { Page: 0, Limit: LIMIT };
-    SearchOption.OrderBy = { Field: "Id", Type: "desc" };
+    // CreateDate: chat rows are rewritten in place, so Id order goes stale.
+    SearchOption.OrderBy = { Field: "CreateDate", Type: "desc" };
     SearchOption.SearchField = [
       { Field: "ToUserId", Value: me, Op: "Equals" },
       // "null" is a real sentinel in ModelHelper, mapping to IS NULL. Unread
@@ -69,6 +76,10 @@ export default function HomeNotifications() {
   }, [me]);
 
   const open = (item) => {
+    if (IsChatNotification(item)) {
+      OpenChatNotification(chat, item);
+      return;
+    }
     Helper.NotificationHelper.Seen(item, () => {
       // Url is server-supplied. Only relative paths can go through the router;
       // an absolute one would push a broken in-app route.

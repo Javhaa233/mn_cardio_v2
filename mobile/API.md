@@ -640,6 +640,11 @@ GET /advice/:id
 The doctor's **own** tickets — `Advice.id` is the author. Each row carries `commentCount`.
 `/advice/:id` returns `{ ticket, comments }`, author-scoped.
 
+**Both carry attachments now** (added 2026-09-15; they returned text only before). The list
+gives each ticket its own `files`; the detail gives them to the ticket *and* to every reply,
+because a зөвлөгөө answer is very often an ECG strip or a voice note rather than a sentence.
+The entry shape is §6's.
+
 This is deliberately not the organisation-wide wall; that stays at `/api/Advice/GetFeed` with
 its own visibility rules (§6). Reimplementing those here would fork a security boundary across
 two files.
@@ -684,7 +689,8 @@ all supported, which covers tender §2 in full.
 | `GetUnreadCount` | – | |
 | `AddChatRoom` / `StartChat` | `UserType, UserId` | idempotent 1:1 room |
 | `CreateGroupRoom` | `RoomName, Members[]` | doctors only — patients can never be group members |
-| `SearchUsers` | `SearchText, PageSize, PageNumber, ...` | patient searches are scoped to their care team |
+| `SearchUsers` | `SearchText, PageSize, PageNumber, OrganizationId?` | patient searches are scoped to their care team; `SearchText` also matches the organisation name |
+| `GetDirectoryFilters` | – | `{ Organizations: [{ Id, Name, Count }], Provinces, Soums }` — offer `Organizations` as the only filter and send the chosen `Id` as `OrganizationId`. `Provinces`/`Soums` are legacy (empty on new accounts). Patients get empty lists |
 | `DownloadAttachment` | `FileId` | **membership-checked** — use this, never the generic download |
 | `GetAttachmentLink` | `FileId` | a short-lived streaming URL. **Browser clients only — see below** |
 
@@ -807,6 +813,35 @@ Two data facts worth knowing before you build filters: **no ticket has status `'
 5,469 are closed and 25 are drafts, so an open-only filter renders an empty screen — and
 `Advice.level` is NULL on 40% of rows, which makes those invisible to every non-admin.
 
+### Attachments on a ticket or a reply
+
+The mobile surfaces (`/api/patient/advice`, `/api/doctor/advice`) return them as a `files`
+array on the ticket and on each comment:
+
+```json
+{ "id": 91233, "name": "voice-20260915T104412.m4a", "ext": "m4a", "size": 412880,
+  "kind": "audio", "durationMs": 47120, "mediaState": "done",
+  "url": "/api/Media/stream/20260915104412_318_1_k3fq" }
+```
+
+`kind` is `audio` | `video` | `image` | `file`, from the same classifier the streaming layer
+uses — **do not infer it from the extension**: `.webm` is video and `.weba` is audio, the same
+container told apart only by its name.
+
+`url` is **header-authenticated** and supports HTTP byte ranges, so `VideoPlayerController`
+and `just_audio` can seek it with `httpHeaders`. Do not fetch it as a blob first: a ten-minute
+voice note would download entirely before making a sound.
+
+`durationMs` is null where `scripts/add_file_media_columns.sql` has not run (production, as of
+this writing) — show a dash, not `0:00`. `mediaState` is `pending` while ffmpeg normalises the
+clip to M4A/AAC, `done` after, `failed` on a host with no ffmpeg — in which case the original
+bytes are still served and a browser-recorded WebM will not play on iOS.
+
+The web player uses a different route: a browser `<audio>` cannot send an `Authorization`
+header, so it calls `POST /api/Advice/GetAttachmentLink {FileId}` for a one-hour ticket scoped
+to one file and one user, redeemed at `/api/Media/t/<ticket>`. **Mobile does not need it** —
+it can set the header.
+
 ---
 
 ## 7. File upload — the multipart contract
@@ -895,7 +930,12 @@ Addressed by `ToUserId`.
 Advice published · advice comment · e-visit completed · e-visit cancelled · rehab assessment
 recorded → the **patient**. E-visit requested / withdrawn · question asked → the **care team**.
 
-Chat push already existed (`PushToMembers`); no bell row is written per chat message, by design.
+Chat message → **every other room member** (not muted). One bell row **per person per room**, not
+per message: while that row is unseen, each new message rewrites it (`NotesMn` =
+`"<Sender>: <preview>"`, `CreateDate` = now) and re-emits `newNotification`. The row carries
+`LinkObjectName: 'ChatRoom'`, `LinkObjectId: <ChatRoomId>` — open the chat room on tap. `MarkRead`
+on that room marks it seen. The push is still the chat push (`Type: 'chat'`) — no second push is
+sent for the bell row, so don't show both.
 
 ### 9.3 Doctor reads
 

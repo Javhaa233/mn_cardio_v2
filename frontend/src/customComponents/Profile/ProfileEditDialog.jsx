@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useDispatch } from "react-redux";
 
-import Autocomplete from "@mui/material/Autocomplete";
 import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -10,7 +9,6 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogContent from "@mui/material/DialogContent";
 import FormLabel from "@mui/material/FormLabel";
-import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import BadgeOutlinedIcon from "@mui/icons-material/BadgeOutlined";
 import ContactMailOutlinedIcon from "@mui/icons-material/ContactMailOutlined";
@@ -33,6 +31,8 @@ import { CONTACT_UPDATED_EVENT } from "customComponents/Profile/ContactInfoPromp
 import {
   DialogHeader,
   FormField,
+  FormSection,
+  OrganizationPicker,
   dialogActionSx,
   dialogPaperSx,
   fieldLabelSx,
@@ -68,130 +68,6 @@ function InitialOrganization(Profile) {
   const Obj = Profile.OrganizationIdObj;
   const Id = Profile.OrganizationId || (Obj && Obj.Id) || null;
   return Id ? { Id, Name: (Obj && Obj.Name) || "" } : null;
-}
-
-const fieldGridSx = {
-  display: "grid",
-  gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
-  columnGap: space[5],
-  rowGap: 0,
-};
-
-function FormSection({ Id, Icon, Title, children }) {
-  return (
-    <Box role="group" aria-labelledby={Id} sx={{ minWidth: 0 }}>
-      <Box
-        sx={{
-          display: "flex",
-          alignItems: "center",
-          gap: space[2],
-          paddingBottom: space[2],
-          marginBottom: space[3],
-          borderBottom: `1px solid ${colors.brand.hairline}`,
-        }}
-      >
-        <Icon aria-hidden sx={{ fontSize: 20, color: colors.brand.cyanInk }} />
-        <Typography
-          id={Id}
-          variant="h5"
-          component="div"
-          sx={{ color: colors.brand.ink }}
-        >
-          {Title}
-        </Typography>
-      </Box>
-      <Box sx={fieldGridSx}>{children}</Box>
-    </Box>
-  );
-}
-
-/**
- * Searchable organisation list. Searches the server as you type instead of
- * pulling all ~700 organisations up front.
- */
-function OrganizationPicker({ Id, Value, OnChange, Disabled }) {
-  const { t } = useTranslation();
-  const [Options, setOptions] = useState([]);
-  const [Query, setQuery] = useState("");
-  const [Loading, setLoading] = useState(false);
-  const [Open, setOpen] = useState(false);
-
-  useEffect(() => {
-    if (!Open) return undefined;
-    let Alive = true;
-    const Timer = setTimeout(
-      () => {
-        setLoading(true);
-        const SearchOption = Helper.BaseCrudHelper.GetSearchOption();
-        SearchOption.PageOption.Limit = 50;
-        SearchOption.SearchField = Query
-          ? [{ Field: "Name", Value: Query, Op: "Contains" }]
-          : [];
-        Helper.BaseCrudHelper.BaseGetList(
-          { ObjectName: "Organization", SearchOption },
-          (resData) => {
-            if (!Alive) return;
-            setLoading(false);
-            setOptions(
-              Array.isArray(resData && resData.Data) ? resData.Data : [],
-            );
-          },
-        );
-      },
-      Query ? 300 : 0,
-    );
-    return () => {
-      Alive = false;
-      clearTimeout(Timer);
-    };
-  }, [Open, Query]);
-
-  // The current value must be among the options or MUI cannot show it - but
-  // only while it matches what is typed, or a search for another name would
-  // "find" the current organisation.
-  const ValueMatches =
-    !!Value &&
-    (!Query ||
-      String(Value.Name || "")
-        .toLowerCase()
-        .includes(Query.toLowerCase()));
-  const AllOptions =
-    ValueMatches && !Options.some((Option) => Option.Id === Value.Id)
-      ? [Value, ...Options]
-      : Options;
-
-  return (
-    <Autocomplete
-      id={Id}
-      options={AllOptions}
-      value={Value}
-      disabled={Disabled}
-      open={Open}
-      onOpen={() => setOpen(true)}
-      onClose={() => setOpen(false)}
-      onChange={(event, Option) =>
-        OnChange(Option ? { Id: Option.Id, Name: Option.Name } : null)
-      }
-      onInputChange={(event, Text, reason) => {
-        if (reason === "input") setQuery(Text);
-        if (reason === "clear") setQuery("");
-      }}
-      getOptionLabel={(Option) => (Option && Option.Name) || ""}
-      isOptionEqualToValue={(A, B) => A.Id === B.Id}
-      filterOptions={(Items) => Items}
-      loading={Loading}
-      noOptionsText={t("No data")}
-      loadingText={t("Loading...")}
-      renderInput={(Params) => (
-        <TextField
-          {...Params}
-          size="small"
-          placeholder={t("Search organization")}
-          helperText=" "
-        />
-      )}
-    />
-  );
 }
 
 /**

@@ -22,7 +22,17 @@ import useMediaRecorder from "./useMediaRecorder";
  * explanation is the case this exists for, and holding a mouse button down for
  * ten minutes is not something to ask of anyone.
  */
-export default function AudioRecorder({ Active, OnDone, OnCancel, OnError }) {
+export default function AudioRecorder({
+  Active,
+  OnDone,
+  OnCancel,
+  OnError,
+  // What the confirm button says. Chat sends the clip as its own message the
+  // moment recording stops; an Advice reply attaches it and waits for the
+  // doctor to finish typing. Calling both "Илгээх" would promise one of them
+  // something it does not do.
+  DoneLabel,
+}) {
   const { t } = useTranslation();
   const { recording, elapsedMs, maxMs, error, start, stop, cancel } =
     useMediaRecorder({
@@ -66,6 +76,7 @@ export default function AudioRecorder({ Active, OnDone, OnCancel, OnError }) {
 
   const remaining = Math.max(0, maxMs - elapsedMs);
   const nearlyDone = remaining <= 30000;
+  const doneLabel = DoneLabel || t("Илгээх");
 
   return (
     <Box
@@ -120,13 +131,13 @@ export default function AudioRecorder({ Active, OnDone, OnCancel, OnError }) {
           : t("Бичиж байна...")}
       </Typography>
 
-      <Tooltip title={t("Илгээх")}>
+      <Tooltip title={doneLabel}>
         <span>
           <IconButton
             size="small"
             onClick={finish}
             disabled={!recording}
-            aria-label={t("Илгээх")}
+            aria-label={doneLabel}
             sx={{
               bgcolor: colors.brand.cyanInk,
               color: "#fff",

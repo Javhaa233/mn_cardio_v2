@@ -17,6 +17,8 @@ const MediaStream = require('../../helper/MediaStream');
 const MediaMeta = require('../../helper/MediaMeta');
 const MediaTranscode = require('../../helper/MediaTranscode');
 const PushHelper = require('../../helper/PushHelper');
+const NotificationHelper = require('../../helper/NotificationHelper');
+const NotificationSocket = require('../../WebSockets/NotificationSocket');
 
 /**
  * Chat.
@@ -740,6 +742,88 @@ async function PushToMembers(Members, Payload) {
   }
 }
 
+/**
+ * Put a chat message in the recipients' notification bell.
+ *
+ * ONE row per person per room, not one per message: while the row is unseen,
+ * each new message rewrites it and bumps CreateDate, so a busy conversation is
+ * one line in the bell that always shows the latest message. MarkRead marks it
+ * seen; the next message after that starts a fresh row.
+ *
+ * Same targets as PushToMembers (not the sender, not muted). No push here -
+ * PushToMembers already sent the chat push, and a second one would buzz twice.
+ * Best-effort like the rest of the fan-out.
+ */
+const CHAT_NOTIFICATION_LINK = 'ChatRoom';
+
+function ChatNotificationRecipient(Member) {
+  return Member.UserType === 'P' ? { ToPatientId: Member.UserId } : { ToUserId: Member.UserId };
+}
+
+async function NotifyMembersInBell(Members, Payload) {
+  const Sender = { UserType: Payload.UserType, UserId: Payload.UserId };
+  const Targets = Members.filter(
+    (M) => !ChatIdentity.Same(Sender, { UserType: M.UserType, UserId: M.UserId }) && !M.IsMuted
+  );
+  if (Targets.length === 0) return;
+
+  const Text = ((Payload.SenderName || 'MnCardio') + ': ' + PushPreview(Payload)).slice(0, 250);
+  const Now = ObjectHelper.getDateYMDHMS();
+  // Only a staff sender has a Users.Id; a patient's UserId is not one.
+  const CreateUserId = Payload.UserType === 'S' ? Payload.UserId : null;
+
+  for (const M of Targets) {
+    try {
+      const Recipient = ChatNotificationRecipient(M);
+      const Existing = await Models.Notification.findOne({
+        attributes: ['Id'],
+        where: {
+          ...Recipient,
+          LinkObjectName: CHAT_NOTIFICATION_LINK,
+          LinkObjectId: Payload.ChatRoomId,
+          Seen: null,
+        },
+        order: [['Id', 'DESC']],
+        raw: true,
+      });
+
+      let NotificationId = null;
+      if (Existing) {
+        await Models.Notification.update(
+          { Notes: Text, NotesMn: Text, CreateDate: Now, CreateUserId },
+          { where: { Id: Existing.Id } }
+        );
+        NotificationId = Existing.Id;
+      } else {
+        NotificationId = await NotificationHelper.SaveNotification({
+          Data: {
+            ...Recipient,
+            Notes: Text,
+            NotesMn: Text,
+            Action: 'chat',
+            LinkObjectName: CHAT_NOTIFICATION_LINK,
+            LinkObjectId: Payload.ChatRoomId,
+            CreateDate: Now,
+            CreateUserId,
+          },
+          LogedUser: {},
+          SendNotification: false,
+        });
+      }
+
+      if (NotificationId) {
+        NotificationSocket.SendNotification({
+          UserType: M.UserType,
+          UserId: M.UserId,
+          Data: NotificationId,
+        });
+      }
+    } catch (ex) {
+      console.log('NotifyMembersInBell error for ' + M.UserType + ':' + M.UserId + ' -', ex.message);
+    }
+  }
+}
+
 async function FanOutMessage(ChatRoomId, Payload) {
   try {
     const Members = await ChatHelper.GetRoomMembers(ChatRoomId, false);
@@ -755,6 +839,9 @@ async function FanOutMessage(ChatRoomId, Payload) {
     // Not awaited: a slow or unreachable FCM endpoint must not hold the HTTP
     // response the sender is waiting on.
     PushToMembers(Members, Payload).catch((ex) => console.log('PushToMembers failed:', ex.message));
+    NotifyMembersInBell(Members, Payload).catch((ex) =>
+      console.log('NotifyMembersInBell failed:', ex.message)
+    );
   } catch (ex) {
     // Delivery is best-effort; the message is already durable. A socket failure
     // must never turn a saved message into an error the sender sees.
@@ -783,6 +870,23 @@ async function MarkRead(req, res) {
       });
     } catch (ex) {
       console.log('MarkRead emit error:', ex.message);
+    }
+
+    // Reading the room clears its bell row (see NotifyMembersInBell).
+    try {
+      await Models.Notification.update(
+        { Seen: '1', SeenDate: ObjectHelper.getDateYMDHMS() },
+        {
+          where: {
+            ...ChatNotificationRecipient(Auth.Me),
+            LinkObjectName: CHAT_NOTIFICATION_LINK,
+            LinkObjectId: Auth.ChatRoomId,
+            Seen: null,
+          },
+        }
+      );
+    } catch (ex) {
+      console.log('MarkRead notification error:', ex.message);
     }
 
     return Ok(res, { ChatRoomId: Auth.ChatRoomId, LastReadMessageId, UnreadCount: 0 });
@@ -1020,6 +1124,17 @@ async function SearchUsers(req, res) {
         { profession: Like },
         { organisation: Like },
         { position: Like },
+        // The organisation's real name - see OrgNameById below for why the
+        // organisation text column alone finds nothing on newer accounts.
+        {
+          OrganizationId: {
+            [Op.in]: Sequelize.literal(
+              `(SELECT o.Id FROM [Organization] o WHERE o.Name LIKE ${sequelize.escape(
+                '%' + SearchText + '%'
+              )})`
+            ),
+          },
+        },
       ];
     }
 
@@ -1111,6 +1226,19 @@ async function SearchUsers(req, res) {
     });
     const AccountById = new Map(Accounts.map((A) => [A.Id, A]));
 
+    // DoctorsProfile.organisation is a free-text column nothing writes any more;
+    // accounts made from the admin form carry only OrganizationId. Fall back to
+    // the organisation's own name so the list shows a workplace.
+    const OrgIds = [...new Set(rows.map((R) => R.OrganizationId).filter(Boolean))];
+    const Orgs = OrgIds.length
+      ? await Models.Organization.findAll({
+          attributes: ['Id', 'Name'],
+          where: { Id: { [Op.in]: OrgIds } },
+          raw: true,
+        })
+      : [];
+    const OrgNameById = new Map(Orgs.map((O) => [O.Id, O.Name]));
+
     const People = await ChatIdentity.ResolveMany(
       rows
         .filter((R) => AccountById.has(R.UserId))
@@ -1132,7 +1260,8 @@ async function SearchUsers(req, res) {
           ImageSrc: Person ? Person.ImageSrc : '',
           profession: R.profession,
           position: R.position,
-          OrganizationName: R.organisation,
+          OrganizationName:
+            (R.organisation && R.organisation.trim()) || OrgNameById.get(R.OrganizationId) || '',
           OrganizationId: R.OrganizationId,
           ProvCityName: R.ProvCityName,
           SoumDistName: R.SoumDistName,
@@ -1155,7 +1284,10 @@ async function SearchUsers(req, res) {
 }
 
 /**
- * The aimag / soum lists for the directory's filters.
+ * The organisation (and legacy aimag / soum) lists for the directory's filters.
+ *
+ * Organizations is what the web picker uses: [{ Id, Name, Count }], and its Id
+ * goes back to SearchUsers as OrganizationId.
  *
  * Built from the doctors who actually exist, not from DictProvinceCity /
  * DictSoumDistrict wholesale: offering all 22 provinces and 342 soums when only
@@ -1176,15 +1308,32 @@ async function GetDirectoryFilters(req, res) {
     const Me = ChatIdentity.Me(req.LogedUser);
     if (!Me) return Fail(res, 'Хэрэглэгчийн мэдээлэл тодорхойгүй байна');
 
-    // A patient's directory is their care team - a nationwide aimag filter over
-    // a handful of doctors is noise, so they get nothing to filter with.
+    // A patient's directory is their care team - a nationwide filter over a
+    // handful of doctors is noise, so they get nothing to filter with.
     if (ChatIdentity.IsPatient(Me) && PatientDirectoryMode() !== 'all') {
-      return Ok(res, { Provinces: [], Soums: [] });
+      return Ok(res, { Organizations: [], Provinces: [], Soums: [] });
     }
 
     const Live = `JOIN [Users] u ON u.Id = d.id AND u.RoleId <> 4
                   WHERE ISNULL(d.rec_status, 0) <> 2`;
 
+    // The picker's only filter. Doctors are created with an OrganizationId and
+    // nothing else - the aimag / soum columns below are empty on every account
+    // made from the admin form - so this is the one that actually narrows.
+    // Keyed by id because Organization.Name is the canonical name; the
+    // DoctorsProfile.organisation text column is never written.
+    const Organizations = await sequelize.query(
+      `SELECT o.Id AS Id, LTRIM(RTRIM(o.Name)) AS Name, COUNT(*) AS Cnt
+         FROM [DoctorsProfile] d
+         JOIN [Organization] o ON o.Id = d.OrganizationId
+         ${Live}
+          AND NULLIF(LTRIM(RTRIM(ISNULL(o.Name, ''))), '') IS NOT NULL
+        GROUP BY o.Id, LTRIM(RTRIM(o.Name))
+        ORDER BY LTRIM(RTRIM(o.Name))`,
+      { type: Sequelize.QueryTypes.SELECT }
+    );
+
+    // Provinces / Soums are kept for clients built against the older contract.
     const Provinces = await sequelize.query(
       `SELECT LTRIM(RTRIM(d.ProvCityName)) AS Name, COUNT(*) AS Cnt
          FROM [DoctorsProfile] d
@@ -1209,6 +1358,7 @@ async function GetDirectoryFilters(req, res) {
     );
 
     return Ok(res, {
+      Organizations: Organizations.map((o) => ({ Id: o.Id, Name: o.Name, Count: o.Cnt })),
       Provinces: Provinces.map((p) => ({ Name: p.Name, Count: p.Cnt })),
       Soums: Soums.map((s) => ({
         Name: s.Name,

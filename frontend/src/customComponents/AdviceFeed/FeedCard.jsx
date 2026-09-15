@@ -13,7 +13,7 @@ import { colors } from "@/theme/colors";
 import { radius, space, elevation, motion } from "@/theme/tokens";
 import CommentPreview from "./CommentPreview";
 import { statusAccent, statusLabel } from "./ticketStatus";
-import PostMedia from "./PostMedia";
+import AdviceAttachments from "./AdviceAttachments";
 import ReplyThread from "./ReplyThread";
 
 const CARD_PAD = space[4]; // 16px
@@ -231,7 +231,7 @@ export default function FeedCard({ Data, onPatch }) {
           </Typography>
         )}
 
-        <PostMedia
+        <AdviceAttachments
           Files={Data.Files}
           FileTotal={Data.FileTotal}
           FullBleedMargin={`-${CARD_PAD}`}

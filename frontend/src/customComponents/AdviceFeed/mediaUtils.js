@@ -107,6 +107,60 @@ export function partitionFiles(files, { splitMedia = false } = {}) {
   };
 }
 
+/*
+ * WHAT THE SERVER WILL ACCEPT ON AN ADVICE TICKET OR REPLY.
+ *
+ * BaseFileUpload's own default list is images, Office, PDF and VIDEO, with no
+ * audio at all - so a doctor picking an .mp3 was refused by the browser before
+ * a request was ever made, while a 60 MB video sailed past the client and was
+ * rejected by the server with nothing on screen to explain why. Both halves
+ * were wrong, in opposite directions.
+ *
+ * This is backend/helper/UploadPolicy.AllowedExtFor('AdviceComment') written
+ * out: the global ALLOWED_UPLOAD_EXT plus 'weba'. If that list moves, this
+ * moves with it - it is a mirror, not a second opinion.
+ *
+ * 'weba' is audio/webm, which is what a browser records when it cannot record
+ * audio/mp4 (Firefox always, Chrome before 130), so a surface offering the
+ * microphone has to admit its own recorder's output. 'webm' is on the server's
+ * global list and so is here, but it is VIDEO and renders as a download chip:
+ * video is not in scope on this surface.
+ */
+// Written out literally rather than derived from IMAGE_EXTENSIONS above. That
+// list is the RENDERING question - what this app can draw in an <img> - and it
+// is wider than what the server stores: it carries svg, ico, tif and tiff,
+// none of which are on ALLOWED_UPLOAD_EXT. Deriving one from the other reads as
+// tidier and quietly lets four extensions past the browser that the server will
+// refuse, with nothing on screen to say why.
+export const ADVICE_UPLOAD_EXT = [
+  "jpg",
+  "jpeg",
+  "png",
+  "gif",
+  "webp",
+  "bmp",
+  "heic",
+  "pdf",
+  "doc",
+  "docx",
+  "xls",
+  "xlsx",
+  "txt",
+  "csv",
+  "dcm",
+  ...AUDIO_EXTENSIONS,
+  "webm",
+];
+
+/**
+ * MB, matching UploadPolicy.UploadCapFor's default for Advice.
+ *
+ * The control's own default is 100, which is ten times what the server will
+ * take. A 10-minute voice note at the recorder's 64 kbps is about 4.8 MB, so
+ * this constrains documents and images, not recordings.
+ */
+export const ADVICE_MAX_FILE_MB = 10;
+
 /** Human clock for a duration in milliseconds: 0:07, 1:42, 12:05. */
 export function durationLabel(ms) {
   const total = Math.max(0, Math.round(Number(ms || 0) / 1000));

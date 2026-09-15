@@ -1,7 +1,8 @@
 import { io } from "socket.io-client";
 
 /**
- * The chat real-time connection.
+ * The app's real-time connections: chat (default export) and the notification
+ * bell (named export NotificationSocket). Same class, different socket.io path.
  *
  * This is the ONLY file in the app that imports socket.io-client - the same
  * containment rule CLAUDE.md applies to axios in config/Server.js. If a second
@@ -20,8 +21,10 @@ import { io } from "socket.io-client";
  */
 
 const SOCKET_PATH = "/chatmessage";
+const NOTIFICATION_SOCKET_PATH = "/notification";
 
-function ChatSocketHelper() {
+function ChatSocketHelper(Path) {
+  this.path = Path || SOCKET_PATH;
   this.socket = null;
   // event name -> Set<handler>. A local registry so several components can
   // subscribe to one connection, and so we attach exactly one listener per
@@ -50,7 +53,7 @@ ChatSocketHelper.prototype.Connect = function () {
   if (!token) return null;
 
   this.socket = io({
-    path: SOCKET_PATH,
+    path: this.path,
     // The server reads this in its handshake middleware. Never a query-string
     // token - that lands in nginx access logs.
     auth: { token },
@@ -133,4 +136,9 @@ ChatSocketHelper.prototype.EmitTyping = function (ChatRoomId, IsTyping) {
   this.socket.emit("typing", { ChatRoomId, IsTyping: !!IsTyping });
 };
 
-export default new ChatSocketHelper();
+/** The bell's connection. The server emits `newNotification` with a row Id. */
+export const NotificationSocket = new ChatSocketHelper(
+  NOTIFICATION_SOCKET_PATH,
+);
+
+export default new ChatSocketHelper(SOCKET_PATH);
