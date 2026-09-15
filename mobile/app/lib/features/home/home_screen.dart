@@ -278,9 +278,9 @@ Widget _journalRow(BuildContext context, JournalEntry e) {
 
 /// Гарчиг (эсвэл "Асуулт") ба огноо, доор нь сүүлийн хариу.
 ///
-/// `displayBody` нь хоосон `Body`-той тасалбар дээр эхний сэтгэгдлийг авдаг
+/// `displayBody` нь хоосон `Body`-той асуумж дээр эхний сэтгэгдлийг авдаг
 /// тул сүүлийн хариуг `thread`-ээс авна — эс бөгөөс ганц сэтгэгдэлтэй
-/// тасалбар дээр нэг текст хоёр удаа гарна.
+/// асуумж дээр нэг текст хоёр удаа гарна.
 Widget _adviceRow(BuildContext context, Advice a) {
   final theme = Theme.of(context);
   final body = a.displayBody;

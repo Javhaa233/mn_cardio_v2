@@ -1,6 +1,6 @@
 import '../../core/util/json_read.dart';
 
-/// Зөвлөгөөний тасалбар дээрх нэг сэтгэгдэл.
+/// Зөвлөгөөний асуумж дээрх нэг сэтгэгдэл.
 class AdviceComment {
   const AdviceComment({
     required this.idData,
@@ -37,7 +37,7 @@ class Advice {
   final DateTime? date;
   final List<AdviceComment> comments;
 
-  /// Тасалбарын **гол агуулга**.
+  /// Асуумжийн **гол агуулга**.
   ///
   /// Тасалбруудын 57 хувь дээр `Body` хоосон бөгөөд эмнэлзүйн агуулга нь эхний
   /// хариунд байдаг (API.md §3, 2.4). Иймд хоосон `body`-г шууд харуулж

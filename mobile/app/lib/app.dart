@@ -197,7 +197,7 @@ class DoctorScope extends StatelessWidget {
           ),
         ),
 
-        // Нүүр хуудасны тасалбарын урсгал — вебийн AdviceHome.
+        // Нүүр хуудасны асуумжийн урсгал — вебийн AdviceHome.
         ChangeNotifierProvider<DoctorFeedController>(
           create: (_) => DoctorFeedController(doctorRepo),
         ),

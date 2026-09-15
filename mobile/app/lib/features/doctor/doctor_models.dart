@@ -369,7 +369,7 @@ enum AdviceStatus {
   }
 }
 
-/// 1.3 Миний зөвлөгөө — эмчийн өөрийн бичсэн тасалбар.
+/// 1.3 Миний зөвлөгөө — эмчийн өөрийн бичсэн асуумж.
 class DoctorAdvice {
   const DoctorAdvice({
     required this.idData,
@@ -431,7 +431,7 @@ class DoctorAdviceComment {
       );
 }
 
-/// `GET /api/doctor/advice/:id` — тасалбар ба хариунууд.
+/// `GET /api/doctor/advice/:id` — асуумж ба хариунууд.
 class DoctorAdviceDetail {
   const DoctorAdviceDetail({required this.ticket, required this.comments});
 
@@ -650,7 +650,7 @@ class DoctorEvisit {
   }
 }
 
-/// Тасалбарын хэлбэр — `OptionTypes` (`dico = ticket_type`).
+/// Асуумжийн хэлбэр — `OptionTypes` (`dico = ticket_type`).
 ///
 /// `/BaseObject/getData` хариунд `{Label, Value}` хэлбэртэй ирдэг (SQL нь
 /// баганыг ингэж нэрлэдэг). Утга нь өгөгдлийн санд текст ч, тоо ч байж болох
@@ -672,7 +672,7 @@ class TicketTypeOption {
 }
 
 // ---------------------------------------------------------------------------
-// Тасалбарын урсгал — вебийн `view/AdviceHome.jsx` (`/Advice/GetFeed`)
+// Асуумжийн урсгал — вебийн `view/AdviceHome.jsx` (`/Advice/GetFeed`)
 // ---------------------------------------------------------------------------
 
 int _feedInt(dynamic v, {int fallback = 0}) {
@@ -698,7 +698,7 @@ String _feedFirst(List<dynamic> values) {
   return '';
 }
 
-/// Тасалбар, хариултын хавсралт.
+/// Асуумж, хариултын хавсралт.
 ///
 /// Сервер зургийг base64 thumbnail болгож (`FileSrc`), `FileInfo`-той хамт
 /// өгдөг. Зураг бус файлд `FileSrc` ирдэггүй — тэр нь нэрээрээ л харагдана.
@@ -748,7 +748,7 @@ class FeedFile {
       : const <FeedFile>[];
 }
 
-/// Тасалбарын хариулт.
+/// Асуумжийн хариулт.
 class FeedComment {
   FeedComment({
     required this.id,
@@ -806,7 +806,7 @@ class FeedComment {
   }
 }
 
-/// Урсгалын нэг тасалбар (`GetFeed`, `GetTicket`).
+/// Урсгалын нэг асуумж (`GetFeed`, `GetTicket`).
 class FeedTicket {
   FeedTicket({
     required this.id,

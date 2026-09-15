@@ -9,18 +9,18 @@ import 'doctor_models.dart';
 import 'doctor_repository.dart';
 import 'ticket_detail_screen.dart';
 
-/// Тасалбарын урсгалын хэсгүүд — вебийн `customComponents/AdviceFeed/*`.
+/// Асуумжийн урсгалын хэсгүүд — вебийн `customComponents/AdviceFeed/*`.
 ///
-/// Нүүр хуудас ба тасалбарын дэлгэрэнгүй хоёулаа эндээс авдаг, тиймээс
+/// Нүүр хуудас ба асуумжийн дэлгэрэнгүй хоёулаа эндээс авдаг, тиймээс
 /// "нээлттэй" гэж юу болохыг хоёр газар хоёр янзаар тодорхойлохгүй.
 
-/// Вебийн `colors.status.normal` — хаагдсан тасалбарын зурвас.
+/// Вебийн `colors.status.normal` — хаагдсан асуумжийн зурвас.
 const Color _closedGreen = Color(0xFF009C00);
 
-/// Тасалбарын төлөвийн өнгө — вебийн `ticketStatus.statusAccent`.
+/// Асуумжийн төлөвийн өнгө — вебийн `ticketStatus.statusAccent`.
 ///
 /// ЗӨВХӨН ТЕКСТ БУС (зурвас). `urgent` нь ганц нөхцөлд: нээлттэй бөгөөд
-/// хоногоос дээш хариугүй тасалбар. Хаа сайгүй хэрэглэвэл анхааруулга
+/// хоногоос дээш хариугүй асуумж. Хаа сайгүй хэрэглэвэл анхааруулга
 /// байхаа больж, чимэглэл болдог.
 Color feedStatusAccent(FeedTicket t) {
   if (t.isOpen) {
@@ -64,7 +64,7 @@ List<Widget> buildFeedItems(BuildContext context, DoctorFeedController feed) {
     return <Widget>[
       _FeedNotice(
         icon: Icons.cloud_off_rounded,
-        title: 'Тасалбаруудыг ачаалж чадсангүй',
+        title: 'Асуумжуудыг ачаалж чадсангүй',
         message: state.error?.message,
         actionLabel: 'Дахин оролдох',
         onAction: () => feed.load(refresh: true),
@@ -79,8 +79,8 @@ List<Widget> buildFeedItems(BuildContext context, DoctorFeedController feed) {
       _FeedNotice(
         icon: Icons.forum_outlined,
         title: feed.isFiltered
-            ? 'Шүүлтэд тохирох тасалбар олдсонгүй'
-            : 'Тасалбар байхгүй байна',
+            ? 'Шүүлтэд тохирох асуумж олдсонгүй'
+            : 'Асуумж байхгүй байна',
         actionLabel: feed.isFiltered ? 'Шүүлт цэвэрлэх' : null,
         onAction: feed.isFiltered
             ? () async {
@@ -118,7 +118,7 @@ List<Widget> buildFeedItems(BuildContext context, DoctorFeedController feed) {
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Center(
           child: Text(
-            'Бүх тасалбарыг үзлээ',
+            'Бүх асуумжийг үзлээ',
             style: theme.textTheme.bodySmall,
           ),
         ),
@@ -179,7 +179,7 @@ class _FeedNotice extends StatelessWidget {
   }
 }
 
-/// Шүүлтүүрийн мөр — вебийн `FilterBar`: таб ба тасалбараар хайх.
+/// Шүүлтүүрийн мөр — вебийн `FilterBar`: таб ба асуумжаар хайх.
 class FeedFilterBar extends StatefulWidget {
   const FeedFilterBar({super.key, required this.controller});
 
@@ -237,7 +237,7 @@ class _FeedFilterBarState extends State<FeedFilterBar> {
           onChanged: _onChanged,
           textInputAction: TextInputAction.search,
           decoration: InputDecoration(
-            hintText: 'Тасалбар хайх',
+            hintText: 'Асуумж хайх',
             isDense: true,
             prefixIcon: const Icon(Icons.search_rounded),
             suffixIcon: _query.text.isEmpty
@@ -259,7 +259,7 @@ class _FeedFilterBarState extends State<FeedFilterBar> {
   }
 }
 
-/// Нэг тасалбарын карт — вебийн `FeedCard.jsx`.
+/// Нэг асуумжийн карт — вебийн `FeedCard.jsx`.
 ///
 /// [full] үед (дэлгэрэнгүй хуудас) агуулга бүтнээрээ, хариултын урьдчилсан
 /// харагдац ба доод товчнуудгүй.

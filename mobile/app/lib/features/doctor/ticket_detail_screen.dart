@@ -13,7 +13,7 @@ import 'doctor_models.dart';
 import 'doctor_repository.dart';
 import 'feed_widgets.dart';
 
-/// Нэг тасалбар ба түүний бүх хариулт — вебийн `view/AdviceComment.jsx`.
+/// Нэг асуумж ба түүний бүх хариулт — вебийн `view/AdviceComment.jsx`.
 ///
 /// Урсгалын картаас ирсэн мэдээллээр шууд харагдаж, дараа нь `GetTicket`
 /// (илүү том зурагтай) ба `GetComments`-оор бүрэн болно. Нээх бүрт "үзсэн"
@@ -217,8 +217,8 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
   Future<void> _close() async {
     final confirmed = await confirmDialog(
       context,
-      title: 'Тасалбар хаах',
-      message: 'Хаасан тасалбар урсгалд "Хаагдсан" гэж харагдана.',
+      title: 'Асуумж хаах',
+      message: 'Хаасан асуумж урсгалд "Хаагдсан" гэж харагдана.',
       confirmLabel: 'Хаах',
     );
     if (!confirmed || !mounted) return;
@@ -228,7 +228,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
     try {
       await _repo.closeTicket(_ticket.id);
       if (!mounted) return;
-      AppSnack.success(context, 'Тасалбарыг хаалаа.');
+      AppSnack.success(context, 'Асуумжийг хаалаа.');
       await _loadTicket();
       unawaited(feed.load(refresh: true));
     } on ApiException catch (e) {
@@ -247,7 +247,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Тасалбар'),
+        title: const Text('Асуумж'),
         actions: <Widget>[
           if (canClose)
             TextButton(

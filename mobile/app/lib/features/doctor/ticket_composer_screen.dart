@@ -17,11 +17,11 @@ import 'doctor_controllers.dart';
 import 'doctor_models.dart';
 import 'doctor_repository.dart';
 
-/// Шинэ тасалбар — вебийн `customComponents/AdviceFeed/PostComposer.jsx`.
+/// Шинэ асуумж — вебийн `customComponents/AdviceFeed/PostComposer.jsx`.
 ///
-/// Вебийнхтэй ижил дөрвөн хэсэг: **иргэн** (тасалбар хэний тухай), **хэлбэр**,
+/// Вебийнхтэй ижил дөрвөн хэсэг: **иргэн** (асуумж хэний тухай), **хэлбэр**,
 /// **агуулга**, **хавсралт**. "Нийтлэх" нь үүсгээд нэг дор нээдэг тул эмч
-/// "нийтэлсэн гэж бодсон ч харагдахгүй" тасалбартай үлдэхгүй; ноорог зөвхөн
+/// "нийтэлсэн гэж бодсон ч харагдахгүй" асуумжтай үлдэхгүй; ноорог зөвхөн
 /// зохиогчид харагдана.
 ///
 /// Хэнд харагдахыг клиент сонгодоггүй: сервер эмчийн байгууллагын түвшнээр
@@ -191,7 +191,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
             );
       if (id == 0) throw ApiException('Хадгалж чадсангүй.');
 
-      // Тасалбар аль хэдийн хадгалагдсан. Хавсралт амжилтгүй болсон нь
+      // Асуумж аль хэдийн хадгалагдсан. Хавсралт амжилтгүй болсон нь
       // "хадгалж чадсангүй" гэх шалтгаан биш — харин тодорхой анхааруулна.
       String? attachFailure;
       if (_files.isNotEmpty) {
@@ -215,13 +215,13 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
       if (attachFailure != null) {
         AppSnack.errorOn(
           messenger,
-          'Тасалбар хадгалагдсан ч хавсралт очсонгүй: $attachFailure',
+          'Асуумж хадгалагдсан ч хавсралт очсонгүй: $attachFailure',
         );
       } else {
         AppSnack.successOn(
           messenger,
           publish
-              ? 'Тасалбар нийтлэгдлээ.'
+              ? 'Асуумж нийтлэгдлээ.'
               : 'Ноорогт хадгаллаа. Ноорог зөвхөн танд харагдана — нийтлэх '
                   'хүртэл бусад эмч нарт харагдахгүй.',
         );
@@ -244,7 +244,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
     final discard = await confirmDialog(
       context,
       title: 'Бичсэнээ хаях уу?',
-      message: 'Нийтлээгүй тасалбар хадгалагдахгүй.',
+      message: 'Нийтлээгүй асуумж хадгалагдахгүй.',
       confirmLabel: 'Хаях',
       destructive: true,
     );
@@ -267,7 +267,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Шинэ тасалбар'),
+          title: const Text('Шинэ асуумж'),
           bottom: _saving
               ? const PreferredSize(
                   preferredSize: Size.fromHeight(2),
@@ -297,7 +297,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'Нийтэлсэн тасалбар бусад эмч нарт шууд харагдана. '
+                    'Нийтэлсэн асуумж бусад эмч нарт шууд харагдана. '
                     'Ноорог зөвхөн танд харагдана.',
                     style: theme.textTheme.bodySmall,
                   ),
@@ -348,7 +348,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
     final patient = _patient;
     return SectionCard(
       title: 'Иргэн',
-      subtitle: 'Тасалбар хэний тухай вэ',
+      subtitle: 'Асуумж хэний тухай вэ',
       icon: Icons.person_outline_rounded,
       padding: _cardPadding,
       onTap: _saving ? null : _pickPatient,
@@ -408,7 +408,7 @@ class _TicketComposerScreenState extends State<TicketComposerScreen> {
       );
     } else if (_types.isEmpty) {
       child = Text(
-        'Тасалбарын хэлбэр тохируулагдаагүй байна.',
+        'Асуумжийн хэлбэр тохируулагдаагүй байна.',
         style: theme.textTheme.bodySmall,
       );
     } else {

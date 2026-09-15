@@ -52,7 +52,7 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
     if (feed.state.isIdle) feed.load();
   }
 
-  /// Тасалбарын урсгал нүүр хуудасны хамгийн доор тул төгсгөлд ойртоход
+  /// Асуумжийн урсгал нүүр хуудасны хамгийн доор тул төгсгөлд ойртоход
   /// дараагийн хуудсыг татна — вебийн хязгааргүй гүйлгэлттэй ижил.
   void _onScroll() {
     if (!_scroll.hasClients) return;
@@ -91,14 +91,14 @@ class _DoctorHomeScreenState extends State<DoctorHomeScreen> {
               // доод цэсний табууд, Миний зөвлөгөө / тайлан / Үйлчлүүлэгч хайх
               // нь "Цэс" таб дээр байгаа тул давхардал байв.
               const SizedBox(height: 26),
-              // Вебийн нүүр хуудасны гол хэсэг — нийтлэгдсэн тасалбарууд.
+              // Вебийн нүүр хуудасны гол хэсэг — нийтлэгдсэн асуумжууд.
               Row(
                 children: <Widget>[
                   Expanded(
-                    child: Text('Тасалбарууд', style: theme.textTheme.titleLarge),
+                    child: Text('Асуумжууд', style: theme.textTheme.titleLarge),
                   ),
                   if (feed.isFiltered && feed.state.isReady)
-                    Text('${feed.total} тасалбар', style: theme.textTheme.bodySmall),
+                    Text('${feed.total} асуумж', style: theme.textTheme.bodySmall),
                 ],
               ),
               const SizedBox(height: 10),
@@ -171,7 +171,7 @@ class _DoctorGreeting extends StatelessWidget {
 }
 
 
-/// "Шинэ тасалбар бичих…" — вебийн `PostComposer`-ийн хаалттай төлөв.
+/// "Шинэ асуумж бичих…" — вебийн `PostComposer`-ийн хаалттай төлөв.
 class _ComposerCard extends StatelessWidget {
   const _ComposerCard();
 
@@ -212,7 +212,7 @@ class _ComposerCard extends StatelessWidget {
                     border: Border.all(color: theme.dividerColor),
                   ),
                   child: Text(
-                    'Шинэ тасалбар бичих…',
+                    'Шинэ асуумж бичих…',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       color: theme.textTheme.bodySmall?.color,
                     ),
