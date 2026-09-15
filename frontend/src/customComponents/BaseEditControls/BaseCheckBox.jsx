@@ -25,6 +25,7 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "./fieldRowStyles";
 
 export default function BaseCheckBox(props) {
   const { t } = useTranslation();
@@ -144,7 +145,7 @@ export default function BaseCheckBox(props) {
                           height: "16px",
                           pointerEvents: "none",
                           border:
-                            "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                            `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -157,7 +158,7 @@ export default function BaseCheckBox(props) {
                           height: "16px",
                           pointerEvents: "none",
                           border:
-                            "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                            `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -180,7 +181,7 @@ export default function BaseCheckBox(props) {
                     zIndex: 3,
                     cursor: "pointer",
                     paddingLeft: "0",
-                    color: "#75736c",
+                    color: FIELD.labelInk,
                     fontSize: "14px",
                     lineHeight: 1.4,
                     fontWeight: isChecked ? "600" : "400",
@@ -228,14 +229,14 @@ export default function BaseCheckBox(props) {
     return (
       <GridContainer
         sx={(theme) =>
-          fieldRowSx(theme, { borderColor: "#eee", fixedHeight: false })
+          fieldRowSx(theme, { borderColor: FIELD.rowBorder, fixedHeight: false })
         }
       >
         {Config.Label && (
           <GridItem
             {...labelSize(effectiveMd)}
             sx={(theme) => ({
-              ...labelCellSx(theme, { borderColor: "#eee" }),
+              ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
               justifyContent: "flex-start",
             })}
           >
@@ -243,7 +244,7 @@ export default function BaseCheckBox(props) {
               component="span"
               id={labelId}
               sx={{
-                color: "#75736c",
+                color: FIELD.labelInk,
                 cursor: "pointer",
                 display: "inline-flex",
                 fontSize: "14px",
@@ -268,7 +269,7 @@ export default function BaseCheckBox(props) {
             flexDirection: "row",
             justifyContent: "flex-start",
             padding: "0 15px",
-            border: "1px solid #eee",
+            border: `1px solid ${FIELD.rowBorder}`,
           }}
         >
           <GridContainer>{GetCheckBox()}</GridContainer>

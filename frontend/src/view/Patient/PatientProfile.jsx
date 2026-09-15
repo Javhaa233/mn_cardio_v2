@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material components
 import Avatar from "@mui/material/Avatar";
+import { colors } from "@/theme/colors";
 // default components
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
@@ -30,21 +31,14 @@ import Helper from "helper";
  * customer credentials, so there is nothing here a patient may edit yet.
  */
 
-const avatarParentStyle = {
-  height: 0,
-  overflow: "hidden",
-  paddingTop: "85%",
-  boxSizing: "border-box",
-  position: "relative",
-};
-
-const avatarStyle = {
-  width: "75%",
-  verticalAlign: "top",
-  position: "absolute",
-  top: "5%",
-  left: "12.5%",
-  height: "88%",
+// A fixed-size placeholder. It was sized as 75% of its column, which on a
+// phone (column = full width) drew a 270px grey circle above the details.
+const avatarSx = {
+  width: 96,
+  height: 96,
+  bgcolor: colors.brand.tintSolid,
+  color: colors.brand.inkDim,
+  "& svg": { width: "60%", height: "60%" },
 };
 
 const loadingWrapStyle = {
@@ -127,10 +121,13 @@ export default function PatientProfile() {
 
     return (
       <GridContainer>
-        <GridItem xs={12} sm={2} md={2}>
-          <div style={avatarParentStyle}>
-            <Avatar style={avatarStyle} />
-          </div>
+        <GridItem
+          xs={12}
+          sm={2}
+          md={2}
+          sx={{ display: "flex", justifyContent: "center", py: 1.5 }}
+        >
+          <Avatar sx={avatarSx} />
         </GridItem>
         <GridItem xs={12} sm={10} md={10}>
           <GridContainer>

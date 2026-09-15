@@ -109,6 +109,7 @@ class ICDRhythmTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title="ICD"
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
         >

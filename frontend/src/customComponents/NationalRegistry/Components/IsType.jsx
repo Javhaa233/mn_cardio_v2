@@ -1,40 +1,21 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import Box from "@mui/material/Box";
 
+import StatusChip from "customComponents/StatusChip";
+
+/**
+ * Adult or child. Neither is good or bad, so both use the neutral brand
+ * tone - they were green and red.
+ * Drawn with StatusChip; it was white text on a saturated fill.
+ */
 export default function IsType(props) {
   const { t } = useTranslation();
   const { rowdata = {} } = props;
+  const value = rowdata.n_type + "";
 
-  const spanSx = { padding: "2px 4px", borderRadius: "2px", color: "white" };
-
-  return (
-    <div>
-      {rowdata.n_type + "" === "Насанд хүрэгчид" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#2bb559" }}
-        >
-          {t(rowdata.n_type + "")}
-        </Box>
-      ) : rowdata.n_type + "" === "Хүүхэд" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#ff5757" }}
-        >
-          {t(rowdata.n_type + "")}
-        </Box>
-      ) : (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#ffcc00" }}
-        >
-          {t("Тодорхойгүй")}
-        </Box>
-      )}
-    </div>
+  return value === "Насанд хүрэгчид" || value === "Хүүхэд" ? (
+    <StatusChip Tone="info" Label={t(value)} />
+  ) : (
+    <StatusChip Tone="warning" Label={t("Тодорхойгүй")} />
   );
 }

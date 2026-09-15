@@ -61,13 +61,25 @@ const Chip = styled(ButtonBase, {
   },
 }));
 
-export default function ProfileMenu() {
+/**
+ * `Variant="patient"` is the patient portal's menu: the patient's first name,
+ * "Миний бүртгэл" and a patient logout. It replaced PatientNavbar's own Creative
+ * Tim copy of this menu.
+ */
+export default function ProfileMenu({ Variant = "staff" }) {
+  const IsPatient = Variant === "patient";
   const { t } = useTranslation();
   const [Dialog, setDialog] = useState(null);
   const [anchor, setAnchor] = useState(null);
 
   const User = Helper.AuthHelper.GetLogedUserLocal();
-  const firstName = User && User.Doctor ? User.Doctor.firstname : "";
+  const firstName = IsPatient
+    ? User && User.Patient
+      ? User.Patient.p_firstname
+      : ""
+    : User && User.Doctor
+      ? User.Doctor.firstname
+      : "";
   const initial = firstName ? firstName.trim().charAt(0).toUpperCase() : "";
 
   const handleClick = (event) =>
@@ -144,7 +156,11 @@ export default function ProfileMenu() {
                   <MenuItem
                     onClick={() => {
                       handleClose();
-                      customHistory.push("/admin/Profile");
+                      customHistory.push(
+                        IsPatient
+                          ? "/patient/PatientProfile"
+                          : "/admin/Profile",
+                      );
                     }}
                     sx={{
                       ...adminNavbarLinksSx.dropdownItem,
@@ -158,26 +174,28 @@ export default function ProfileMenu() {
                       component="span"
                       sx={adminNavbarLinksSx.dropdownItemText}
                     >
-                      {t("User information")}
+                      {IsPatient ? t("Миний бүртгэл") : t("User information")}
                     </Box>
                   </MenuItem>
-                  <MenuItem
-                    onClick={ShowChangePassword}
-                    sx={{
-                      ...adminNavbarLinksSx.dropdownItem,
-                      ...adminNavbarLinksSx.lightBlueHover,
-                    }}
-                  >
-                    <LockOutlinedIcon
-                      sx={adminNavbarLinksSx.dropdownItemIcon}
-                    />
-                    <Box
-                      component="span"
-                      sx={adminNavbarLinksSx.dropdownItemText}
+                  {IsPatient ? null : (
+                    <MenuItem
+                      onClick={ShowChangePassword}
+                      sx={{
+                        ...adminNavbarLinksSx.dropdownItem,
+                        ...adminNavbarLinksSx.lightBlueHover,
+                      }}
                     >
-                      {t("Change password")}
-                    </Box>
-                  </MenuItem>
+                      <LockOutlinedIcon
+                        sx={adminNavbarLinksSx.dropdownItemIcon}
+                      />
+                      <Box
+                        component="span"
+                        sx={adminNavbarLinksSx.dropdownItemText}
+                      >
+                        {t("Change password")}
+                      </Box>
+                    </MenuItem>
+                  )}
                   <Divider light />
                   <MenuItem
                     sx={{
@@ -185,11 +203,17 @@ export default function ProfileMenu() {
                       ...adminNavbarLinksSx.dropdownItemDanger,
                     }}
                     onClick={async () => {
-                      await Helper.AuthHelper.LogOut((success) => {
+                      const Done = (success) => {
                         // Deliberately a hard navigation: logout must tear down
                         // the SPA so no in-memory state (or open tab) survives.
-                        if (success) document.location = "/auth/login";
-                      });
+                        if (success)
+                          document.location = IsPatient
+                            ? "/patientAuth/login"
+                            : "/auth/login";
+                      };
+                      if (IsPatient)
+                        await Helper.AuthHelper.PatientLogOut(Done);
+                      else await Helper.AuthHelper.LogOut(Done);
                     }}
                   >
                     <LogoutOutlinedIcon
@@ -199,7 +223,7 @@ export default function ProfileMenu() {
                       component="span"
                       sx={adminNavbarLinksSx.dropdownItemText}
                     >
-                      {t("Logout")}
+                      {IsPatient ? t("Гарах") : t("Logout")}
                     </Box>
                   </MenuItem>
                 </MenuList>

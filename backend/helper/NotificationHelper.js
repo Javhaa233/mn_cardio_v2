@@ -58,6 +58,11 @@ class NotificationHelper {
    *
    * LinkObjectName + LinkObjectId are the deep link: VisitComments -> the
    * questions thread, RemoteVisit -> the e-visit, Advice -> the advice item.
+   *
+   * PatientId and AdviceId are the parent the app navigates to, filled by
+   * ShapePage. A VisitComments id alone does not say whose thread it is, and
+   * an AdviceComment id does not say which ticket - so a tap landed on the
+   * monitoring list instead of the question. null when not applicable.
    */
   Shape = (r) => ({
     Id: r.Id,
@@ -66,11 +71,82 @@ class NotificationHelper {
     Action: r.Action,
     LinkObjectName: r.LinkObjectName,
     LinkObjectId: r.LinkObjectId,
+    PatientId: r.PatientId || null,
+    AdviceId: r.AdviceId || null,
     Url: r.Url,
     Seen: r.Seen === SEEN,
     SeenDate: r.SeenDate,
     CreateDate: r.CreateDate,
   });
+
+  /**
+   * Shape a page of raw rows, resolving each deep link's parent first.
+   *
+   * Resolved at READ time rather than stored: Notification has no column for
+   * it, adding one is DDL on the customer's table, and a stored value would
+   * leave every notification written before today without it. This costs at
+   * most three indexed primary-key lookups per page, whatever its size.
+   *
+   * A lookup failure costs the ids, never the list.
+   */
+  ShapePage = async (rows) => {
+    try {
+      const ids = (name) => [
+        ...new Set(
+          rows.filter((r) => r.LinkObjectName === name && r.LinkObjectId).map((r) => r.LinkObjectId)
+        ),
+      ];
+      const questionIds = ids('VisitComments');
+      const commentIds = ids('AdviceComment');
+
+      const [questions, comments] = await Promise.all([
+        questionIds.length
+          ? Models.VisitComments.findAll({
+              where: { id_data: questionIds },
+              attributes: ['id_data', 'patient_id'],
+              raw: true,
+            })
+          : [],
+        commentIds.length
+          ? Models.AdviceComment.findAll({
+              where: { id_data: commentIds },
+              attributes: ['id_data', 'adv_com_id_adv'],
+              raw: true,
+            })
+          : [],
+      ]);
+
+      const questionPatient = new Map(questions.map((q) => [q.id_data, q.patient_id]));
+      const commentAdvice = new Map(comments.map((c) => [c.id_data, c.adv_com_id_adv]));
+
+      const adviceIds = [
+        ...new Set([...ids('Advice'), ...comments.map((c) => c.adv_com_id_adv).filter(Boolean)]),
+      ];
+      const advices = adviceIds.length
+        ? await Models.Advice.findAll({
+            where: { id_data: adviceIds },
+            attributes: ['id_data', 'adv_id_patient'],
+            raw: true,
+          })
+        : [];
+      const advicePatient = new Map(advices.map((a) => [a.id_data, a.adv_id_patient]));
+
+      for (const r of rows) {
+        if (r.LinkObjectName === 'VisitComments') {
+          r.PatientId = questionPatient.get(r.LinkObjectId) || null;
+        } else if (r.LinkObjectName === 'AdviceComment') {
+          r.AdviceId = commentAdvice.get(r.LinkObjectId) || null;
+          r.PatientId = advicePatient.get(r.AdviceId) || null;
+        } else if (r.LinkObjectName === 'Advice') {
+          r.AdviceId = r.LinkObjectId || null;
+          r.PatientId = advicePatient.get(r.LinkObjectId) || null;
+        }
+      }
+    } catch (ex) {
+      console.error('[NotificationHelper] ShapePage link lookup: ' + ex.message);
+    }
+    return rows.map(this.Shape);
+  };
 
   /** The columns Shape reads, so a findAll does not select the whole row. */
   ShapeAttributes = [
@@ -158,6 +234,9 @@ class NotificationHelper {
     ExpiredDate,
     LogedUser,
     Push,
+    // The deep link's parent ticket, for the push payload - see ShapePage.
+    // patientId in the payload is the recipient: a patient's links are theirs.
+    AdviceId,
   }) {
     if (!PatientId) return null;
 
@@ -188,6 +267,8 @@ class NotificationHelper {
           notificationId: Id,
           linkObjectName: LinkObjectName || '',
           linkObjectId: LinkObjectId || '',
+          patientId: String(PatientId || ''),
+          adviceId: String(AdviceId || ''),
           action: Action || '',
         },
       });
@@ -207,6 +288,9 @@ class NotificationHelper {
     Url,
     LogedUser,
     Push,
+    // The deep link's parent, for the push payload - see ShapePage.
+    PatientId,
+    AdviceId,
   }) {
     if (!UserId) return null;
 
@@ -234,6 +318,8 @@ class NotificationHelper {
           notificationId: Id,
           linkObjectName: LinkObjectName || '',
           linkObjectId: LinkObjectId || '',
+          patientId: String(PatientId || ''),
+          adviceId: String(AdviceId || ''),
           action: Action || '',
         },
       });

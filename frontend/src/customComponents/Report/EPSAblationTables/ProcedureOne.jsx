@@ -13,12 +13,11 @@ class ProcedureOne extends Component {
   }
 
   render() {
-    const { t } = this.props;
     const classes = {
       main: "main",
       body: "body",
       table: "table",
-      tableHeader: t("tableHeader"),
+      tableHeader: "tableHeader",
       tdDiv: "tdDiv",
     };
 

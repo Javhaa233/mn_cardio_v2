@@ -1,48 +1,26 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import Box from "@mui/material/Box";
 
+import StatusChip from "customComponents/StatusChip";
+
+/**
+ * Congenital malformation register category. A category, not a verdict, so
+ * the three known values share the neutral brand tone.
+ * Drawn with StatusChip; it was white text on a saturated fill.
+ */
 export default function IsCategory(props) {
   const { t } = useTranslation();
   const { rowdata = {} } = props;
+  const labels = {
+    neelttei: "Нээлттэй мэс засал",
+    sudsan_dotuurh: "Судсан дотуурх мэс засал",
+    katetr: "Катетр ангиографийн оношилгоо",
+  };
+  const label = labels[rowdata.n_category + ""];
 
-  const spanSx = { padding: "2px 4px", borderRadius: "2px", color: "white" };
-
-  return (
-    <div>
-      {rowdata.n_category + "" === "neelttei" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#003385" }}
-        >
-          {t("Нээлттэй мэс засал")}
-        </Box>
-      ) : rowdata.n_category + "" === "sudsan_dotuurh" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#cf0083" }}
-        >
-          {t("Судсан дотуурх мэс засал")}
-        </Box>
-      ) : rowdata.n_category + "" === "katetr" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#118f00" }}
-        >
-          {t("Катетр ангиографийн оношилгоо")}
-        </Box>
-      ) : (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#ffcc00" }}
-        >
-          {t("Тодорхойгүй")}
-        </Box>
-      )}
-    </div>
+  return label ? (
+    <StatusChip Tone="info" Label={t(label)} />
+  ) : (
+    <StatusChip Tone="warning" Label={t("Тодорхойгүй")} />
   );
 }

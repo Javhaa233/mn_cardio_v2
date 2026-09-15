@@ -18,9 +18,10 @@ import {
 import Datetime from "customComponents/DateTime";
 
 import Helper from "helper";
+import { FIELD } from "./fieldRowStyles";
 
 const getLabelSx = (fontSize = "14px") => ({
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize,
@@ -113,11 +114,11 @@ export default function BaseDate(props) {
   }
 
   return (
-    <GridContainer sx={(theme) => fieldRowSx(theme, { borderColor: "#eee" })}>
+    <GridContainer sx={(theme) => fieldRowSx(theme, { borderColor: FIELD.rowBorder })}>
       <GridItem
         {...labelSize(effectiveMd)}
         sx={(theme) => ({
-          ...labelCellSx(theme, { borderColor: "#eee" }),
+          ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
           justifyContent: "flex-start",
           paddingLeft: "15px",
           paddingRight: "15px",

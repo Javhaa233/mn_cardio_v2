@@ -13,6 +13,7 @@ import OutPatientInfoForm from "customComponents/Forms/OutPatientInfoForm";
 import OutPatientInfoReport from "customComponents/Report/OutPatientInfoReport";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 export default function EditOutPatientInfo(props) {
   const { t: tHook } = useTranslation();
@@ -159,7 +160,7 @@ export default function EditOutPatientInfo(props) {
       {Dialog}
       {IsIconButton ? (
         <IconButton
-          style={{ margin: "2px", padding: "4px", color: "#00acc1" }}
+          style={{ margin: "2px", padding: "4px", color: colors.brand.cyanInk }}
           title={title}
           onClick={SetInsertForm}
         >

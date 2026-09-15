@@ -343,7 +343,11 @@ const PatientInfo = ({ RegisterNo: propRegisterNo, GetData, style }) => {
                         }}
                       >
                         {[
-                          data.p_genderObj ? data.p_genderObj.Label : null,
+                          // The option label is the English source key; the
+                          // rows below translate it, this summary line did not.
+                          data.p_genderObj
+                            ? t(data.p_genderObj.Label + "")
+                            : null,
                           data.p_age ? data.p_age + " " + t("Age") : null,
                           data.blood_typeObj ? data.blood_typeObj.Label : null,
                         ]

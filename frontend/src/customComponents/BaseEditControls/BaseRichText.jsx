@@ -11,6 +11,7 @@ import GridItem from "components/Grid/GridItem";
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
 
 import "react-quill/dist/quill.snow.css";
+import { FIELD } from "./fieldRowStyles";
 
 const quillGlobalStyles = `
   .ql-toolbar.ql-snow {
@@ -141,7 +142,7 @@ export default function BaseRichText(props) {
         style={{
           marginBottom: "5px",
           width: "100%",
-          border: "1px solid #eee",
+          border: `1px solid ${FIELD.rowBorder}`,
         }}
       >
         {Config?.Label && (
@@ -151,7 +152,7 @@ export default function BaseRichText(props) {
             md={effectiveMd}
             style={{
               backgroundColor: "#eff9fe",
-              borderRight: "1px solid #eee",
+              borderRight: `1px solid ${FIELD.rowBorder}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "flex-start",
@@ -162,7 +163,7 @@ export default function BaseRichText(props) {
               component="span"
               id={labelId}
               sx={{
-                color: "#75736c",
+                color: FIELD.labelInk,
                 cursor: "pointer",
                 display: "inline-flex",
                 fontSize: "14px",

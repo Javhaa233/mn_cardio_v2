@@ -1,8 +1,18 @@
+import { colors } from "@/theme/colors";
+
+/**
+ * Screen styles for the raw tables and old section boxes inside the clinical
+ * forms. Colours are brand tokens now (they were #ccc/#949494 rules on
+ * #fafafa/#f5f5f5, a red #f54242 section title and a #003fd4 list). Sizes,
+ * padding and the responsive width floor are unchanged. None of the
+ * html2canvas-printed reports import this file; the forms print through the
+ * server, so this does not reach any printed page.
+ */
 const customFormStyles = {
   oneHeader: {
     display: "inline-block",
     paddingBottom: "-20px",
-    borderBottom: "2px solid #ccc",
+    borderBottom: `2px solid ${colors.brand.hairlineStrong}`,
     "& > h2": {
       fontSize: "20px",
       textTransform: "uppercase",
@@ -12,48 +22,48 @@ const customFormStyles = {
   borderDiv: {
     position: "relative",
     padding: "20px 10px 10px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     margin: "25px 0 10px",
-    backgroundColor: "#fafafa",
+    backgroundColor: colors.brand.surface,
   },
   divHeader: {
     position: "absolute",
     top: "-25px",
     left: "10px",
     padding: "2px 10px",
-    border: "1px solid #ccc",
-    backgroundColor: "#FFF",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
+    backgroundColor: colors.brand.surface,
     fontWeight: "500",
-    color: "#f54242",
+    color: colors.brand.ink,
   },
   borderSubDiv: {
     position: "relative",
     padding: "30px 10px 10px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     margin: "38px 0",
-    backgroundColor: "#fafafa",
+    backgroundColor: colors.brand.surface,
   },
   divSubHeader: {
     position: "absolute",
     top: "-25px",
     left: "15px",
     padding: "0 10px",
-    backgroundColor: "#FFF",
-    border: "1px solid #ccc",
-    color: "#3C4858",
+    backgroundColor: colors.brand.surface,
+    border: `1px solid ${colors.brand.hairlineStrong}`,
+    color: colors.brand.ink,
     textDecoration: "none",
     fontSize: "18px",
   },
   childDiv: {
     position: "relative",
     padding: "10px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     margin: "10px",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
   },
 
   labelHorizontal: {
-    color: "#75736c",
+    color: colors.brand.inkMuted,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",
@@ -70,15 +80,15 @@ const customFormStyles = {
     fontSize: "1.2em",
     padding: "15px",
     margin: "15px",
-    border: "2px solid #003fd4",
+    border: `2px solid ${colors.brand.cyanInk}`,
     "& > ul": { margin: 0, padding: "0 15px" },
-    "& > ul > li": { color: "#003fd4" },
+    "& > ul > li": { color: colors.brand.cyanInk },
   },
 
   customTable: {
-    border: "1px solid #949494",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     borderCollapse: "collapse",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
     fontSize: "12px",
 
     /**
@@ -101,11 +111,11 @@ const customFormStyles = {
     "@media (max-width: 959.95px)": {
       minWidth: "560px",
     },
-    "& > thead > tr": { border: "1px solid #949494" },
-    "& > tbody > tr": { border: "1px solid #949494" },
-    "& > tbody > tr > td": { padding: "2px 4px", border: "1px solid #949494" },
-    "& > tbody > tr > th": { padding: "2px 4px", border: "1px solid #949494" },
-    "& > thead > tr > th": { padding: "2px 4px", border: "1px solid #949494" },
+    "& > thead > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr > td": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr > th": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > thead > tr > th": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
   },
 };
 

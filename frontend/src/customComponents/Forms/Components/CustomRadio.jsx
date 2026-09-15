@@ -17,6 +17,7 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function CustomRadio(props) {
   const { t } = useTranslation();
@@ -68,7 +69,7 @@ export default function CustomRadio(props) {
                         height: "0px",
                         padding: "7px",
                         border:
-                          "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                          `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -95,7 +96,7 @@ export default function CustomRadio(props) {
                 ml: "-14px",
                 "& .MuiFormControlLabel-label": {
                   cursor: "pointer",
-                  color: "#75736c",
+                  color: FIELD.labelInk,
                   fontSize: "0.875rem",
                   lineHeight: "1.428571429",
                   fontWeight:
@@ -138,7 +139,7 @@ export default function CustomRadio(props) {
                       height: "0px",
                       padding: "7px",
                       border:
-                        "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                        `1px solid ${FIELD.unchecked}`,
                       borderRadius: "50%",
                     }}
                   />
@@ -165,7 +166,7 @@ export default function CustomRadio(props) {
               ml: "-14px",
               "& .MuiFormControlLabel-label": {
                 cursor: "pointer",
-                color: "#75736c",
+                color: FIELD.labelInk,
                 fontSize: "0.875rem",
                 lineHeight: "1.428571429",
                 fontWeight: selectedValue === "-1" ? "bold" : "400",
@@ -183,7 +184,7 @@ export default function CustomRadio(props) {
     return (
       <Box
         sx={{
-          border: "1px solid #eee",
+          border: `1px solid ${FIELD.rowBorder}`,
           borderRadius: "4px",
           display: "grid",
           // Was a hardcoded `1fr 1fr`. These radio groups sit inside table

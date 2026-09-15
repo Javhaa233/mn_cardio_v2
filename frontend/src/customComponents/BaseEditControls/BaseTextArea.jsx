@@ -17,6 +17,7 @@ import {
 } from "./fieldRowStyles";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "./fieldRowStyles";
 
 export default function BaseTextArea(props) {
   const { t } = useTranslation();
@@ -97,7 +98,7 @@ export default function BaseTextArea(props) {
         style={{
           marginBottom: "5px",
           width: "100%",
-          border: "1px solid #eee",
+          border: `1px solid ${FIELD.rowBorder}`,
         }}
       >
         {Config?.Label && (
@@ -106,7 +107,7 @@ export default function BaseTextArea(props) {
             md={12}
             style={{
               backgroundColor: "#eff9fe",
-              borderBottom: "1px solid #eee",
+              borderBottom: `1px solid ${FIELD.rowBorder}`,
               display: "flex",
               alignItems: "center",
               justifyContent: "flex-start",
@@ -116,7 +117,7 @@ export default function BaseTextArea(props) {
             <FormLabel
               htmlFor={inputId}
               sx={{
-                color: "#75736c",
+                color: FIELD.labelInk,
                 cursor: "pointer",
                 display: "inline-flex",
                 fontSize: "14px",
@@ -146,7 +147,7 @@ export default function BaseTextArea(props) {
             style={{
               width: "100%",
               padding: "5px 10px",
-              border: "1px solid #eee",
+              border: `1px solid ${FIELD.rowBorder}`,
               borderRadius: "0",
               fontSize: "14px",
               fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
@@ -166,14 +167,14 @@ export default function BaseTextArea(props) {
   return (
     <GridContainer
       sx={(theme) =>
-        fieldRowSx(theme, { borderColor: "#eee", fixedHeight: false })
+        fieldRowSx(theme, { borderColor: FIELD.rowBorder, fixedHeight: false })
       }
     >
       {Config?.Label && (
         <GridItem
           {...labelSize(effectiveMd)}
           sx={(theme) => ({
-            ...labelCellSx(theme, { borderColor: "#eee" }),
+            ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
             // A textarea is taller than one row, so its label sits at the top
             // of the cell rather than centred against it.
             alignItems: "flex-start",
@@ -183,7 +184,7 @@ export default function BaseTextArea(props) {
           <FormLabel
             htmlFor={inputId}
             sx={{
-              color: "#75736c",
+              color: FIELD.labelInk,
               cursor: "pointer",
               display: "inline-flex",
               fontSize: "14px",
@@ -212,7 +213,7 @@ export default function BaseTextArea(props) {
           style={{
             width: "100%",
             padding: "5px 10px",
-            border: "1px solid #eee",
+            border: `1px solid ${FIELD.rowBorder}`,
             borderRadius: "0",
             fontSize: "14px",
             fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',

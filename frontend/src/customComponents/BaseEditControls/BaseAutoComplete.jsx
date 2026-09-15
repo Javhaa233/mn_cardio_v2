@@ -19,9 +19,10 @@ import {
 } from "./fieldRowStyles";
 // helper
 import Helper from "helper";
+import { FIELD } from "./fieldRowStyles";
 
 const autoCompleteLabelHorizontalSx = {
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize: "14px",
@@ -46,7 +47,7 @@ export default function BaseAutoComplete(props) {
     Variant = "standard",
     md = 4.8,
     LabelWidth,
-    borderColor = "#eee",
+    borderColor = FIELD.rowBorder,
     HideLabel = false,
     Disabled = false,
     readOnly = false,
@@ -84,13 +85,13 @@ export default function BaseAutoComplete(props) {
       margin: "0 !important",
       padding: "0 10px !important",
       boxSizing: "border-box",
-      border: "1px solid #eee",
+      border: `1px solid ${FIELD.rowBorder}`,
       backgroundColor: "#fff",
       "&:hover:not(.Mui-disabled)": {
-        border: "1px solid #ccc",
+        border: `1px solid ${FIELD.inputBorderHover}`,
       },
       "&.Mui-focused": {
-        border: "1px solid #aaa",
+        border: `1px solid ${FIELD.inputBorderFocus}`,
       },
       "&:before, &:after": {
         display: "none",

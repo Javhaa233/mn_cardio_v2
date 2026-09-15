@@ -401,6 +401,7 @@ async function CreateComment(req, res) {
             Action: 'AdviceComment',
             LinkObjectName: 'Advice',
             LinkObjectId: Advice.id_data,
+            AdviceId: Advice.id_data,
             NotesMn: 'Эмч таны асуумжинд хариулт бичлээ',
             Notes: 'A doctor replied on your advice ticket',
             LogedUser,

@@ -8,8 +8,10 @@ export default function LinkObjectView(props) {
 
   const { onClick } = props;
 
+  // A per-row action, so outlined: filled, it put a primary button on every
+  // row of the history grid - a column of seventeen calls to action.
   return (
-    <Button size={"sm"} color="primary" onClick={() => onClick && onClick()}>
+    <Button size={"sm"} color="info" onClick={() => onClick && onClick()}>
       {t("Related information")}
     </Button>
   );

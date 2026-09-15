@@ -1,276 +1,173 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 // translation
 import { useTranslation } from "react-i18next";
-// @mui/material components
-import Box from "@mui/material/Box";
-import Link from "@mui/material/Link";
-import InputAdornment from "@mui/material/InputAdornment";
-import Checkbox from "@mui/material/Checkbox";
-import FormControlLabel from "@mui/material/FormControlLabel";
-import IconButton from "@mui/material/IconButton";
-
-// @mui/icons-material
-import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
-import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-
-// core components
-import Card from "components/Card/Card";
-import CardBody from "components/Card/CardBody";
-import CardFooter from "components/Card/CardFooter";
-import CustomInput from "components/CustomInput/CustomInput.jsx";
-import Button from "components/CustomButtons/Button";
 // helper
 import Helper from "helper";
-// history
-import customHistory from "customHistory";
 
-import { loginPageSx } from "assets/jss/material-dashboard-pro-react/views/loginPageStyle.js";
-import { infoColor } from "assets/jss/material-dashboard-pro-react.js";
+import AuthShell, {
+  AuthLink,
+  SUPPORT_PHONE,
+  useLanguageCatchUp,
+} from "view/Auth/AuthShell";
 
+const SUPPORT_AFTER_ATTEMPTS = 3;
+const TYPING_IDLE_MS = 1500;
+
+/**
+ * The patient login.
+ *
+ * It was a split screen with an empty left half, a Creative Tim card, a round
+ * teal button and purple/pink support text. It now uses the doctor login's
+ * panel and scene, with the same inline errors and the same "call IT after
+ * three failures" rule it already had. The "Remember me" checkbox is gone: its
+ * value was never read by the login call, so it promised something the app did
+ * not do.
+ */
 export default function PatientLoginPage() {
   const { t } = useTranslation();
+  useLanguageCatchUp();
 
-  const [cardAnimaton, setCardAnimation] = useState("cardHidden");
   const [UserName, setUserName] = useState("");
   const [Password, setPassword] = useState("");
-  const [Alert, setAlert] = useState(null);
-  const [RememberMe, setRememberMe] = useState(false);
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const [showPassword, setShowPassword] = useState(false);
+  const [ShowPassword, setShowPassword] = useState(false);
+  const [Loading, setLoading] = useState(false);
+  const [Error, setError] = useState("");
+  const [UserNameError, setUserNameError] = useState(false);
+  const [PasswordError, setPasswordError] = useState(false);
+  const [FailedAttempts, setFailedAttempts] = useState(0);
+  const [Typing, setTyping] = useState(false);
 
-  useEffect(() => {
-    setTimeout(function () {
-      setCardAnimation("");
-    }, 700);
-  }, []);
+  const IdleTimer = useRef(null);
+
+  // The map calms down while someone is typing, as on the doctor login.
+  const StopTyping = () => {
+    if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    IdleTimer.current = null;
+    setTyping(false);
+  };
+  const MarkTyping = () => {
+    setTyping(true);
+    if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    IdleTimer.current = setTimeout(() => setTyping(false), TYPING_IDLE_MS);
+  };
+  useEffect(
+    () => () => {
+      if (IdleTimer.current) clearTimeout(IdleTimer.current);
+    },
+    [],
+  );
 
   useEffect(() => {
     const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
-    if (LogedUser && LogedUser.RoleId) {
-      if (LogedUser.RoleId + "" === "4") {
-        document.location = "/patient";
-      }
+    if (LogedUser && LogedUser.RoleId + "" === "4") {
+      document.location = "/patient";
     }
-  }, [cardAnimaton]);
-
-  const ShowAlert = (Message) => {
-    const Alert = Helper.BaseCrudHelper.ShowAlert(Message, false, () =>
-      setAlert(null),
-    );
-    setAlert(Alert);
-  };
+  }, []);
 
   const Login = async () => {
-    if (UserName !== "" && Password !== "") {
-      await Helper.AuthHelper.PatientLogin(
-        { UserName, Password },
-        (Success, RoleId, Message) => {
-          if (Success === true && RoleId) {
-            if (RoleId + "" === "4") {
-              document.location = "/patient";
-            }
-          } else {
-            const newFailedAttempts = failedAttempts + 1;
-            setFailedAttempts(newFailedAttempts);
-            if (
-              newFailedAttempts >= 3 &&
-              process.env.NODE_ENV !== "development"
-            ) {
-              ShowAlert(
-                "Мэдээллийн технологийн ажилтантай холбогдоно уу! 99243182",
-              );
-            } else {
-              ShowAlert(Message);
-            }
-          }
-        },
+    if (Loading) return;
+
+    const MissingUserName = UserName === "";
+    const MissingPassword = Password === "";
+    setUserNameError(MissingUserName);
+    setPasswordError(MissingPassword);
+    if (MissingUserName || MissingPassword) {
+      setError(
+        MissingUserName
+          ? t("Please enter your user name")
+          : t("Please enter your password"),
       );
+      return;
     }
+
+    setError("");
+    setLoading(true);
+    await Helper.AuthHelper.PatientLogin(
+      { UserName, Password },
+      (Success, RoleId, Message) => {
+        if (Success === true && RoleId) {
+          if (RoleId + "" === "4") document.location = "/patient";
+          return;
+        }
+        const attempts = FailedAttempts + 1;
+        setFailedAttempts(attempts);
+        if (
+          attempts >= SUPPORT_AFTER_ATTEMPTS &&
+          process.env.NODE_ENV !== "development"
+        ) {
+          setError(
+            t("Мэдээллийн технологийн ажилтантай холбогдоно уу!") +
+              " " +
+              SUPPORT_PHONE,
+          );
+        } else {
+          setError(Message ? t(Message) : t("An error occurred"));
+        }
+      },
+    );
+    setLoading(false);
   };
 
   return (
-    <Box sx={loginPageSx.splitRoot}>
-      {Alert}
-      <Box sx={loginPageSx.splitContainer}>
-        <Box sx={loginPageSx.leftPanel}></Box>
-        <Box sx={loginPageSx.rightPanel}>
-          <Box sx={loginPageSx.rightPanelCenter}>
-            <Card
-              login
-              sx={{
-                ...(cardAnimaton === "cardHidden"
-                  ? loginPageSx.cardHidden
-                  : undefined),
-                ...loginPageSx.rightLoginCard,
-              }}
-            >
-              <Box sx={loginPageSx.rightAvatarHeader}>
-                <Box
-                  component="h2"
-                  sx={{
-                    ...loginPageSx.welcomeTitle,
-                    color: infoColor[0],
-                    fontSize: "24px",
-                    marginBottom: 0,
-                    marginTop: "10px",
-                  }}
-                >
-                  {t("Welcome to MnCardio")}
-                </Box>
-              </Box>
-              <CardBody>
-                <CustomInput
-                  labelText={t("User name")}
-                  formControlProps={{ fullWidth: true }}
-                  inputProps={{
-                    value: UserName,
-                    onChange: (e) => setUserName(e.target.value),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <PersonOutlineIcon
-                          sx={loginPageSx.inputAdornmentIcon}
-                        />
-                      </InputAdornment>
-                    ),
-                  }}
-                />
-                <CustomInput
-                  labelText={t("Password")}
-                  formControlProps={{ fullWidth: true }}
-                  inputProps={{
-                    value: Password,
-                    onKeyDown: (event) => event.key === "Enter" && Login(),
-                    onChange: (e) => setPassword(e.target.value),
-                    endAdornment: (
-                      <InputAdornment position="end">
-                        <IconButton
-                          aria-label="toggle password visibility"
-                          onClick={() => setShowPassword(!showPassword)}
-                          onMouseDown={(e) => e.preventDefault()}
-                          edge="end"
-                          sx={{ padding: "12px" }}
-                        >
-                          {showPassword ? (
-                            <VisibilityOff
-                              sx={loginPageSx.inputAdornmentIcon}
-                            />
-                          ) : (
-                            <Visibility sx={loginPageSx.inputAdornmentIcon} />
-                          )}
-                        </IconButton>
-                      </InputAdornment>
-                    ),
-                    type: showPassword ? "text" : "password",
-                    autoComplete: "off",
-                  }}
-                />
-                <Box sx={loginPageSx.rightActionsRow}>
-                  <FormControlLabel
-                    control={
-                      <Checkbox
-                        checked={RememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        size="small"
-                      />
-                    }
-                    label={t("Remember me")}
-                    sx={{
-                      margin: 0,
-                      "& .MuiFormControlLabel-label": {
-                        fontSize: 13,
-                        color: "#607d8b",
-                      },
-                    }}
-                  />
-                  <Link
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      customHistory.push("/auth/forget-password");
-                    }}
-                    sx={{
-                      fontWeight: 500,
-                      fontSize: 13,
-                      color: "#0b6aa7",
-                      "&:hover": { color: "#0b6aa7" },
-                    }}
-                  >
-                    {t("Forgot password?")}
-                  </Link>
-                </Box>
-              </CardBody>
-              <CardFooter
-                sx={loginPageSx.justifyContentCenter}
-                style={{ paddingTop: "0" }}
-              >
-                <Button
-                  round
-                  color="info"
-                  onClick={Login}
-                  style={{ ...loginPageSx.loginButton, width: "220px" }}
-                >
-                  {t("Login")}
-                </Button>
-              </CardFooter>
-              <Box sx={loginPageSx.rightBottomSupport}>
-                <Link
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    customHistory.push("/auth/register");
-                  }}
-                  sx={{
-                    fontWeight: 600,
-                    fontSize: 13,
-                    color: "#0b6aa7",
-                    "&:hover": { color: "#0b6aa7" },
-                  }}
-                >
-                  {t("Create account")}
-                </Link>
-              </Box>
-            </Card>
-          </Box>
+    <AuthShell Title={t("Welcome to MnCardio")} Quiet={Typing} onSubmit={Login}>
+      <div role="alert" aria-live="polite">
+        {Error ? <p className="err">{Error}</p> : null}
+      </div>
 
-          <Box sx={loginPageSx.pageBottomSupport}>
-            <Box
-              component="div"
-              sx={{
-                marginTop: "10px",
-                fontWeight: 400,
-                fontSize: 13,
-                color: "#e53935",
-              }}
-            >
-              Мэдээллийн технологийн ажилтантай холбогдох
-            </Box>
-            <Box
-              component="div"
-              sx={{ fontWeight: 700, fontSize: 14, color: "#8e24aa" }}
-            >
-              <a
-                href="tel:+97699243182"
-                style={{ textDecoration: "underline" }}
-              >
-                99243182
-              </a>
-            </Box>
-            <Box
-              component="div"
-              sx={{
-                fontWeight: 500,
-                fontSize: 14,
-                color: "#5b4196ff",
-                marginTop: "12px",
-              }}
-            >
-              Powered by ITSystem
-            </Box>
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+      <label htmlFor="patient-login-username">{t("User name")}</label>
+      <input
+        id="patient-login-username"
+        name="username"
+        type="text"
+        autoComplete="username"
+        autoFocus
+        className={UserNameError ? "bad" : undefined}
+        aria-invalid={UserNameError || undefined}
+        value={UserName}
+        disabled={Loading}
+        onBlur={StopTyping}
+        onChange={(e) => {
+          MarkTyping();
+          setUserName(e.target.value);
+          if (e.target.value) setUserNameError(false);
+        }}
+      />
+
+      <label htmlFor="patient-login-password">{t("Password")}</label>
+      <div className="pw">
+        <input
+          id="patient-login-password"
+          name="password"
+          type={ShowPassword ? "text" : "password"}
+          autoComplete="current-password"
+          className={PasswordError ? "bad" : undefined}
+          aria-invalid={PasswordError || undefined}
+          value={Password}
+          disabled={Loading}
+          onBlur={StopTyping}
+          onChange={(e) => {
+            MarkTyping();
+            setPassword(e.target.value);
+            if (e.target.value) setPasswordError(false);
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          aria-label={ShowPassword ? t("Hide password") : t("Show password")}
+        >
+          {ShowPassword ? t("Нуух") : t("Харах")}
+        </button>
+      </div>
+
+      <button className="btn" type="submit" disabled={Loading}>
+        {Loading ? t("Logging in...") : t("Login")}
+      </button>
+
+      <div className="row">
+        <AuthLink To="/auth/forget-password">{t("Forgot password?")}</AuthLink>
+        <AuthLink To="/auth/register">{t("Create account")}</AuthLink>
+      </div>
+    </AuthShell>
   );
 }

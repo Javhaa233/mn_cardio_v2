@@ -100,6 +100,7 @@ class EchoTable extends BaseList {
   ShowData = (data) => {
     const DialogDatas = (
       <BaseDialog
+        Title={this.props.Title}
         //ref={(ref) => (this.DialogRef = ref)}
         ref={this.DialogRef}
         Close={() => this.setState({ DialogData: null })}

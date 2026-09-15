@@ -8,6 +8,7 @@ import { Typography, Link } from "@mui/material";
 // @mui/icons-material
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import ReportProblemOutlinedIcon from "@mui/icons-material/ReportProblemOutlined";
+import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 // custom components
 import ListPageHeader from "customComponents/ListPageHeader";
 import RangeDate from "customComponents/RangeDate";
@@ -15,6 +16,7 @@ import BaseGrid from "baseComponents/BaseGrid/BaseGrid";
 import DivLoading from "customComponents/DivLoading";
 import QuestionButton from "customComponents/PatientMonitoring/QuestionButton";
 import navClick from "customComponents/PageTabs/navClick";
+import { useChatContext } from "customComponents/Chat/ChatContext";
 import BaseDialog from "customComponents/BaseDialog";
 import MonitorQuestion from "customComponents/PatientMonitoring/MonitorQuestion";
 import PatientMonitoring from "customComponents/PatientMonitoring/PatientMonitoring";
@@ -22,7 +24,9 @@ import ShowPatient from "customComponents/FieldActions/ShowPatient";
 import BtnPatientMonitor from "customComponents/PatientMonitoring/Actions/BtnPatientMonitor";
 import BtnRemovePatient from "customComponents/PatientMonitoring/Actions/BtnRemovePatient";
 import BtnRemoteVisit from "customComponents/PatientMonitoring/Actions/BtnRemoteVisit";
+import BtnChat from "customComponents/PatientMonitoring/Actions/BtnChat";
 import ShowJournals from "customComponents/PatientMonitoring/ShowJournals";
+import AddPatientToMonitoring from "customComponents/PatientMonitoring/AddPatientToMonitoring";
 import {
   AwaitingReplyCell,
   LastContactCell,
@@ -246,6 +250,83 @@ class PatientMonitoringDoctor extends React.Component {
     );
   };
 
+  /**
+   * Take a new patient on, from here.
+   *
+   * Reuses the CommentDialog slot the other three row dialogs already share -
+   * only one of them can be open at a time, so one slot is the honest model.
+   */
+  ShowAddPatient = () => {
+    const { t } = this.props;
+    this.setState({
+      CommentDialog: (
+        <BaseDialog
+          Close={() => this.setState({ CommentDialog: null })}
+          Width="520px"
+          Title={t("Шинэ өвчтөн хяналтанд авах")}
+        >
+          <AddPatientToMonitoring
+            OnAdded={() => {
+              this.setState({ CommentDialog: null });
+              this.GetData();
+            }}
+            OnCreateNew={(RegisterNo) => {
+              // The patient does not exist yet. The card's own flow already
+              // handles creation and seeds the register number, so hand over
+              // rather than building a second patient form here.
+              this.setState({ CommentDialog: null });
+              navClick("/admin/PatientInfo?RegisterNo=" + RegisterNo)({
+                preventDefault: () => {},
+                button: 0,
+                defaultPrevented: false,
+              });
+            }}
+          />
+        </BaseDialog>
+      ),
+    });
+  };
+
+  /**
+   * Open the chat with this patient.
+   *
+   * One conversation, not two. The question thread is still the record - and
+   * still reachable from the patient card - but writing happens in one place.
+   * StartChat is idempotent and taking a patient under monitoring is itself
+   * what lets them answer (CareTeam unions the monitoring list).
+   */
+  OpenChat = (RowData) => {
+    const { t } = this.props;
+    const Target = { UserId: RowData.patient_id, UserType: "P" };
+    const chat = this.props.chat;
+
+    if (chat && chat.StartChat) {
+      chat.StartChat(Target, (ok, _roomId, message) => {
+        if (!ok) {
+          this.setState({
+            Alert: Helper.BaseCrudHelper.ShowAlert(
+              message || t("Алдаа гарлаа"),
+              false,
+              () => this.setState({ Alert: null }),
+            ),
+          });
+        }
+      });
+      return;
+    }
+
+    // No dock in this layout - still create the room, and say so.
+    Helper.ChatHelper.StartChat(Target, (resData) => {
+      this.setState({
+        Alert: Helper.BaseCrudHelper.ShowAlert(
+          (resData && resData.Message) || t("Алдаа гарлаа"),
+          !!(resData && resData.Success),
+          () => this.setState({ Alert: null }),
+        ),
+      });
+    });
+  };
+
   ShowComments = (RowData) => {
     this.setState({
       CommentDialog: (
@@ -450,22 +531,33 @@ class PatientMonitoringDoctor extends React.Component {
           Overline={t("Миний хяналтад буй иргэд")}
           Count={GridOption ? GridOption.Total : undefined}
           Actions={
-            <Button
-              size="small"
-              disableElevation
-              onClick={this.ExportExcel}
-              disabled={exportLoading}
-              startIcon={
-                exportLoading ? (
-                  <CircularProgress size={14} thickness={5} color="inherit" />
-                ) : (
-                  <FileDownloadOutlinedIcon />
-                )
-              }
-              sx={gridToolbarButtonSx.neutral}
-            >
-              {t("Excel")}
-            </Button>
+            <>
+              <Button
+                size="small"
+                disableElevation
+                onClick={this.ShowAddPatient}
+                startIcon={<PersonAddAltIcon />}
+                sx={gridToolbarButtonSx.primary || gridToolbarButtonSx.neutral}
+              >
+                {t("Шинэ өвчтөн хяналтанд авах")}
+              </Button>
+              <Button
+                size="small"
+                disableElevation
+                onClick={this.ExportExcel}
+                disabled={exportLoading}
+                startIcon={
+                  exportLoading ? (
+                    <CircularProgress size={14} thickness={5} color="inherit" />
+                  ) : (
+                    <FileDownloadOutlinedIcon />
+                  )
+                }
+                sx={gridToolbarButtonSx.neutral}
+              >
+                {t("Excel")}
+              </Button>
+            </>
           }
         />
 
@@ -543,7 +635,19 @@ class PatientMonitoringDoctor extends React.Component {
                 >
                   {t("Шүүлтүүр цэвэрлэх")}
                 </Button>
-              ) : null
+              ) : (
+                // An empty roster should offer the one action that fills it,
+                // rather than only explaining that it is empty.
+                <Button
+                  size="small"
+                  disableElevation
+                  onClick={this.ShowAddPatient}
+                  startIcon={<PersonAddAltIcon />}
+                  sx={gridToolbarButtonSx.neutral}
+                >
+                  {t("Шинэ өвчтөн хяналтанд авах")}
+                </Button>
+              )
             }
             ColumnActions={[
               {
@@ -559,6 +663,13 @@ class PatientMonitoringDoctor extends React.Component {
             // last contact, reading, actions
             widthPattern="40c, 130l, 130l, 90c, 120l, 110c, 220l, 120c, 110c, 130r"
             RowActions={[
+              {
+                // One conversation. The question thread is still the record and
+                // is still reachable from the patient card; writing happens in
+                // chat so a patient never has to guess where the answer went.
+                Component: <BtnChat />,
+                onClick: (Data) => this.OpenChat(Data),
+              },
               {
                 Component: <QuestionButton />,
                 onClick: (Data) => {
@@ -589,6 +700,18 @@ class PatientMonitoringDoctor extends React.Component {
   }
 }
 
+/**
+ * The chat dock lives in a React context and this screen is a class component,
+ * so the context is injected as a prop rather than the class being rewritten.
+ * useChatContext returns null outside a provider by design, and OpenChat falls
+ * back to a bare StartChat in that case.
+ */
+const WithChat = (Wrapped) =>
+  function PatientMonitoringDoctorWithChat(props) {
+    const chat = useChatContext();
+    return <Wrapped {...props} chat={chat} />;
+  };
+
 export default withTranslation(undefined, { withRef: true })(
-  PatientMonitoringDoctor,
+  WithChat(PatientMonitoringDoctor),
 );

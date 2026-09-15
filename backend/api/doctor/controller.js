@@ -7,6 +7,7 @@ const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const NotificationHelper = require('../../helper/NotificationHelper');
+const CreatedAt = require('../../helper/CreatedAt');
 const RiskInputs = require('../../helper/RiskInputs');
 const AttachmentIntake = require('../../helper/AttachmentIntake');
 const Diagnostics = require('../../helper/Diagnostics');
@@ -731,7 +732,7 @@ exports.listPatientQuestions = async (req, res) => {
     const { limit, offset } = readPaging(req);
     const { rows, count } = await Models.VisitComments.findAndCountAll({
       where: { patient_id: PatientId, rec_status: { [Op.ne]: 2 } },
-      attributes: ['id_data', 'comment', 'is_doctor', 'date_creation'],
+      attributes: ['id_data', 'comment', 'is_doctor', 'date_creation', 'date_modif'],
       include: [
         {
           model: Models.DoctorsProfile,
@@ -760,7 +761,8 @@ exports.listPatientQuestions = async (req, res) => {
         id_data: row.id_data,
         comment: row.comment,
         is_doctor: row.is_doctor,
-        date_creation: row.date_creation,
+        // date_creation is SQL date - see helper/CreatedAt
+        date_creation: CreatedAt(row),
         doctor_name: row.DoctorsProfile
           ? [row.DoctorsProfile.lastname, row.DoctorsProfile.firstname].filter(Boolean).join(' ')
           : null,
@@ -947,7 +949,7 @@ exports.getAdvice = async (req, res) => {
 
     const comments = await Models.AdviceComment.findAll({
       where: { adv_com_id_adv: id, rec_status: { [Op.ne]: '2' } },
-      attributes: ['id_data', 'adv_com_comment', 'date_creation', 'id'],
+      attributes: ['id_data', 'adv_com_comment', 'date_creation', 'date_modif', 'id'],
       order: [['id_data', 'ASC']],
       raw: true,
     });
@@ -971,7 +973,10 @@ exports.getAdvice = async (req, res) => {
     return ok(res, {
       ticket: Object.assign({}, ticket, { files: filesByAdvice.get(id) || [] }),
       comments: comments.map((c) =>
-        Object.assign({}, c, { files: filesByComment.get(c.id_data) || [] })
+        Object.assign({}, c, {
+          date_creation: CreatedAt(c),
+          files: filesByComment.get(c.id_data) || [],
+        })
       ),
     });
   } catch (ex) {
@@ -2590,9 +2595,38 @@ exports.listNotifications = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, rows.map(NotificationHelper.Shape), { total: count, limit, offset });
+    // ShapePage, not Shape: it resolves PatientId / AdviceId so a tap on a
+    // question or advice reply opens that thread, not the monitoring list.
+    const data = await NotificationHelper.ShapePage(rows);
+    return ok(res, data, { total: count, limit, offset });
   } catch (ex) {
     return serverError(res, ex, 'listNotifications');
+  }
+};
+
+/**
+ * The option lists the doctor app renders dropdowns from - above all the
+ * rehabilitation risk level, without which a doctor could record an
+ * exercise-tolerance assessment but not its risk.
+ *
+ * Its own endpoint because /api/patient/options/:dico sits behind
+ * requirePatient. Same contract and same DicoLabels source, so the two apps
+ * show identical wording. Allowlisted for the same reason as the patient's:
+ * the legacy OptionTypes route dumps every dictionary in the system.
+ */
+const DOCTOR_ALLOWED_DICOS = ['rehab_risk', 'rehab_phase', 'rehab_category', 'remotevisit_status'];
+
+exports.listOptions = async (req, res) => {
+  try {
+    const dico = String(req.params.dico || '');
+    if (!DOCTOR_ALLOWED_DICOS.includes(dico)) {
+      return fail(res, 'DICO_NOT_ALLOWED', 'Ийм жагсаалт байхгүй', 404);
+    }
+    // Empty is a valid answer: the dictionary is not seeded on this database.
+    const options = await DicoLabels.GetOptions(dico);
+    return ok(res, options, { dico, total: options.length });
+  } catch (ex) {
+    return serverError(res, ex, 'listOptions');
   }
 };
 

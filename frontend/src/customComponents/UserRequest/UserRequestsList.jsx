@@ -3,14 +3,10 @@ import React, { createRef } from "react";
 // translation
 import { withTranslation } from "react-i18next";
 // default components
-import GridContainer from "components/Grid/GridContainer";
-import GridItem from "components/Grid/GridItem";
-import Card from "components/Card/Card";
-import CardHeader from "components/Card/CardHeader";
-import CardBody from "components/Card/CardBody";
 import Button from "components/CustomButtons/Button";
 // custom components
 import RangeDate from "customComponents/RangeDate";
+import UniCard from "customComponents/UniCard";
 import BaseGrid from "baseComponents/BaseGrid/BaseGrid";
 import DivLoading from "customComponents/DivLoading";
 import BaseDialog from "customComponents/BaseDialog";
@@ -53,8 +49,9 @@ class UserRequestsList extends BaseList {
       <BaseDialog
         ref={(ref) => (this.DialogRef = ref)}
         Close={() => this.setState({ ReadMoreDialog: null })}
+        Title="Хэрэглэгчийн хүсэлт"
         Width="600px"
-        Height="410px"
+        Height="460px"
         SaveButtonText="Confirm"
         // ShowSave={true}
         // ShowDecline={true}
@@ -140,102 +137,82 @@ class UserRequestsList extends BaseList {
               maxWidth: "100%",
             }}
           >
-            <Card
-              style={{
-                margin: 0,
-                width: "100%",
-                height: "100%",
-                display: "flex",
-                flexDirection: "column",
-              }}
+            {/* Was a Creative Tim Card whose CardHeader drew a floating cyan pill
+                over the top edge. UniCard is the frame every other list uses. */}
+            <UniCard
+              title={Config.TitleObject ? t(Config.TitleObject.Title + "") : ""}
+              cardBodyStyle={{ gap: "8px" }}
             >
-              <CardHeader
-                color="info"
-                title={
-                  Config.TitleObject ? t(Config.TitleObject.Title + "") : ""
-                }
-              />
-              <CardBody
+              <div
                 style={{
-                  flex: "1 1 auto",
-                  display: "flex",
-                  flexDirection: "column",
-                  minHeight: 0,
-                  overflow: "hidden",
-                  padding: "0px 15px 15px 15px",
+                  flex: "0 0 auto",
+                  marginTop: "0px",
+                  width: "100%",
+                  maxWidth: "100%",
                 }}
               >
-                <div
-                  style={{
-                    flex: "0 0 auto",
-                    marginTop: "0px",
-                    width: "100%",
-                    maxWidth: "100%",
+                <RangeDate
+                  ChangeValue={(StartDate, EndDate) => {
+                    this.SearchOption.SearchField =
+                      Helper.BaseCrudHelper.SetSearchField(
+                        "CreateDate",
+                        [StartDate, EndDate],
+                        this.SearchOption.SearchField,
+                        "Between",
+                      );
+                    this.GetData();
                   }}
-                >
-                  <RangeDate
-                    ChangeValue={(StartDate, EndDate) => {
-                      this.SearchOption.SearchField =
-                        Helper.BaseCrudHelper.SetSearchField(
-                          "CreateDate",
-                          [StartDate, EndDate],
-                          this.SearchOption.SearchField,
-                          "Between",
-                        );
-                      this.GetData();
-                    }}
-                  />
-                </div>
-                <div
-                  style={{
-                    flex: "1 1 auto",
-                    position: "relative",
-                    width: "100%",
-                    maxWidth: "100%",
-                    minHeight: 0,
-                    overflow: "hidden",
-                  }}
-                >
-                  {isLoading ? <DivLoading WithoutCard /> : null}
-                  <BaseGrid
-                    Fields={FieldLists}
-                    HideNumber={false}
-                    Data={Data}
-                    Option={GridOption}
-                    TextLength={50}
-                    OrderBy={this.OrderBy}
-                    SearchField={this.SearchField}
-                    SearchFieldData={this.SearchOption.SearchField}
-                    PK={Config.PK ? Config.PK : "Id"}
-                    ChangePage={this.PageLimitChange}
-                    HideCheck={true}
-                    FillHeight={true}
-                    widthPattern="50c, 50c, 120l, 120, 120, 200, 100, 200, 150c, 120c, 120"
-                    ColumnActions={[
-                      {
-                        Field: "IsActive",
-                        Component: <IsActiveStatus />,
-                        onClick: () => {},
-                      },
-                    ]}
-                    RowActions={[
-                      {
-                        Component: (
-                          <Button
-                            color="info"
-                            size="sm"
-                            style={{ padding: "4px 8px 3px" }}
-                          >
-                            {t("Read more")}
-                          </Button>
-                        ),
-                        onClick: (data) => this.ReadMore(data),
-                      },
-                    ]}
-                  />
-                </div>
-              </CardBody>
-            </Card>
+                />
+              </div>
+              <div
+                style={{
+                  flex: "1 1 auto",
+                  position: "relative",
+                  width: "100%",
+                  maxWidth: "100%",
+                  minHeight: 0,
+                  overflow: "hidden",
+                }}
+              >
+                {isLoading ? <DivLoading WithoutCard /> : null}
+                <BaseGrid
+                  Fields={FieldLists}
+                  HideNumber={false}
+                  Data={Data}
+                  Option={GridOption}
+                  TextLength={50}
+                  OrderBy={this.OrderBy}
+                  SearchField={this.SearchField}
+                  SearchFieldData={this.SearchOption.SearchField}
+                  PK={Config.PK ? Config.PK : "Id"}
+                  ChangePage={this.PageLimitChange}
+                  HideCheck={true}
+                  FillHeight={true}
+                  widthPattern="50c, 50c, 120l, 120, 120, 200, 100, 200, 150c, 120c, 120"
+                  ColumnActions={[
+                    {
+                      Field: "IsActive",
+                      Component: <IsActiveStatus />,
+                      onClick: () => {},
+                    },
+                  ]}
+                  RowActions={[
+                    {
+                      Component: (
+                        <Button
+                          color="info"
+                          size="sm"
+                          style={{ padding: "4px 8px 3px" }}
+                        >
+                          {t("Read more")}
+                        </Button>
+                      ),
+                      onClick: (data) => this.ReadMore(data),
+                    },
+                  ]}
+                />
+              </div>
+            </UniCard>
           </div>
         </div>
       );

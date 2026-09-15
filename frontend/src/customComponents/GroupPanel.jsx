@@ -2,6 +2,7 @@ import React from "react";
 import { css } from "@emotion/css";
 import PropTypes from "prop-types";
 import { colors } from "@/theme/colors";
+import { radius, space } from "@/theme/tokens";
 
 /**
  * Below `md`, a section box loses most of its horizontal padding and becomes
@@ -51,12 +52,20 @@ const compactScroller = {
   },
 };
 
+/**
+ * Brand colours for the section box. It was a #ccc border on #fafafa with the
+ * title in #003366 - a third heading blue next to cyanInk and the ink navy.
+ * The geometry (the title riding the top border, the per-level padding and
+ * margins, level 3 dashed) is unchanged; only colour, weight and corner moved.
+ * The title's background must equal the box's, or the border shows through
+ * the title - both read `colors.brand.surface`.
+ */
 const styles = {
   container: {
     position: "relative",
-    border: `1px solid ${colors.border.default}`,
-    backgroundColor: colors.background.surface,
-    borderRadius: "4px",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
+    backgroundColor: colors.brand.surface,
+    borderRadius: radius.md,
     "&:after": {
       content: '""',
       display: "table",
@@ -67,10 +76,12 @@ const styles = {
     position: "absolute",
     top: "0",
     transform: "translateY(-50%)",
-    backgroundColor: colors.background.surface,
-    padding: "0 10px",
+    backgroundColor: colors.brand.surface,
+    padding: `0 ${space[2]}`,
     margin: "0",
-    fontWeight: "500",
+    fontWeight: 600,
+    letterSpacing: "normal",
+    textTransform: "none",
     whiteSpace: "normal",
     zIndex: 1,
   },
@@ -81,7 +92,7 @@ const styles = {
   },
   level1Header: {
     left: "10px",
-    color: colors.text.sectionHeading,
+    color: colors.brand.ink,
     fontSize: "16px",
     lineHeight: "1.2",
   },
@@ -92,7 +103,7 @@ const styles = {
   },
   level2Header: {
     left: "15px",
-    color: colors.text.sectionHeading,
+    color: colors.brand.ink,
     fontSize: "14px",
     lineHeight: "1.2",
   },
@@ -101,10 +112,11 @@ const styles = {
     padding: "20px 10px 15px",
     margin: "15px 0 5px",
     borderStyle: "dashed", // Distinguish level 3
+    borderColor: colors.brand.hairline,
   },
   level3Header: {
     left: "15px",
-    color: colors.text.sectionHeading,
+    color: colors.brand.inkMuted,
     fontSize: "13px",
     lineHeight: "1.2",
   },

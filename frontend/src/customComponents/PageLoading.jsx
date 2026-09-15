@@ -1,7 +1,8 @@
 import React from "react";
-// @mui material components
-import CircularProgress from "@mui/material/CircularProgress";
 
+import { BrandSpinner } from "customComponents/DivLoading";
+
+/** The route-level Suspense fallback (index.jsx): one spinner in the middle of the screen. */
 export default function PageLoading() {
   return (
     <div
@@ -17,27 +18,7 @@ export default function PageLoading() {
         left: 0,
       }}
     >
-      <div style={{ position: "relative" }}>
-        <CircularProgress
-          variant="determinate"
-          value={100}
-          size={78}
-          style={{ color: "#e3e3e3" }}
-        />
-        <CircularProgress
-          variant="indeterminate"
-          disableShrink
-          size={78}
-          thickness={3.8}
-          style={{
-            color: "#1a90ff",
-            animationDuration: "550ms",
-            position: "absolute",
-            left: 0,
-            strokeLinecap: "round",
-          }}
-        />
-      </div>
+      <BrandSpinner Size={56} Thickness={3.2} />
     </div>
   );
 }

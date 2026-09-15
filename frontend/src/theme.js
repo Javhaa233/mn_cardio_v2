@@ -250,6 +250,55 @@ const theme = createTheme({
         root: { padding: `${space[3]} ${space[4]}` },
       },
     },
+    /**
+     * The small overlays: tooltips, menus, select dropdowns, date-picker and
+     * lookup popovers. Every one of these rendered in MUI's defaults - a grey
+     * #616161 tooltip, a neutral-black shadow, a 4px corner - beside surfaces
+     * that are navy-tinted and 14px. Colour, corner and shadow only; sizes are
+     * untouched.
+     */
+    MuiTooltip: {
+      styleOverrides: {
+        tooltip: {
+          backgroundColor: colors.brand.ink,
+          color: colors.text.white,
+          fontSize: "12.5px",
+          fontWeight: 500,
+          lineHeight: 1.4,
+          padding: `${space[1]} ${space[2]}`,
+          borderRadius: radius.sm,
+        },
+        arrow: { color: colors.brand.ink },
+      },
+    },
+    MuiPopover: {
+      styleOverrides: {
+        paper: {
+          borderRadius: radius.md,
+          boxShadow: elevation[3],
+          border: `1px solid ${colors.brand.hairline}`,
+        },
+      },
+    },
+    MuiMenu: {
+      styleOverrides: {
+        paper: {
+          borderRadius: radius.md,
+          boxShadow: elevation[3],
+          border: `1px solid ${colors.brand.hairline}`,
+        },
+      },
+    },
+    MuiDivider: {
+      styleOverrides: {
+        root: { borderColor: colors.brand.hairline },
+      },
+    },
+    MuiSkeleton: {
+      styleOverrides: {
+        root: { backgroundColor: "rgba(13, 58, 92, 0.08)" },
+      },
+    },
     MuiTextField: {
       defaultProps: {
         size: "small",
@@ -353,6 +402,28 @@ const theme = createTheme({
           paddingBottom: 0,
           borderRadius: CONTROL.radius,
           [COARSE]: { minHeight: TOUCH.height },
+          // Brand hairlines for raw MUI fields, so they sit beside the
+          // BaseEditControls rows (fieldRowStyles FIELD) without a second,
+          // darker grey border. Focus keeps MUI's primary, which is cyanInk.
+          "& .MuiOutlinedInput-notchedOutline": {
+            borderColor: colors.brand.hairlineStrong,
+          },
+          "&:hover:not(.Mui-disabled):not(.Mui-focused) .MuiOutlinedInput-notchedOutline":
+            { borderColor: colors.brand.inkDim },
+        },
+      },
+    },
+    /**
+     * Labels. Deliberately NO table overrides alongside these: CalculateRisk
+     * and CVDInspectionAndManagement capture plain MUI tables with html2canvas
+     * into the PDFs they hand to patients, and a global MuiTable rule would
+     * change those printed pages.
+     */
+    MuiFormLabel: {
+      styleOverrides: {
+        root: {
+          color: colors.brand.inkMuted,
+          "&.Mui-focused": { color: colors.brand.cyanInk },
         },
       },
     },
@@ -446,6 +517,15 @@ const theme = createTheme({
         },
         shrink: {
           transform: "translate(12px, -6px) scale(0.85) !important",
+        },
+        // The root rule replaces MUI's translate(14px, 9px) with a bare
+        // translateY, so a resting outlined label sat flush against the left
+        // border, touching the top (TenderFormAll search fields, CVD toolbars).
+        // Same 12px inset as the shrunk label, and down to the text line.
+        outlined: {
+          "&:not(.MuiInputLabel-shrink)": {
+            transform: "translate(12px, 2px) !important",
+          },
         },
       },
     },

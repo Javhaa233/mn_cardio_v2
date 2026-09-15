@@ -6,6 +6,8 @@ import {
 } from "assets/jss/material-dashboard-pro-react.js";
 
 import customDropdownStyle from "assets/jss/material-dashboard-pro-react/components/customDropdownStyle.js";
+import { colors } from "@/theme/colors";
+import { radius, elevation } from "@/theme/tokens";
 
 const adminNavbarLinksStyle = (theme) => ({
   ...customDropdownStyle(theme),
@@ -89,7 +91,7 @@ const adminNavbarLinksStyle = (theme) => ({
     ...defaultFont,
     fontSize: "13px",
     fontWeight: "600",
-    color: "#1f2937",
+    color: colors.brand.ink,
     lineHeight: "18px",
     maxWidth: "160px",
     overflow: "hidden",
@@ -98,31 +100,41 @@ const adminNavbarLinksStyle = (theme) => ({
   },
   dropdown: {
     ...(customDropdownStyle(theme)?.dropdown || {}),
-    borderRadius: "12px",
+    // Every top-bar dropdown (profile, overflow, notifications, open tabs, the
+    // patient menu) renders on this. Brand surface, radius and navy shadow; it
+    // was a neutral-black 12px card with #111827 text and #1976d2 hovers.
+    borderRadius: radius.md,
     minWidth: "220px",
     padding: "6px",
-    boxShadow: "0 12px 28px rgba(0,0,0,.12), 0 2px 6px rgba(0,0,0,.08)",
-    border: "1px solid rgba(0,0,0,.06)",
+    backgroundColor: colors.brand.surface,
+    boxShadow: elevation[3],
+    border: `1px solid ${colors.brand.hairline}`,
   },
   dropdownItem: {
     ...(customDropdownStyle(theme)?.dropdownItem || {}),
-    borderRadius: "10px",
+    borderRadius: radius.sm,
     padding: "10px 12px",
     minHeight: "40px",
     display: "flex",
     alignItems: "center",
     gap: "10px",
+    color: colors.brand.ink,
+    "&:hover": {
+      backgroundColor: colors.brand.tint,
+      color: colors.brand.ink,
+      boxShadow: "none",
+    },
   },
   dropdownItemIcon: {
     width: "18px",
     height: "18px",
-    color: "#6b7280",
+    color: colors.brand.inkDim,
     flex: "0 0 auto",
   },
   dropdownItemText: {
     ...defaultFont,
     fontSize: "14px",
-    color: "#111827",
+    color: "inherit",
     flex: "1 1 auto",
     minWidth: "0",
     overflow: "hidden",
@@ -131,21 +143,22 @@ const adminNavbarLinksStyle = (theme) => ({
   },
   lightBlueHover: {
     "&:hover": {
-      backgroundColor: "#e3f2fd",
-      color: "#1976d2",
+      backgroundColor: colors.brand.tint,
+      color: colors.brand.cyanInk,
       "& svg": {
-        color: "#1976d2",
+        color: colors.brand.cyanInk,
       },
     },
   },
   dropdownItemDanger: {
-    color: "#dc2626",
-    fontWeight: "700",
+    color: colors.status.dangerInk,
+    fontWeight: "600",
     "& svg": {
-      color: "#dc2626",
+      color: colors.status.danger,
     },
     "&:hover": {
-      backgroundColor: "rgba(220, 38, 38, 0.08)",
+      backgroundColor: colors.status.dangerTint,
+      color: colors.status.dangerInk,
     },
   },
   searchButton: {

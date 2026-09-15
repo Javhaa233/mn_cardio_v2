@@ -6,6 +6,7 @@ const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
 const PushHelper = require('../../helper/PushHelper');
 const NotificationHelper = require('../../helper/NotificationHelper');
+const CreatedAt = require('../../helper/CreatedAt');
 const CareTeam = require('../../helper/CareTeam');
 const RiskInputs = require('../../helper/RiskInputs');
 const AttachmentIntake = require('../../helper/AttachmentIntake');
@@ -101,6 +102,8 @@ const NotifyCareTeam = async ({ PatientId, Action, LinkObjectName, LinkObjectId,
         Action,
         LinkObjectName,
         LinkObjectId,
+        // In the push payload only, so a tap opens this patient's thread.
+        PatientId,
         NotesMn,
         Notes,
         LogedUser,
@@ -260,7 +263,7 @@ exports.listQuestions = async (req, res) => {
     // filtering on the authoring account hid every reply from the patient.
     const { rows, count } = await Models.VisitComments.findAndCountAll({
       where: { patient_id: req.Patient.PatientId },
-      attributes: ['id_data', 'comment', 'is_doctor', 'date_creation'],
+      attributes: ['id_data', 'comment', 'is_doctor', 'date_creation', 'date_modif'],
       include: [
         {
           model: Models.DoctorsProfile,
@@ -289,7 +292,8 @@ exports.listQuestions = async (req, res) => {
         id_data: row.id_data,
         comment: row.comment,
         is_doctor: row.is_doctor,
-        date_creation: row.date_creation,
+        // date_creation is SQL date - see helper/CreatedAt
+        date_creation: CreatedAt(row),
         doctor_name: row.DoctorsProfile
           ? [row.DoctorsProfile.lastname, row.DoctorsProfile.firstname].filter(Boolean).join(' ')
           : null,
@@ -411,12 +415,12 @@ exports.listAdvice = async (req, res) => {
 
     const { rows, count } = await Models.Advice.findAndCountAll({
       where: { adv_id_patient: req.Patient.PatientId },
-      attributes: ['id_data', 'Body', 'ticket_type', 'adv_ticket_closed', 'date_creation'],
+      attributes: ['id_data', 'Body', 'ticket_type', 'adv_ticket_closed', 'date_creation', 'date_modif'],
       include: [
         {
           model: Models.AdviceComment,
           as: 'AdviceComment',
-          attributes: ['id_data', 'adv_com_comment', 'date_creation'],
+          attributes: ['id_data', 'adv_com_comment', 'date_creation', 'date_modif'],
           required: false,
         },
       ],
@@ -457,12 +461,12 @@ exports.listAdvice = async (req, res) => {
       body: row.Body,
       ticket_type: row.ticket_type,
       closed: row.adv_ticket_closed,
-      date: row.date_creation,
+      date: CreatedAt(row),
       files: filesByAdvice.get(row.id_data) || [],
       comments: (row.AdviceComment || []).map((c) => ({
         id_data: c.id_data,
         comment: c.adv_com_comment,
-        date: c.date_creation,
+        date: CreatedAt(c),
         files: filesByComment.get(c.id_data) || [],
       })),
     }));
@@ -1186,11 +1190,9 @@ exports.listRehabAssessments = async (req, res) => {
 /**
  * The seen value and the row shape now live in helper/NotificationHelper.js,
  * because /api/doctor serves the same four endpoints and the two surfaces must
- * agree on what "read" means and on what a notification looks like. They are
- * aliased rather than inlined so the handlers below read unchanged.
+ * agree on what "read" means and on what a notification looks like.
  */
 const SEEN = NotificationHelper.SEEN;
-const shapeNotification = NotificationHelper.Shape;
 
 exports.listNotifications = async (req, res) => {
   try {
@@ -1224,7 +1226,9 @@ exports.listNotifications = async (req, res) => {
       raw: true,
     });
 
-    return ok(res, rows.map(shapeNotification), { total: count, limit, offset });
+    // ShapePage resolves AdviceId / PatientId for the deep link - see there.
+    const data = await NotificationHelper.ShapePage(rows);
+    return ok(res, data, { total: count, limit, offset });
   } catch (ex) {
     return serverError(res, ex, 'listNotifications');
   }

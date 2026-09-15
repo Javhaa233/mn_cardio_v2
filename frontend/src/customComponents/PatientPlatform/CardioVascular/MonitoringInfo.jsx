@@ -6,62 +6,49 @@ import GridItem from "components/Grid/GridItem";
 
 import BaseInfo from "customComponents/BaseViewControls/BaseInfo";
 import BaseNoData from "customComponents/BaseNoData";
+import GroupPanel from "customComponents/GroupPanel";
+import StatusChip from "customComponents/StatusChip";
+import { colors } from "@/theme/colors";
+import { radius } from "@/theme/tokens";
 // helper
 import Helper from "helper";
 
 export default function MonitoringInfo(props) {
   const { t } = useTranslation();
-  const spanStyle = { padding: "2px 4px", borderRadius: "2px", color: "white" };
   // props Data
   const { PatRegNo = null, Data = null, DoctorsProfileData = null } = props;
 
-  const StatusText = (Text) => {
-    return (
-      <div>
-        {Text && Text + "" === "activated" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#2bb559" }}>
-            Идэвхитэй
-          </span>
-        ) : Text && Text + "" === "out_control" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#ff5757" }}>
-            Хяналтаас гарсан
-          </span>
-        ) : Text && Text + "" === "expired" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#ffcc00" }}>
-            Үзлэгт хамрагдсан
-          </span>
-        ) : (
-          <span style={{ ...spanStyle, backgroundColor: "#a9b0ab" }}>
-            Идэвхигүй
-          </span>
-        )}
-      </div>
+  // The shared status pill (word in a tone ink, meaning repeated in the dot).
+  // It was white text on #2bb559 / #ff5757 / #ffcc00 / #a9b0ab; white on
+  // that yellow is about 1.4:1.
+  const StatusText = (Text) =>
+    Text + "" === "activated" ? (
+      <StatusChip Tone="success" Label="Идэвхитэй" />
+    ) : Text + "" === "out_control" ? (
+      <StatusChip Tone="danger" Label="Хяналтаас гарсан" />
+    ) : Text + "" === "expired" ? (
+      <StatusChip Tone="warning" Label="Үзлэгт хамрагдсан" />
+    ) : (
+      <StatusChip Tone="neutral" Label="Идэвхигүй" />
     );
-  };
 
-  const DateStatus = (Text) => {
-    return (
-      <div>
-        {Text && Text + "" === "simple" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#2bb559" }}>
-            Хэвийн
-          </span>
-        ) : Text && Text + "" === "date_expired" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#ff5757" }}>
-            Хугацаа дууссан
-          </span>
-        ) : Text && Text + "" === "date_warning" ? (
-          <span style={{ ...spanStyle, backgroundColor: "#ffcc00" }}>
-            Хугацаа тулсан
-          </span>
-        ) : (
-          <span style={{ ...spanStyle, backgroundColor: "#a9b0ab" }}>
-            Тодорхойгүй
-          </span>
-        )}
-      </div>
+  const DateStatus = (Text) =>
+    Text + "" === "simple" ? (
+      <StatusChip Tone="success" Label="Хэвийн" />
+    ) : Text + "" === "date_expired" ? (
+      <StatusChip Tone="danger" Label="Хугацаа дууссан" />
+    ) : Text + "" === "date_warning" ? (
+      <StatusChip Tone="warning" Label="Хугацаа тулсан" />
+    ) : (
+      <StatusChip Tone="neutral" Label="Тодорхойгүй" />
     );
-  };
+
+  // The risk band keeps its colour scale (colors.risk, the same hues as the
+  // doctor-side risk column). The score sits on the band colour, so on the
+  // light bands (yellow, orange) it is ink, not white.
+  const riskFill = (level) => colors.risk[level] || colors.brand.hairlineStrong;
+  const riskOnFill = (level) =>
+    level === 2 || level === 3 ? colors.brand.ink : "#fff";
 
   const setRiskView = (level, score) => {
     let bodyColor = "blue";
@@ -70,27 +57,27 @@ export default function MonitoringInfo(props) {
     if (level) {
       switch (level) {
         case 5:
-          bodyColor = "brown";
+          bodyColor = riskFill(5);
           bodyText =
             "Зүрхний шигдээс болон тархины харвалтын 10 жилийн эрсдэл 30-аас дээш хувь";
           break;
         case 4:
-          bodyColor = "red";
+          bodyColor = riskFill(4);
           bodyText =
             "Зүрхний шигдээс болон тархины харвалтын 10 жилийн эрсдэл 20-30 хувь";
           break;
         case 3:
-          bodyColor = "orange";
+          bodyColor = riskFill(3);
           bodyText =
             "Зүрхний шигдээс болон тархины харвалтын 10 жилийн эрсдэл 10-20 хувь";
           break;
         case 2:
-          bodyColor = "yellow";
+          bodyColor = riskFill(2);
           bodyText =
             "Зүрхний шигдээс болон тархины харвалтын 10 жилийн эрсдэл 5-10 хувь";
           break;
         case 1:
-          bodyColor = "green";
+          bodyColor = riskFill(1);
           bodyText =
             "Зүрхний шигдээс болон тархины харвалтын 10 жилийн эрсдэл  5-аас бага хувь ";
           break;
@@ -104,8 +91,10 @@ export default function MonitoringInfo(props) {
         <div
           style={{
             width: "100%",
-            height: "100px",
-            border: "1px solid " + bodyColor,
+            minHeight: "88px",
+            border: `1px solid ${colors.brand.hairline}`,
+            borderRadius: radius.md,
+            overflow: "hidden",
             display: "flex",
             alignItems: "stretch",
           }}
@@ -113,9 +102,8 @@ export default function MonitoringInfo(props) {
           <span
             style={{
               backgroundColor: bodyColor,
-              width: "100px",
-              height: "100px",
-              color: "#fff",
+              flex: "0 0 88px",
+              color: riskOnFill(level),
               fontWeight: "normal",
               fontSize: "2.2rem",
               display: "flex",
@@ -125,7 +113,15 @@ export default function MonitoringInfo(props) {
           >
             {score || 0}
           </span>
-          <span style={{ margin: "auto", padding: "0 15px" }}>{bodyText}</span>
+          <span
+            style={{
+              margin: "auto 0",
+              padding: "12px 16px",
+              color: colors.brand.ink,
+            }}
+          >
+            {bodyText}
+          </span>
         </div>
       );
     }
@@ -138,254 +134,157 @@ export default function MonitoringInfo(props) {
           {Data ? (
             <GridContainer>
               <GridItem xs={12} sm={12} md={6}>
-                <div style={{ position: "relative" }}>
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                      width: "100%",
-                      borderTop: "1px solid #ccc",
-                      padding: "15px 0 0",
-                      marginTop: "25px",
-                    }}
-                  >
-                    <h5
-                      style={{
-                        position: "absolute",
-                        top: "-25px",
-                        left: "20px",
-                        fontSize: "0.8rem",
-                        fontWeight: "400",
-                        padding: "3px 15px",
-                        borderRadius: "0.2rem",
-                        color: "#FFF",
-                        backgroundColor: "#00acc1",
-                        boxShadow: "0 1px 4px 0 rgba(0, 0, 0, 0.14)",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      Эмчийн мэдээлэл
-                    </h5>
-                    <BaseInfo
-                      Label="Эмч"
-                      Value={
-                        DoctorsProfileData ? DoctorsProfileData.firstname : null
-                      }
-                      Size="13px"
-                      LabelWeight="400"
-                      ValueWeight="300"
-                    />
-                    <BaseInfo
-                      Label="Эмнэлэг"
-                      Value={
-                        DoctorsProfileData
-                          ? DoctorsProfileData.Organization
-                            ? DoctorsProfileData.Organization.Name
-                            : ""
-                          : null
-                      }
-                      Size="13px"
-                      LabelWeight="400"
-                      ValueWeight="300"
-                    />
-                    <BaseInfo
-                      Label="Эмнэлгийн хаяг"
-                      Size="13px"
-                      LabelWeight="400"
-                      ValueWeight="300"
-                      Value={
-                        DoctorsProfileData
-                          ? (DoctorsProfileData.DictProvinceCity
-                              ? DoctorsProfileData.DictProvinceCity.name + ", "
-                              : "") +
-                            (DoctorsProfileData.DictSoumDistrict
-                              ? DoctorsProfileData.DictSoumDistrict.name + ", "
-                              : "") +
-                            (DoctorsProfileData.DictBagKhoroo
-                              ? DoctorsProfileData.DictBagKhoroo.name
-                              : "")
-                          : null
-                      }
-                    />
-                  </div>
-                </div>
+                {/* The three sections were floating uppercase pills in cyan,
+                    hot pink and forest green riding a grey rule. They are the
+                    GroupPanel sections every read-only view uses. */}
+                <GroupPanel title="Эмчийн мэдээлэл" level={2}>
+                  <BaseInfo
+                    Label="Эмч"
+                    Value={
+                      DoctorsProfileData ? DoctorsProfileData.firstname : null
+                    }
+                    Size="13px"
+                    LabelWeight="400"
+                    ValueWeight="300"
+                  />
+                  <BaseInfo
+                    Label="Эмнэлэг"
+                    Value={
+                      DoctorsProfileData
+                        ? DoctorsProfileData.Organization
+                          ? DoctorsProfileData.Organization.Name
+                          : ""
+                        : null
+                    }
+                    Size="13px"
+                    LabelWeight="400"
+                    ValueWeight="300"
+                  />
+                  <BaseInfo
+                    Label="Эмнэлгийн хаяг"
+                    Size="13px"
+                    LabelWeight="400"
+                    ValueWeight="300"
+                    Value={
+                      DoctorsProfileData
+                        ? (DoctorsProfileData.DictProvinceCity
+                            ? DoctorsProfileData.DictProvinceCity.name + ", "
+                            : "") +
+                          (DoctorsProfileData.DictSoumDistrict
+                            ? DoctorsProfileData.DictSoumDistrict.name + ", "
+                            : "") +
+                          (DoctorsProfileData.DictBagKhoroo
+                            ? DoctorsProfileData.DictBagKhoroo.name
+                            : "")
+                        : null
+                    }
+                  />
+                </GroupPanel>
               </GridItem>
               <GridItem xs={12} sm={12} md={6}>
-                <div style={{ position: "relative" }}>
-                  <div
-                    style={{
-                      position: "relative",
-                      display: "inline-block",
-                      width: "100%",
-                      borderTop: "1px solid #ccc",
-                      padding: "15px 0 0",
-                      marginTop: "25px",
-                    }}
-                  >
-                    <h5
+                <GroupPanel title="Үзлэгийн мэдээлэл" level={2}>
+                  <div>
+                    <div
                       style={{
-                        position: "absolute",
-                        top: "-25px",
-                        left: "20px",
-                        fontSize: "0.8rem",
-                        fontWeight: "400",
-                        padding: "3px 15px",
-                        borderRadius: "0.2rem",
-                        color: "#FFF",
-                        backgroundColor: "#FF007F",
-                        boxShadow: "0 1px 4px 0 rgba(0, 0, 0, 0.14)",
-                        textTransform: "uppercase",
+                        display: "flex",
+                        flexDirection: "row",
+                        alignItems: "start",
+                        gap: "8px",
+                        marginBottom: "6px",
                       }}
                     >
-                      Үзлэгийн мэдээлэл
-                    </h5>
-                    <div>
-                      <div
-                        style={{
-                          display: "flex",
-                          flexDirection: "row",
-                          alignItems: "start",
-                          gap: "10px",
-                        }}
-                      >
-                        {StatusText(Data.Status)}
-                        {DateStatus(Data.date_status)}
-                      </div>
-                      <BaseInfo
-                        Label="Үзлэгийн огноо"
-                        Value={
-                          Data
-                            ? Helper.ObjectHelper.getDateYMD({
-                                DateStr: Data.CreateDate,
-                              })
-                            : null
-                        }
-                        Size="13px"
-                        LabelWeight="400"
-                        ValueWeight="300"
-                      />
-                      <BaseInfo
-                        Label="Эрсдлийн түвшин"
-                        Value={Data.Risk ? Data.Risk.Risk : null}
-                        Size="13px"
-                        LabelWeight="400"
-                        ValueWeight="300"
-                      />
-                      <BaseInfo
-                        Label="Эрсдлийн хувь"
-                        Value={Data.Risk ? Data.Risk.Score : null}
-                        Size="13px"
-                        LabelWeight="400"
-                        ValueWeight="300"
-                      />
-                      <BaseInfo
-                        Label="Дахин хамрагдах огноо"
-                        Value={
-                          Data
-                            ? Helper.ObjectHelper.getDateYMD({
-                                DateStr: Data.ExpiredDate,
-                              })
-                            : null
-                        }
-                        Size="13px"
-                        LabelWeight="400"
-                        ValueWeight="300"
-                      />
+                      {StatusText(Data.Status)}
+                      {DateStatus(Data.date_status)}
                     </div>
+                    <BaseInfo
+                      Label="Үзлэгийн огноо"
+                      Value={
+                        Data
+                          ? Helper.ObjectHelper.getDateYMD({
+                              DateStr: Data.CreateDate,
+                            })
+                          : null
+                      }
+                      Size="13px"
+                      LabelWeight="400"
+                      ValueWeight="300"
+                    />
+                    <BaseInfo
+                      Label="Эрсдлийн түвшин"
+                      Value={Data.Risk ? Data.Risk.Risk : null}
+                      Size="13px"
+                      LabelWeight="400"
+                      ValueWeight="300"
+                    />
+                    <BaseInfo
+                      Label="Эрсдлийн хувь"
+                      Value={Data.Risk ? Data.Risk.Score : null}
+                      Size="13px"
+                      LabelWeight="400"
+                      ValueWeight="300"
+                    />
+                    <BaseInfo
+                      Label="Дахин хамрагдах огноо"
+                      Value={
+                        Data
+                          ? Helper.ObjectHelper.getDateYMD({
+                              DateStr: Data.ExpiredDate,
+                            })
+                          : null
+                      }
+                      Size="13px"
+                      LabelWeight="400"
+                      ValueWeight="300"
+                    />
                   </div>
-                </div>
+                </GroupPanel>
               </GridItem>
               <GridItem xs={12} md={12}>
-                <div
-                  style={{
-                    position: "relative",
-                    display: "inline-block",
-                    width: "100%",
-                    borderTop: "1px solid #ccc",
-                    padding: "15px 0 0",
-                    marginTop: "25px",
-                  }}
-                >
-                  <h5
-                    style={{
-                      position: "absolute",
-                      top: "-25px",
-                      left: "20px",
-                      fontSize: "0.8rem",
-                      fontWeight: "400",
-                      padding: "3px 15px",
-                      borderRadius: "0.2rem",
-                      color: "#FFF",
-                      backgroundColor: "#355E3B",
-                      boxShadow: "0 1px 4px 0 rgba(0, 0, 0, 0.14)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Эрсдлийн үнэлгээ
-                  </h5>
+                <GroupPanel title="Эрсдлийн үнэлгээ" level={2}>
+                  {/* Legend: a swatch and its band on one unbreakable line,
+                      the pairs wrapping as a whole on a phone. The labels
+                      used to break under their own swatches. */}
                   <div
                     style={{
                       display: "flex",
+                      flexWrap: "wrap",
                       justifyContent: "center",
-                      alignItems: "stretch",
-                      margin: "22px 0",
-                      padding: "10px 15px",
-                      gap: "5px",
+                      gap: "8px 16px",
+                      margin: "8px 0 16px",
+                      color: colors.brand.inkMuted,
                     }}
                   >
-                    <div>
+                    {[
+                      [1, <>{"<"}5%</>],
+                      [2, <>5% {"<"} 10%</>],
+                      [3, <>10% {"<"} 20%</>],
+                      [4, <>20% {"<"} 30%</>],
+                      [5, <>≥30%</>],
+                    ].map(([level, label]) => (
                       <span
+                        key={level}
                         style={{
-                          backgroundColor: "green",
-                          padding: "7px 14px",
-                          marginRight: "4px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: "6px",
+                          whiteSpace: "nowrap",
                         }}
-                      ></span>
-                      <span> {"<"}5%</span>
-                    </div>
-                    <div>
-                      <span
-                        style={{
-                          backgroundColor: "yellow",
-                          padding: "7px 14px",
-                          marginRight: "4px",
-                        }}
-                      ></span>
-                      <span> 5% {"<"} 10%</span>
-                    </div>
-                    <div>
-                      <span
-                        style={{
-                          backgroundColor: "orange",
-                          padding: "7px 14px",
-                          marginRight: "4px",
-                        }}
-                      ></span>
-                      <span> 10% {"<"} 20%</span>
-                    </div>
-                    <div>
-                      <span
-                        style={{
-                          backgroundColor: "red",
-                          padding: "7px 14px",
-                          marginRight: "4px",
-                        }}
-                      ></span>
-                      <span> 20% {"<"} 30%</span>
-                    </div>
-                    <div>
-                      <span
-                        style={{
-                          backgroundColor: "brown",
-                          padding: "7px 14px",
-                          marginRight: "4px",
-                        }}
-                      ></span>
-                      <span> ≥30%</span>
-                    </div>
+                      >
+                        <span
+                          aria-hidden
+                          style={{
+                            width: "20px",
+                            height: "12px",
+                            borderRadius: radius.xs,
+                            backgroundColor: riskFill(level),
+                          }}
+                        />
+                        {label}
+                      </span>
+                    ))}
                   </div>
                   {Data.Risk && setRiskView(Data.Risk.Risk, Data.Risk.Score)}
-                </div>
+                </GroupPanel>
               </GridItem>
             </GridContainer>
           ) : (

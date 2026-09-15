@@ -2,9 +2,10 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { renderDetailViewFields } from "baseComponents/renderDetailViewFields.jsx";
 import { useBaseForm } from "baseComponents/useBaseForm";
-import BaseDialogActions from "baseComponents/BaseDialogActions";
+import Button from "@mui/material/Button";
+import SaveIcon from "@mui/icons-material/Save";
 import BaseLoading from "customComponents/BaseLoading";
-import Button from "components/CustomButtons/Button";
+import { dialogActionSx } from "@/theme/controlStyles";
 
 export default function AppsDetail(props) {
   const { t } = useTranslation();
@@ -57,18 +58,35 @@ export default function AppsDetail(props) {
     >
       <div style={{ flex: 1, overflowY: "auto" }}>{renderedFields}</div>
       {!HideSave && (
+        // BaseDialogActions is a full-width dialog footer; dropped into this
+        // row it pushed Cancel off the left edge of the card. Two plain
+        // buttons with the same ranks instead.
         <div
           style={{
             marginTop: "20px",
             display: "flex",
             justifyContent: "flex-end",
             alignItems: "center",
+            gap: "8px",
+            // Clear of the fixed chat button in the bottom-right corner.
+            paddingRight: "72px",
           }}
         >
-          <Button color="transparent" onClick={Close}>
+          <Button
+            variant="outlined"
+            onClick={Close}
+            sx={dialogActionSx("neutral")}
+          >
             {t("Cancel")}
           </Button>
-          <BaseDialogActions ShowSave={true} Save={() => onSave(Save)} />
+          <Button
+            variant="contained"
+            startIcon={<SaveIcon />}
+            onClick={() => onSave(Save)}
+            sx={dialogActionSx("primary")}
+          >
+            {t("Save")}
+          </Button>
         </div>
       )}
     </div>

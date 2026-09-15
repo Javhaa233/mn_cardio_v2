@@ -8,6 +8,7 @@ import EditIcon from "@mui/icons-material/Edit";
 // custom components
 import BaseDialog from "customComponents/BaseDialog";
 import EditBodyForm from "customComponents/InPatient/FieldActions/EditBodyForm";
+import { colors } from "@/theme/colors";
 
 export default function EditSanal(props) {
   const { t } = useTranslation();
@@ -48,7 +49,7 @@ export default function EditSanal(props) {
       <IconButton
         aria-label={t("Edit")}
         onClick={ShowForm}
-        style={{ margin: "2px", padding: "4px", color: "#00acc1" }}
+        style={{ margin: "2px", padding: "4px", color: colors.brand.cyanInk }}
       >
         <EditIcon fontSize="small" />
       </IconButton>

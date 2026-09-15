@@ -18,13 +18,14 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function CustomCheckBox(props) {
   const { t } = useTranslation();
   const { Config = {}, boxMd = 12, ChangeValue } = props;
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",
@@ -98,7 +99,7 @@ export default function CustomCheckBox(props) {
                           width: "20px",
                           height: "20px",
                           border:
-                            "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                            `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -110,7 +111,7 @@ export default function CustomCheckBox(props) {
                           height: "0px",
                           padding: "9px",
                           border:
-                            "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                            `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -130,7 +131,7 @@ export default function CustomCheckBox(props) {
                   "& .MuiFormControlLabel-label": {
                     cursor: "pointer",
                     paddingLeft: "0",
-                    color: "#75736c",
+                    color: FIELD.labelInk,
                     fontSize: "14px",
                     lineHeight: 1,
                     fontWeight: "400",

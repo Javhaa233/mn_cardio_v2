@@ -102,6 +102,7 @@ async function AttachRosterColumns(Rows, PatientIds) {
   const InList = Ids.join(',');
 
   let ThreadBy = new Map();
+  let ChatBy = new Map();
   let ReadingBy = new Map();
 
   try {
@@ -135,6 +136,46 @@ async function AttachRosterColumns(Rows, PatientIds) {
   }
 
   try {
+    /*
+     * The SAME question asked of chat, because there are two channels and the
+     * doctor only has one pair of eyes.
+     *
+     * Once the roster offers a Чат action, counting only VisitComments would
+     * mean the badge measures a channel nobody is using any more - a roster
+     * that reports "nothing waiting" while a patient sits unanswered is worse
+     * than one with no badge at all.
+     *
+     * A patient is UserType 'P' and their UserId IS Patient.id_data
+     * (helper/ChatIdentity.js), the same key VisitComments.patient_id uses, so
+     * the two channels join on the same column with no translation.
+     *
+     * Restricted to 'DP' rooms: a doctor-to-doctor room has no patient to
+     * attribute a message to, and a group room's patient membership is not a
+     * monitoring relationship.
+     *
+     * Status 'P' is a message still pending its attachment upload - it has not
+     * been delivered to anyone yet, so it must not count as waiting.
+     */
+    const [Chat] = await sequelize.query(
+      "SELECT m.UserId AS PatientId, MAX(m.CreateDate) AS LastContact, " +
+        "  SUM(CASE WHEN m.CreateDate > ISNULL(s.LastStaff, '1900-01-01') THEN 1 ELSE 0 END) " +
+        "    AS AwaitingReply " +
+        "FROM [ChatMessages] m " +
+        "JOIN [ChatRooms] r ON r.Id = m.ChatRoomId AND r.RoomType = 'DP' " +
+        "LEFT JOIN (SELECT m2.ChatRoomId, MAX(m2.CreateDate) AS LastStaff FROM [ChatMessages] m2 " +
+        "            WHERE m2.UserType = 'S' AND ISNULL(m2.IsDelete, '0') <> '1' " +
+        "            GROUP BY m2.ChatRoomId) s ON s.ChatRoomId = m.ChatRoomId " +
+        "WHERE m.UserType = 'P' AND m.UserId IN (" + InList + ") " +
+        "  AND ISNULL(m.IsDelete, '0') <> '1' AND ISNULL(m.Status, 'S') <> 'P' " +
+        "GROUP BY m.UserId"
+    );
+    ChatBy = new Map((Chat || []).map((r) => [r.PatientId, r]));
+  } catch (ex) {
+    // A database without the chat v2 columns must not break the roster.
+    console.log('[PatientMonitoring/GetList] chat columns failed:', ex.message);
+  }
+
+  try {
     // The newest self-reported reading per patient. ROW_NUMBER rather than a
     // correlated MAX so one pass over the window gives the whole row, not just
     // its date - the same shape AdviceController uses for preview comments.
@@ -152,11 +193,20 @@ async function AttachRosterColumns(Rows, PatientIds) {
     console.log('[PatientMonitoring/GetList] reading column failed:', ex.message);
   }
 
+  // Whichever channel the patient used, the doctor sees one number.
+  const Later = (a, b) => {
+    if (!a) return b || null;
+    if (!b) return a;
+    return new Date(a) >= new Date(b) ? a : b;
+  };
+
   Rows.forEach((Row) => {
     const T = ThreadBy.get(Row.patient_id);
+    const C = ChatBy.get(Row.patient_id);
     const R = ReadingBy.get(Row.patient_id);
-    Row.LastContact = T ? T.LastContact : null;
-    Row.AwaitingReply = T ? Number(T.AwaitingReply) || 0 : 0;
+    Row.LastContact = Later(T ? T.LastContact : null, C ? C.LastContact : null);
+    Row.AwaitingReply =
+      (T ? Number(T.AwaitingReply) || 0 : 0) + (C ? Number(C.AwaitingReply) || 0 : 0);
     Row.LastReading = R
       ? {
           BloodPressure:
@@ -171,23 +221,36 @@ async function AttachRosterColumns(Rows, PatientIds) {
   });
 }
 
+/**
+ * Is this patient NOT yet on the caller's list?
+ *
+ * The boolean is inverted relative to the name and always has been: `Check:
+ * true` means "not monitored, so the take-on button may be enabled". Left that
+ * way because three call sites read it.
+ *
+ * The doctor now comes from the token. It used to come from `req.body.DoctorId`,
+ * which let any caller ask "is patient X on doctor Y's list?" for any Y - a
+ * smaller leak than the write handlers had, of the same kind.
+ *
+ * Queried on `user_id` directly instead of joining DoctorsProfile: user_id IS
+ * the owning column on this table, so the join only existed to translate a
+ * profile id that no longer needs translating.
+ */
 async function CheckPatientMonitoring(req, res) {
   try {
     var result = { Message: '', Success: true, Data: false };
-    const { PatientId, DoctorId } = req.body;
+    const { PatientId } = req.body;
+    const Owner = ResolveMonitoringOwner(req.LogedUser);
+    if (!Owner.Ok) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Owner.Reason)));
+    }
+
     const CheckData = await Models.PatientMonitoringDoctor.count({
       where: {
         patient_id: PatientId,
-        '$DoctorProfile.id_data$': DoctorId,
+        user_id: Owner.UserId,
         is_active: '1',
       },
-      include: [
-        {
-          model: Models.DoctorsProfile,
-          as: 'DoctorProfile',
-          attributes: ['id_data', 'id', 'lastname', 'firstname'],
-        },
-      ],
     }).then((count) => {
       return count > 0 ? false : true;
     });
@@ -200,6 +263,47 @@ async function CheckPatientMonitoring(req, res) {
   }
 }
 
+
+/**
+ * Whose monitoring list a write may touch.
+ *
+ * SavePatient and RemovePatient took the owning doctor from `req.body.UserId`
+ * and `req.body.DoctorId`, and `req.LogedUser` was used only as the audit
+ * stamp. So any token could add a patient to a colleague's list, or clear one,
+ * by editing two numbers - and /PatientMonitoring is in PATIENT_ALLOWED_PREFIXES
+ * (server.js), so a RoleId 4 patient token reached these too.
+ *
+ * This is the write-side twin of BaseControllerHelper.ApplyOwnerScope, which
+ * closed the same hole on the read path. These two handlers never go through
+ * AddOrgFilter, so that fix did not cover them. /api/doctor/monitoring already
+ * does it correctly and its header documents the flaw.
+ *
+ * THE BODY FIELDS ARE STILL ACCEPTED AND IGNORED, not rejected. Both
+ * PatientMonitoringHelper.SavePatient and the mobile client always post
+ * UserId/DoctorId from local storage; refusing them would turn a security fix
+ * into an outage for every existing caller.
+ *
+ * DoctorId comes from the session's DoctorsProfile rather than the body for the
+ * same reason - it is written into the audit rows, and an audit trail naming a
+ * doctor the caller merely claimed to be is worse than none.
+ */
+function ResolveMonitoringOwner(LogedUser) {
+  if (!LogedUser || !LogedUser.Id) {
+    return { Ok: false, Reason: 'Хэрэглэгчийн мэдээлэл тодорхойгүй байна' };
+  }
+  // A patient has no monitoring list of their own to write to.
+  if (String(LogedUser.RoleId) === '4') {
+    return { Ok: false, Reason: 'Хандах эрхгүй байна' };
+  }
+  return {
+    Ok: true,
+    UserId: LogedUser.Id,
+    // Nullable: the degraded JWT-only path has no Doctor. The history rows
+    // accept null, and a missing DoctorId is better than a borrowed one.
+    DoctorId: (LogedUser.Doctor && LogedUser.Doctor.id_data) || null,
+  };
+}
+
 async function SavePatient(req, res) {
   try {
     var result = {
@@ -208,9 +312,16 @@ async function SavePatient(req, res) {
       Data: { LogId: null },
     };
     const LogedUser = req.LogedUser;
-    const { PatientId, UserId, DoctorId } = req.body;
+    const Owner = ResolveMonitoringOwner(LogedUser);
+    if (!Owner.Ok) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Owner.Reason)));
+    }
+    // From the token, never the body. req.body.UserId / req.body.DoctorId are
+    // still sent by every existing caller and are deliberately ignored.
+    const { UserId, DoctorId } = Owner;
+    const { PatientId } = req.body;
     var Id = null;
-    if (PatientId && UserId && DoctorId) {
+    if (PatientId) {
       const OldMonitoring = await Models.PatientMonitoringDoctor.findAll({
         where: { patient_id: PatientId, user_id: UserId },
       });
@@ -273,9 +384,16 @@ async function RemovePatient(req, res) {
   try {
     var result = { Message: '', Success: true, Data: [] };
     const LogedUser = req.LogedUser;
-    const { PatientId, UserId, DoctorId } = req.body;
+    const Owner = ResolveMonitoringOwner(LogedUser);
+    if (!Owner.Ok) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Owner.Reason)));
+    }
+    // Same rule as SavePatient: clearing a colleague's list was the mirror of
+    // adding to it.
+    const { UserId, DoctorId } = Owner;
+    const { PatientId } = req.body;
     var Id = null;
-    if (PatientId && UserId && DoctorId) {
+    if (PatientId) {
       const OldMonitoring = await Models.PatientMonitoringDoctor.findAll({
         where: { patient_id: PatientId, user_id: UserId },
       });

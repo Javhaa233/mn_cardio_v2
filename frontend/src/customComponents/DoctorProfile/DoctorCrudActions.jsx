@@ -16,6 +16,7 @@ import GridItem from "components/Grid/GridItem";
 import Button from "components/CustomButtons/Button";
 
 import baseControlsStyles from "assets/jss/material-dashboard-pro-react/custom/baseControlsStyles";
+import { colors } from "@/theme/colors";
 
 class DoctorCrudActions extends Component {
   constructor(props) {
@@ -72,9 +73,10 @@ class DoctorCrudActions extends Component {
 
             {!this.props.HideExport && (
               <div style={{ position: "relative", display: "inline" }}>
+                {/* Secondary: New is the bar's one filled button. */}
                 <Button
-                  variant="contained"
-                  color="success"
+                  variant="outlined"
+                  color="info"
                   size="sm"
                   onClick={() => {
                     this.setState({ exportLoading: true });
@@ -89,7 +91,7 @@ class DoctorCrudActions extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -102,9 +104,11 @@ class DoctorCrudActions extends Component {
             )}
 
             {/* Change password Button */}
+            {/* Not destructive - it opens a dialog - so outlined neutral,
+                not the template's rose. */}
             <Button
               size="sm"
-              color="rose"
+              color="info"
               onClick={this.props.OnChangePassword}
               disabled={!DoctorId || !UserId}
               style={{ marginLeft: "10px" }}
@@ -141,19 +145,21 @@ class DoctorCrudActions extends Component {
                       ...(baseControlsStyles.input || {}),
                     },
                     "& .MuiInput-underline:before": {
-                      borderColor: "#D2D2D2 !important",
+                      borderColor: `${colors.brand.hairlineStrong} !important`,
                       borderWidth: "1px !important",
                     },
                     "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
-                      borderColor: "#D2D2D2 !important",
+                      borderColor: `${colors.brand.hairlineStrong} !important`,
                       borderWidth: "1px !important",
                     },
-                    "& .MuiInput-underline:after": { borderColor: "#9c27b0" },
+                    "& .MuiInput-underline:after": {
+                      borderColor: colors.brand.cyan,
+                    },
                   }}
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <SearchIcon style={{ color: "#999" }} />
+                        <SearchIcon style={{ color: colors.text.secondary }} />
                       </InputAdornment>
                     ),
                   }}

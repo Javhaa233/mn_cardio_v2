@@ -6,8 +6,6 @@ import React, { Component, createRef } from "react";
 
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
-import Card from "components/Card/Card";
-import CardBody from "components/Card/CardBody";
 
 import UniCard from "customComponents/UniCard";
 import BaseDialog from "customComponents/BaseDialog";
@@ -792,19 +790,22 @@ class CVDPatientInfo extends Component {
           </GridItem>
           {/* 7. Анализ */}
           <GridItem xs={12} md={5}>
-            <Card
-              style={{
-                margin: "0 10px 20px 0px",
-                borderRadius: "8px",
-                overflow: "hidden",
+            {/* Was a Creative Tim Card whose empty body padding left a blank
+                band above the accordion. */}
+            <UniCard
+              showHeader={false}
+              padding={12}
+              cardStyle={{
+                height: "auto",
+                flex: "0 0 auto",
+                marginBottom: "16px",
               }}
+              cardBodyStyle={{ overflow: "visible" }}
             >
-              <CardBody>
-                <BaseAccordion Title=" Анализ">
-                  <CVDAnalyze ref={this.CVDAnalyzeRef} Id="CurrentChart" />
-                </BaseAccordion>
-              </CardBody>
-            </Card>
+              <BaseAccordion Title="Анализ">
+                <CVDAnalyze ref={this.CVDAnalyzeRef} Id="CurrentChart" />
+              </BaseAccordion>
+            </UniCard>
             <CVDSentPrescriptionTable
               ref={this.CVDSentPrescriptionTableRef}
               CustomRender={true}

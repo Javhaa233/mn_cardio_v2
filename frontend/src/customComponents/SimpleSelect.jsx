@@ -7,7 +7,9 @@ import MenuItem from "@mui/material/MenuItem";
 import Select from "@mui/material/Select";
 import InputLabel from "@mui/material/InputLabel";
 
-import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
+import { colors } from "@/theme/colors";
+import { radius, elevation } from "@/theme/tokens";
 
 export default function SimpleSelect(props) {
   const { t } = useTranslation();
@@ -29,18 +31,28 @@ export default function SimpleSelect(props) {
     AriaLabel = null,
   } = props;
 
+  // Only a select drawn beside its own inline label sits in the flex row below.
+  const HasInlineLabel = !!(
+    LeftLabel ||
+    (!HideLabel && (Label || Config?.Label))
+  );
+
   const formControlSx = {
     width: FullWidth ? "100%" : Width,
     minWidth: "80px",
     height: "28px !important",
     maxHeight: "28px !important",
-    backgroundColor: "#FFF",
+    backgroundColor: FIELD.inputBg,
+    // Beside an inline label, a FullWidth select takes the rest of the row;
+    // width 100% alone let the flex row shrink it to its content. Without a
+    // label the caller owns the width (AnalyticsRail keeps it compact).
+    ...(FullWidth && HasInlineLabel ? { flex: "1 1 auto", minWidth: 0 } : null),
     ...(Variant === "outlined" ? { mt: "0px !important" } : null),
     ...Sx,
   };
 
   const inputLabelSx = {
-    backgroundColor: "#FFF",
+    backgroundColor: FIELD.inputBg,
     padding: "0 4px",
     lineHeight: 1.1,
     zIndex: 1,
@@ -66,7 +78,7 @@ export default function SimpleSelect(props) {
       fontWeight: "400",
       lineHeight: "1.5",
       textDecoration: "none",
-      color: grayColor[14],
+      color: FIELD.valueInk,
       letterSpacing: "0",
       height: "auto !important",
       minHeight: "unset !important",
@@ -95,21 +107,23 @@ export default function SimpleSelect(props) {
     "&:hover:not(.Mui-disabled):before": {
       borderBottom: "none !important",
     },
-    border: "1px solid #eee",
-    borderRadius: "0",
+    border: `1px solid ${FIELD.rowBorder}`,
+    borderRadius: radius.xs,
+    "&.Mui-disabled": { backgroundColor: FIELD.disabledBg },
     "&:hover": {
-      border: "1px solid #ccc",
+      border: `1px solid ${FIELD.inputBorderHover}`,
     },
     "&.Mui-focused": {
-      border: "1px solid #aaa",
+      border: `1px solid ${FIELD.inputBorderFocus}`,
     },
     ...Sx,
   };
 
   const menuPaperSx = {
-    backgroundColor: "#FFF",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
-    borderRadius: "4px",
+    backgroundColor: colors.brand.surface,
+    boxShadow: elevation[3],
+    border: `1px solid ${colors.brand.hairline}`,
+    borderRadius: radius.sm,
     maxHeight: "266px !important",
   };
 
@@ -119,13 +133,13 @@ export default function SimpleSelect(props) {
     margin: "0",
     boxShadow: "none",
     minWidth: "100%",
-    borderRadius: "4px",
+    borderRadius: radius.sm,
     boxSizing: "border-box",
     display: "block",
     fontSize: "12px",
     textAlign: "left",
     listStyle: "none",
-    backgroundColor: "#FFF",
+    backgroundColor: colors.brand.surface,
     backgroundClip: "padding-box",
   };
 
@@ -133,20 +147,22 @@ export default function SimpleSelect(props) {
     fontSize: "12px",
     padding: "4px 8px",
     margin: "0 5px",
-    borderRadius: "2px",
+    borderRadius: radius.xs,
     transition: "all 150ms linear",
     display: "block",
     clear: "both",
     fontWeight: "400",
     lineHeight: "1.8",
     whiteSpace: "nowrap",
-    color: "#333",
+    color: colors.brand.ink,
     paddingRight: "30px",
-    "&:hover": { backgroundColor: "#999999", color: "#FFF" },
+    // Was a #999 fill with white text on hover - the template's dropdown.
+    "&:hover": { backgroundColor: colors.brand.tint, color: colors.brand.ink },
     "&.Mui-selected": {
-      backgroundColor: "#f4f4f4",
-      color: "#000",
-      "&:hover": { backgroundColor: "#e0e0e0" },
+      backgroundColor: colors.brand.tintSolid,
+      color: colors.brand.cyanInk,
+      fontWeight: 600,
+      "&:hover": { backgroundColor: colors.brand.tintSolidHover },
     },
   };
 
@@ -242,12 +258,19 @@ export default function SimpleSelect(props) {
 
   if (inlineLabel && inlineLabelText) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: "6px",
+          ...(FullWidth ? { width: "100%" } : null),
+        }}
+      >
         <span
           style={{
             fontSize: "12px",
             fontWeight: "400",
-            color: "#555",
+            color: FIELD.labelInk,
             whiteSpace: "nowrap",
             lineHeight: 1.42857,
           }}

@@ -26,14 +26,15 @@ import Helper from "helper";
 import customHistory from "customHistory";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import Typography from "@mui/material/Typography";
+import { colors } from "@/theme/colors";
+import { radius } from "@/theme/tokens";
 
+// Square corners and float were the template's button-group look; the bar is
+// a flex row with a gap now, and each button carries its own rank.
 const CustomButton = styled(Button)(() => ({
-  borderRadius: "0",
-  marginRight: "5px",
-  padding: "8px",
   position: "relative",
-  float: "left",
-  "&:hover": { zIndex: "2" },
+  marginRight: "8px",
 }));
 
 const AddButton = styled(Button)(() => ({
@@ -269,11 +270,17 @@ export default function AdviceDetail(props) {
             <GridContainer>
               <GridItem xs={12} sm={12} md={12}>
                 <div
-                  style={{ display: "flex", width: "100%", flexWrap: "wrap" }}
+                  style={{
+                    display: "flex",
+                    width: "100%",
+                    flexWrap: "wrap",
+                    alignItems: "center",
+                    rowGap: "8px",
+                  }}
                 >
                   {!InDialog && (
                     <CustomButton
-                      color="primary"
+                      color="info"
                       size="sm"
                       onClick={() => {
                         var pathArray = window.location.pathname.split("/");
@@ -291,7 +298,7 @@ export default function AdviceDetail(props) {
                     </CustomButton>
                   )}
                   <CustomButton
-                    color="primary"
+                    color="info"
                     size="sm"
                     onClick={SetFollowUpDialog}
                   >
@@ -299,7 +306,7 @@ export default function AdviceDetail(props) {
                   </CustomButton>
                   {EditObject && EditObject.id + "" === LogedUser.Id + "" && (
                     <CustomButton
-                      color="primary"
+                      color="info"
                       size="sm"
                       onClick={SetInsertForm}
                     >
@@ -350,9 +357,9 @@ export default function AdviceDetail(props) {
                   <div
                     style={{
                       display: "flex",
-                      color: "#919191",
-                      marginTop: "6px",
-                      marginLeft: "10px",
+                      alignItems: "center",
+                      color: colors.brand.inkDim,
+                      marginLeft: "4px",
                     }}
                   >
                     <VisibilityIcon
@@ -367,15 +374,18 @@ export default function AdviceDetail(props) {
                 </div>
               </GridItem>
             </GridContainer>
-            <GridContainer style={{ marginTop: "25px" }}>
-              <GridItem xs={12} sm={6} md={4}>
+            {/* Three md=4 columns squeezed each inline label and its select into
+                ~200px, so "Асуумж хаагдсан" wrapped against a clipped select.
+                The patient field keeps its own row; the two selects share one. */}
+            <GridContainer style={{ marginTop: "25px" }} rowSpacing={1}>
+              <GridItem xs={12} sm={12} md={12}>
                 <BaseField
                   ChangeValue={ChangeValue}
                   Value={EditObject ? EditObject.adv_id_patient : null}
                   Config={GetConfigField("adv_id_patient", ListFields)}
                 />
               </GridItem>
-              <GridItem xs={12} sm={6} md={4}>
+              <GridItem xs={12} sm={6} md={6}>
                 <SimpleSelect
                   disabled={true}
                   labelId="adv_ticket_closed-closed-label"
@@ -387,7 +397,7 @@ export default function AdviceDetail(props) {
                   FullWidth={true}
                 />
               </GridItem>
-              <GridItem xs={12} sm={6} md={4}>
+              <GridItem xs={12} sm={6} md={6}>
                 <SimpleSelect
                   labelId="ticket-type-label"
                   Config={GetConfigField("ticket_type", ListFields)}
@@ -398,16 +408,19 @@ export default function AdviceDetail(props) {
                 />
               </GridItem>
             </GridContainer>
-            <h4
-              style={{
-                color: "#3C4858",
-                textDecoration: "none",
-                marginBottom: "0",
-              }}
+            <Typography
+              variant="h5"
+              component="div"
+              sx={{ color: colors.brand.ink, mt: 2, mb: 1 }}
             >
               {t("Body")}
-            </h4>
-            <div style={{ border: "1px solid #ccc", borderRadius: "4px" }}>
+            </Typography>
+            <div
+              style={{
+                border: `1px solid ${colors.brand.hairlineStrong}`,
+                borderRadius: radius.sm,
+              }}
+            >
               <BaseTextArea
                 Config={{
                   Name: "Body",
@@ -427,23 +440,21 @@ export default function AdviceDetail(props) {
                 margin: "15px 0 0 0",
               }}
             >
-              <AddButton color="info" onClick={Save}>
+              <AddButton color="primary" onClick={Save}>
                 {t("Save")}
               </AddButton>
             </div>
           </GridItem>
           <GridItem xs={12} sm={12} md={6}>
             <div>
-              <h3
-                style={{
-                  color: "#3C4858",
-                  textDecoration: "none",
-                  margin: "10px 0",
-                  fontSize: "22px",
-                }}
+              {/* component="div": a bare h3 is restyled by _misc.scss. */}
+              <Typography
+                variant="h3"
+                component="div"
+                sx={{ color: colors.brand.ink, my: 1.5 }}
               >
                 {t("Comments")}
-              </h3>
+              </Typography>
             </div>
             {Finish ? (
               <>

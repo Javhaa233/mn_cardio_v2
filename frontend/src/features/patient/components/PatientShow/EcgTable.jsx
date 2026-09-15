@@ -96,7 +96,10 @@ class EcgTable extends BaseList {
   ShowData = (data) => {
     this.setState({
       DialogData: (
-        <BaseDialog Close={() => this.setState({ DialogData: null })}>
+        <BaseDialog
+          Title={this.props.Title}
+          Close={() => this.setState({ DialogData: null })}
+        >
           <Ecg DataId={data.id_data} ObjectName="EcgExamination" />
         </BaseDialog>
       ),

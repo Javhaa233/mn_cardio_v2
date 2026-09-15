@@ -631,8 +631,9 @@ export default function NationalRegistry(props) {
       <TurulhiinGajig formName="TurulhiinGajig" />
 
       {/* Main Button */}
+      {/* Opens a menu: neutral. "rose" maps to the destructive (red) rank. */}
       <Button
-        color="rose"
+        color="info"
         disabled={!PatientId ? true : false}
         size="sm"
         className={className}

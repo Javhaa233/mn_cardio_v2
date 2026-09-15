@@ -100,7 +100,10 @@ class BloodStrokeTable extends BaseList {
 
   ShowData = (data) => {
     const DialogDatas = (
-      <BaseDialog Close={() => this.setState({ DialogData: null })}>
+      <BaseDialog
+        Title={this.props.Title}
+        Close={() => this.setState({ DialogData: null })}
+      >
         <BloodStroke DataId={data.id_data} ObjectName="BloodStroke" />
       </BaseDialog>
     );

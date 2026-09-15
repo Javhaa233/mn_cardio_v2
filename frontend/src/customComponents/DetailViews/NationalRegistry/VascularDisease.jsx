@@ -20,6 +20,7 @@ import GroupPanel from "customComponents/GroupPanel";
 // helper
 import Helper from "helper";
 import { colors } from "@/theme/colors";
+import { radius } from "@/theme/tokens";
 
 import vascular1 from "assets/img/vascular-1.jpeg";
 import vascular2 from "assets/img/vascular-2.png";
@@ -38,28 +39,30 @@ const sx = {
     fontSize: "1.2em",
     padding: "15px",
     margin: "15px",
-    border: "2px solid #003fd4",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
+    borderRadius: radius.sm,
+    backgroundColor: colors.brand.tintSolid,
     "& > ul": { margin: 0, padding: "0 15px" },
-    "& > ul > li": { color: "#003fd4" },
+    "& > ul > li": { color: colors.brand.ink },
   },
   customTable: {
-    border: "1px solid ${colors.border.faint}",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     borderCollapse: "collapse",
-    backgroundColor: colors.background.surfaceAlt,
+    backgroundColor: colors.brand.tintSolid,
     fontSize: "12px",
-    "& > thead > tr": { border: "1px solid ${colors.border.faint}" },
-    "& > tbody > tr": { border: "1px solid ${colors.border.faint}" },
+    "& > thead > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
     "& > tbody > tr > td": {
       padding: "2px 4px",
-      border: "1px solid ${colors.border.faint}",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
     },
     "& > tbody > tr > th": {
       padding: "2px 4px",
-      border: "1px solid ${colors.border.faint}",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
     },
     "& > thead > tr > th": {
       padding: "2px 4px",
-      border: "1px solid ${colors.border.faint}",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
     },
   },
 };

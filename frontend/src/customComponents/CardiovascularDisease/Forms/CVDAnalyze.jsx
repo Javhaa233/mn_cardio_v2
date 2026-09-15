@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import Chart from "./Chart";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 const headerSx = {
   position: "absolute",
@@ -15,7 +16,7 @@ const headerSx = {
   display: "inline-block",
   margin: 0,
   padding: "4px 12px",
-  backgroundColor: "#9C27B0",
+  backgroundColor: colors.brand.cyanInk,
   color: "#fff",
   fontWeight: "400",
   fontSize: "14px",
@@ -91,7 +92,7 @@ class CVDAnalyze extends Component {
               style={{
                 position: "relative",
                 margin: "30px 0",
-                borderTop: "1px solid #9C27B0",
+                borderTop: `1px solid ${colors.brand.cyanInk}`,
               }}
             >
               <Typography component="h5" sx={headerSx}>

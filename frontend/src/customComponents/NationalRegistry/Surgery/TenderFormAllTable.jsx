@@ -11,6 +11,7 @@ import GridToolbar, { ToolbarField } from "customComponents/GridToolbar";
 import BaseDialog from "customComponents/BaseDialog";
 import DivLoading from "customComponents/DivLoading";
 import BaseNoData from "customComponents/BaseNoData";
+import StatusChip from "customComponents/StatusChip";
 import CustomTextField from "customComponents/Forms/Components/CustomTextField";
 import ShowPatient from "customComponents/FieldActions/ShowPatient";
 import BaseLoadButton from "customComponents/BaseLoadButton";
@@ -40,12 +41,10 @@ import Helper from "helper";
 /** the record's lock state, as words rather than as 0 and 1 */
 function StatusCell({ rowdata, t }) {
   const done = rowdata && rowdata.Status + "" === "1";
-  return (
-    <span
-      style={{ color: done ? colors.status.normal : colors.text.secondary }}
-    >
-      {done ? t("Баталгаажсан") : t("Ноорог")}
-    </span>
+  return done ? (
+    <StatusChip Tone="success" Label={t("Баталгаажсан")} />
+  ) : (
+    <StatusChip Tone="neutral" Label={t("Ноорог")} />
   );
 }
 
@@ -425,13 +424,7 @@ class TenderFormAllTable extends BaseList {
               </GridToolbar>
 
               {!isLoading && (!Data || Data.length === 0) ? (
-                // An empty result is information, not an error: neutral
-                // brand colours rather than BaseNoData's salmon default.
-                <BaseNoData
-                  Text="Бүртгэл олдсонгүй"
-                  BgColor={colors.brand.cyan}
-                  IconColor={colors.brand.cyanInk}
-                />
+                <BaseNoData Text="Бүртгэл олдсонгүй" />
               ) : (
                 <BaseGrid
                   PK={"Id"}

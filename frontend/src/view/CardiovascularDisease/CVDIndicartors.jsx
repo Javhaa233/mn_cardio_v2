@@ -8,12 +8,8 @@ import { Box } from "@mui/material";
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
 
-import Card from "components/Card/Card";
-import CardHeader from "components/Card/CardHeader";
-import CardText from "components/Card/CardText";
-import CardBody from "components/Card/CardBody";
-
 import RangeDate from "customComponents/RangeDate";
+import UniCard from "customComponents/UniCard";
 
 //reports
 import Report1 from "customComponents/CardiovascularDisease/CustomReport/Report1";
@@ -31,13 +27,6 @@ import Report12 from "customComponents/CardiovascularDisease/CustomReport/Report
 import Report13 from "customComponents/CardiovascularDisease/CustomReport/Report13";
 import Report14 from "customComponents/CardiovascularDisease/CustomReport/Report14";
 import Report15 from "customComponents/CardiovascularDisease/CustomReport/Report15";
-
-import { cardTitle } from "assets/jss/material-dashboard-pro-react.js";
-
-const styles = {
-  cardTitleWhite: { ...cardTitle, color: "#111827", marginTop: "0" },
-  cardIconTitle: { ...cardTitle, marginTop: "15px", marginBottom: "0px" },
-};
 
 class CVDIndicartors extends Component {
   constructor(props) {
@@ -95,39 +84,21 @@ class CVDIndicartors extends Component {
   };
 
   render() {
+    const { t } = this.props;
+    // Was a bare Box on the canvas: the range floated above fifteen Creative
+    // Tim cards. It is framed like every other page now; the cards inside are
+    // the indicator panels (CustomReport/Report1..15).
     return (
-      <Box
-        sx={{
-          display: "flex",
-          flexDirection: "column",
-          flex: 1,
-          minHeight: 0,
-          minWidth: 0,
-          maxWidth: "100%",
-          overflowX: "hidden",
-          color: "#111827",
-        }}
-      >
-        <GridContainer sx={{ maxWidth: "100%", margin: 0 }}>
-          <GridItem xs={12} md={12}>
-            <RangeDate
-              ChangeValue={(StartDate, EndDate) =>
-                this.GetData({ StartDate, EndDate })
-              }
-              Refresh={() => {}}
-            />
-          </GridItem>
-        </GridContainer>
-
-        <GridContainer
-          spacing={0.5}
-          sx={{
-            maxWidth: "100%",
-            margin: 0,
-            marginTop: "10px",
-            paddingRight: "10px",
-          }}
-        >
+      <UniCard title={t("Үзүүлэлт")} cardBodyStyle={{ overflowY: "auto" }}>
+        <Box sx={{ flex: "0 0 auto", mb: 1.5 }}>
+          <RangeDate
+            ChangeValue={(StartDate, EndDate) =>
+              this.GetData({ StartDate, EndDate })
+            }
+            Refresh={() => {}}
+          />
+        </Box>
+        <GridContainer spacing={1.5} sx={{ width: "100%", margin: 0 }}>
           <Report1 ref={(ref) => (this.Report1Ref = ref)} />
           <Report2 ref={(ref) => (this.Report2Ref = ref)} />
           <Report3 ref={(ref) => (this.Report3Ref = ref)} />
@@ -144,7 +115,7 @@ class CVDIndicartors extends Component {
           <Report14 ref={(ref) => (this.Report14Ref = ref)} />
           <Report15 ref={(ref) => (this.Report15Ref = ref)} />
         </GridContainer>
-      </Box>
+      </UniCard>
     );
   }
 }

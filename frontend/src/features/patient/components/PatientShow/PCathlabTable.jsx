@@ -96,6 +96,7 @@ class PCathlabTable extends BaseList {
   ShowData = (data) => {
     const DialogDatas = (
       <BaseDialog
+        Title={this.props.Title}
         Close={() => this.setState({ DialogData: null })}
         Scroll="body"
       >

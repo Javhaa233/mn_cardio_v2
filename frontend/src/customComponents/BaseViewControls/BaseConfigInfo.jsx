@@ -6,6 +6,7 @@ import FormLabel from "@mui/material/FormLabel";
 
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseConfigInfo(props) {
   const { t } = useTranslation();
@@ -14,12 +15,12 @@ export default function BaseConfigInfo(props) {
     Label = "",
     md = 3,
     Left = false,
-    LabelColor = "#75736c",
+    LabelColor = FIELD.labelInk,
     Size = "14px",
     LabelWeight = "400",
     padding = "0 12px",
     margin = "0",
-    ValueColor = "#000",
+    ValueColor = FIELD.valueInk,
     ValueWeight = "400",
     Value = "",
     height = 24,
@@ -40,7 +41,8 @@ export default function BaseConfigInfo(props) {
     color: ValueColor,
     backgroundColor: "#ffffff",
     fontWeight: ValueWeight,
-    fontSize: "12px",
+    // 14px like the edit controls: a read-only value was 2px smaller than its own label.
+    fontSize: "14px",
     minHeight: `${height}px`,
     lineHeight: `${height}px`,
     boxSizing: "border-box",
@@ -79,7 +81,7 @@ export default function BaseConfigInfo(props) {
         sx={{
           display: "flex",
           alignItems: "center",
-          backgroundColor: "#f5f5f5",
+          backgroundColor: FIELD.labelBg,
           borderRight: `1px solid ${borderColor}`,
           px: "15px",
           minHeight: "32px",

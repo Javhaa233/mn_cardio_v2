@@ -5,6 +5,7 @@ import PersonIcon from "@mui/icons-material/Person";
 
 import BaseDialog from "customComponents/BaseDialog";
 import UserProfile from "customComponents/DoctorProfile/UserProfile";
+import { colors } from "@/theme/colors";
 
 export default function UserDialogLink(props) {
   const { rowdata = {}, FieldName } = props;
@@ -36,11 +37,11 @@ export default function UserDialogLink(props) {
           alignItems: "center",
           gap: "4px",
           cursor: "pointer",
-          "&:hover": { color: "#9c27b0", textDecoration: "underline" },
+          "&:hover": { color: colors.brand.cyanInk, textDecoration: "underline" },
         }}
         onClick={() => UserId && SetInsertForm()}
       >
-        <PersonIcon fontSize="small" style={{ color: "#00acc1" }} />
+        <PersonIcon fontSize="small" style={{ color: colors.brand.cyanInk }} />
         {rowdata[FieldName] ? rowdata[FieldName].UserName : null}
       </Box>
     </div>

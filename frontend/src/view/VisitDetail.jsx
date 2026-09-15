@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import moment from "moment";
+import { colors } from "@/theme/colors";
 
 const VisitDetail = (props) => {
   const { t } = useTranslation();
@@ -250,7 +251,7 @@ const VisitDetail = (props) => {
               onClick={() => props.setDetail(false)}
               style={{
                 cursor: "pointer",
-                background: "#9c27b0",
+                background: colors.brand.cyanInk,
                 padding: ".25rem 1rem",
                 borderRadius: "3px",
                 color: "white",

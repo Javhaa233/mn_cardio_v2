@@ -30,6 +30,7 @@ import Helper from "helper";
 
 import styles from "assets/jss/material-dashboard-pro-react/custom/baseControlsStyles";
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseLookUpGridLoad(props) {
   const { t } = useTranslation();
@@ -45,7 +46,7 @@ export default function BaseLookUpGridLoad(props) {
     disabled = false,
     LabelWidth,
     height = 28,
-    borderColor = "#eee",
+    borderColor = FIELD.rowBorder,
     Id = null,
     LabelledBy = null,
   } = props;
@@ -82,10 +83,12 @@ export default function BaseLookUpGridLoad(props) {
       "& .MuiOutlinedInput-notchedOutline": { top: "0" },
     },
     "& .MuiInputBase-input": {
-      color: "#4a4a4a",
-      backgroundColor: WithLabel ? "#ffffff" : "transparent",
+      color: FIELD.valueInk,
+      backgroundColor: WithLabel ? FIELD.inputBg : "transparent",
       fontWeight: "400",
-      fontSize: "11px !important",
+      // 14px, the control size everywhere else; 11px made the chosen doctor or
+      // hospital the smallest text in the form.
+      fontSize: "14px !important",
       height: "auto !important",
       lineHeight: "1.5",
       boxSizing: "border-box",
@@ -101,13 +104,13 @@ export default function BaseLookUpGridLoad(props) {
       },
       fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
       "&::placeholder": {
-        color: "#6a6a6a",
-        fontSize: "11px",
+        color: FIELD.placeholder,
+        fontSize: "14px",
         opacity: "1",
       },
       "&.Mui-disabled": {
-        color: "#4a4a4a",
-        WebkitTextFillColor: "#4a4a4a",
+        color: FIELD.valueInk,
+        WebkitTextFillColor: FIELD.valueInk,
         opacity: "1",
       },
     },
@@ -115,7 +118,7 @@ export default function BaseLookUpGridLoad(props) {
   };
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",
@@ -292,7 +295,7 @@ export default function BaseLookUpGridLoad(props) {
                       onChangeValue(null);
                     }}
                   >
-                    <CloseIcon sx={{ color: "#999", fontSize: "12px" }} />
+                    <CloseIcon sx={{ color: FIELD.placeholder, fontSize: "12px" }} />
                   </IconButton>
                 )}
                 <IconButton
@@ -302,10 +305,10 @@ export default function BaseLookUpGridLoad(props) {
                   sx={{ padding: "1px", ml: "-2px" }}
                 >
                   {anchorEl ? (
-                    <ArrowDropUpIcon sx={{ color: "#999", fontSize: "16px" }} />
+                    <ArrowDropUpIcon sx={{ color: FIELD.placeholder, fontSize: "16px" }} />
                   ) : (
                     <ArrowDropDownIcon
-                      sx={{ color: "#999", fontSize: "16px" }}
+                      sx={{ color: FIELD.placeholder, fontSize: "16px" }}
                     />
                   )}
                 </IconButton>
@@ -319,7 +322,7 @@ export default function BaseLookUpGridLoad(props) {
               "& fieldset": {
                 ...(hasBorder
                   ? {
-                      border: "1px solid #ccc",
+                      border: `1px solid ${FIELD.inputBorderHover}`,
                     }
                   : {
                       border: "none",
@@ -328,7 +331,7 @@ export default function BaseLookUpGridLoad(props) {
               "&:hover fieldset": {
                 ...(hasBorder
                   ? {
-                      border: "1px solid #4a4a4a",
+                      border: `1px solid ${FIELD.inputBorderHover}`,
                     }
                   : {
                       border: "none",
@@ -337,7 +340,7 @@ export default function BaseLookUpGridLoad(props) {
               "&.Mui-focused fieldset": {
                 ...(hasBorder
                   ? {
-                      border: "1px solid #4a4a4a",
+                      border: `1px solid ${FIELD.inputBorderFocus}`,
                       borderWidth: "1px",
                     }
                   : {
@@ -394,7 +397,7 @@ export default function BaseLookUpGridLoad(props) {
         marginBottom: "5px",
         width: "100%",
         border: `1px solid ${borderColor}`,
-        borderBottom: "1px solid #eee",
+        borderBottom: `1px solid ${FIELD.rowBorder}`,
         height: `${height}px`,
         minHeight: `${height}px`,
         maxHeight: `${height}px`,
@@ -407,7 +410,7 @@ export default function BaseLookUpGridLoad(props) {
         sm={6}
         md={effectiveMd}
         style={{
-          backgroundColor: "#eff9fe",
+          backgroundColor: FIELD.labelBg,
           borderRight: `1px solid ${borderColor}`,
           display: "flex",
           alignItems: "center",

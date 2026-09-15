@@ -4,6 +4,7 @@ import { FormControl, MenuItem, Select } from "@mui/material";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
 import { useTranslation } from "react-i18next";
+import { colors } from "@/theme/colors";
 
 export default function SimpleSelect(props) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ export default function SimpleSelect(props) {
         borderBottomWidth: "1px !important",
         borderBottomColor: "#D2D2D2 !important",
       },
-      "&:after": { borderBottomColor: "#9c27b0 !important" },
+      "&:after": { borderBottomColor: `${colors.brand.cyan} !important` },
     },
   };
 

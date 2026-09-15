@@ -5,6 +5,8 @@ import { TableRow, TableCell, TextField } from "@mui/material";
 import { useTranslation } from "react-i18next";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function FilterRow(props) {
   const { t } = useTranslation();
@@ -15,8 +17,8 @@ export default function FilterRow(props) {
 
   const textFieldSx = {
     "& .MuiInputBase-input": {
-      color: "#495057",
-      backgroundColor: "#ffffff",
+      color: FIELD.valueInk,
+      backgroundColor: FIELD.inputBg,
       fontWeight: "400",
       fontSize: "14px",
       height: "30px",
@@ -24,20 +26,20 @@ export default function FilterRow(props) {
       padding: "8px 12px",
       lineHeight: 1.5,
       "&::placeholder": {
-        color: grayColor[3],
+        color: FIELD.placeholder,
         opacity: 1,
       },
     },
     "& .MuiInput-underline:before": {
-      borderBottomColor: "#D2D2D2 !important",
+      borderBottomColor: `${FIELD.inputBorderHover} !important`,
       borderBottomWidth: "1px !important",
     },
     "& .MuiInput-underline:hover:not(.Mui-disabled):before": {
-      borderBottomColor: "#D2D2D2 !important",
+      borderBottomColor: `${FIELD.inputBorderHover} !important`,
       borderBottomWidth: "1px !important",
     },
     "& .MuiInput-underline:after": {
-      borderBottomColor: "#9c27b0",
+      borderBottomColor: colors.brand.cyan,
     },
   };
 

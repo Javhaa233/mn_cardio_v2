@@ -18,6 +18,7 @@ import UserDialogLink from "customComponents/InPatient/FieldActions/UserDialogLi
 import Filter from "customComponents/InPatient/Filter";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 class SugeryPlansList extends BaseList {
   constructor(props) {
@@ -204,7 +205,11 @@ class SugeryPlansList extends BaseList {
                 {
                   Component: (
                     <IconButton
-                      style={{ margin: "2px", padding: "8px", color: "red" }}
+                      style={{
+                        margin: "2px",
+                        padding: "8px",
+                        color: colors.status.dangerInk,
+                      }}
                       title={t("Cancel")}
                       onClick={() => {}}
                     >

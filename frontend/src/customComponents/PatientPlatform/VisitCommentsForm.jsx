@@ -99,7 +99,7 @@ class VisitCommentsForm extends BaseCustomForm {
             LabelOnTop
           />
           <Button
-            color="info"
+            color="primary"
             size="sm"
             style={{ float: "right" }}
             disabled={isSaving}

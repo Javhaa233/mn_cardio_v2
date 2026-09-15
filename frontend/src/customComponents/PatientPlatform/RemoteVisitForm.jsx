@@ -139,7 +139,7 @@ class RemoteVisitForm extends BaseCustomForm {
             WithLabel={false}
           />
           <Button
-            color="info"
+            color="primary"
             size="sm"
             style={{ float: "right" }}
             disabled={isSaving}

@@ -9,9 +9,6 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import Box from "@mui/material/Box";
 
-// core components
-import Button from "components/CustomButtons/Button";
-
 // Language components
 import i18next from "i18next";
 
@@ -20,6 +17,8 @@ import {
   whiteColor,
   grayColor,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { radius, elevation, motion } from "@/theme/tokens";
 
 const StyledAppBar = styled(AppBar)(({ theme }) => ({
   backgroundColor: "transparent",
@@ -99,54 +98,60 @@ export default function AuthNavbar() {
     i18next.changeLanguage(lang);
   };
 
+  // One segmented switch on a white pill, in the login panel's colours. It
+  // was two separate teal (#00838f) Creative Tim round buttons, the inactive
+  // one only told apart by 65% opacity.
+  const LANGS = [
+    { code: "mn", label: "Монгол" },
+    { code: "en", label: "English" },
+  ];
   var list = (
-    <StyledList>
-      <StyledListItem>
-        <Button
-          color="white"
-          round={true}
-          simple={false}
-          size="sm"
-          style={{
-            border: "0",
-            color: "#ffffff", // white font
-            backgroundColor: "#00838f", // darker cyan
-            minHeight: "30px",
-            padding: "6px 14px",
-            boxShadow: "none",
-            opacity: Language === "mn" ? 1 : 0.65,
-          }}
-          onClick={() => {
-            Language !== "mn" && ChangeLanguage("mn");
-          }}
-        >
-          Монгол
-        </Button>
-      </StyledListItem>
-
-      <StyledListItem>
-        <Button
-          color="white"
-          round={true}
-          simple={false}
-          size="sm"
-          style={{
-            border: "0",
-            color: "#ffffff", // white font
-            backgroundColor: "#00838f", // darker cyan
-            minHeight: "30px",
-            padding: "6px 14px",
-            boxShadow: "none",
-            opacity: Language === "en" ? 1 : 0.65,
-          }}
-          onClick={() => {
-            Language !== "en" && ChangeLanguage("en");
-          }}
-        >
-          English
-        </Button>
-      </StyledListItem>
-    </StyledList>
+    <Box
+      role="group"
+      aria-label="Language"
+      sx={{
+        display: "inline-flex",
+        gap: "2px",
+        padding: "3px",
+        borderRadius: radius.pill,
+        backgroundColor: "rgba(255, 255, 255, 0.92)",
+        border: `1px solid ${colors.brand.hairline}`,
+        boxShadow: elevation[1],
+      }}
+    >
+      {LANGS.map((l) => {
+        const active = Language === l.code;
+        return (
+          <Box
+            key={l.code}
+            component="button"
+            type="button"
+            aria-pressed={active}
+            onClick={() => !active && ChangeLanguage(l.code)}
+            sx={{
+              border: "none",
+              font: "inherit",
+              fontSize: "13px",
+              fontWeight: active ? 600 : 500,
+              lineHeight: 1,
+              padding: "7px 14px",
+              borderRadius: radius.pill,
+              cursor: active ? "default" : "pointer",
+              color: active ? colors.text.white : colors.brand.ink,
+              backgroundColor: active ? colors.brand.cyanInk : "transparent",
+              transition: `background-color ${motion.fast}, color ${motion.fast}`,
+              "&:hover": active ? {} : { backgroundColor: colors.brand.tint },
+              "&:focus-visible": {
+                outline: `2px solid ${colors.brand.focus}`,
+                outlineOffset: "1px",
+              },
+            }}
+          >
+            {l.label}
+          </Box>
+        );
+      })}
+    </Box>
   );
 
   return (

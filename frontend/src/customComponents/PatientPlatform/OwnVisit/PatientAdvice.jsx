@@ -15,6 +15,8 @@ import { adviceManage } from "assets/store/adviceManage";
 
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
+import { radius, elevation } from "@/theme/tokens";
 
 import "assets/font/Roboto-Italic-normal";
 
@@ -162,9 +164,13 @@ class PatientAdvice extends Component {
         {CanCalculate ? (
           <div
             style={{
-              border: "1px solid rgb(224,224,224)",
-              borderRadius: 6,
-              padding: "12px 14px",
+              // The panel every card on the portal uses (it was a grey 6px
+              // outline). The printed table (#tabler) below is untouched.
+              border: `1px solid ${colors.brand.hairline}`,
+              borderRadius: radius.lg,
+              backgroundColor: colors.brand.surface,
+              boxShadow: elevation[1],
+              padding: "14px 16px",
               marginBottom: 14,
             }}
           >
@@ -177,10 +183,16 @@ class PatientAdvice extends Component {
               }}
             >
               <div style={{ flex: "1 1 260px" }}>
-                <div style={{ fontWeight: 500, marginBottom: 2 }}>
+                <div
+                  style={{
+                    fontWeight: 600,
+                    marginBottom: 2,
+                    color: colors.brand.ink,
+                  }}
+                >
                   {t("Зүрх судасны эрсдэлийн үнэлгээ")}
                 </div>
-                <div style={{ fontSize: 13, color: "#5b6472" }}>
+                <div style={{ fontSize: 13, color: colors.brand.inkMuted }}>
                   {level
                     ? bodyText
                     : t(
@@ -197,8 +209,14 @@ class PatientAdvice extends Component {
                     textAlign: "center",
                     padding: "8px 12px",
                     borderRadius: 6,
-                    background: bodyColor || "#eee",
-                    color: bodyColor === "yellow" ? "#333" : "#fff",
+                    background: bodyColor || colors.brand.tintSolid,
+                    // Ink on the light bands, white on the dark ones.
+                    color:
+                      !bodyColor ||
+                      bodyColor === "yellow" ||
+                      bodyColor === "orange"
+                        ? colors.brand.ink
+                        : "#fff",
                     fontWeight: 600,
                   }}
                 >
@@ -209,8 +227,9 @@ class PatientAdvice extends Component {
                 </div>
               ) : null}
 
+              {/* The tab's one action, so the filled button. */}
               <Button
-                color="info"
+                color="primary"
                 size="sm"
                 disabled={Calculating === true}
                 onClick={() => onCalculate && onCalculate()}
@@ -220,7 +239,13 @@ class PatientAdvice extends Component {
             </div>
 
             {CalcError ? (
-              <div style={{ marginTop: 8, color: "#b3261e", fontSize: 13 }}>
+              <div
+                style={{
+                  marginTop: 8,
+                  color: colors.status.dangerInk,
+                  fontSize: 13,
+                }}
+              >
                 {CalcError}
               </div>
             ) : null}
@@ -229,17 +254,19 @@ class PatientAdvice extends Component {
 
         {level !== null && customAdvice && customAdvice.length > 0 ? (
           <div>
-            <h5
+            {/* Was a bare h5 over a near-black rule (styles/_misc.scss
+                reaches bare headings). Not inside the printed #tabler. */}
+            <div
               style={{
-                margin: 0,
-                padding: 0,
-                fontWeight: "400",
+                fontWeight: 600,
+                color: colors.brand.ink,
+                paddingBottom: "6px",
                 marginBottom: "10px",
-                borderBottom: "1px solid #2e2e2e",
+                borderBottom: `1px solid ${colors.brand.hairline}`,
               }}
             >
               {t("Advice")}
-            </h5>
+            </div>
             <div
               style={{
                 margin: "10px",

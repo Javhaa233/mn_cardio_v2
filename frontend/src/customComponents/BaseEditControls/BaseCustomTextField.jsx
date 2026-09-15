@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import InputAdornment from "@mui/material/InputAdornment";
 // default components
 import CustomInput from "components/CustomInput/CustomInput.jsx";
+import { FIELD } from "./fieldRowStyles";
 
 export default function BaseCustomTextField(props) {
   const {
@@ -53,7 +54,7 @@ export default function BaseCustomTextField(props) {
                 fontWeight: "400",
                 lineHeight: "1.42857",
                 opacity: "1",
-                color: "#75736c",
+                color: FIELD.labelInk,
               }}
             >
               {Config && Config.Label

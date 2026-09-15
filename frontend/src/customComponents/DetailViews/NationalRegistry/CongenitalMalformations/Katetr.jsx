@@ -18,25 +18,35 @@ import GroupPanel from "customComponents/GroupPanel";
 import UserDialogLink from "customComponents/DoctorProfile/UserDialogLink";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 const sxStyles = {
   childDiv: {
     position: "relative",
     padding: "10px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.brand.hairline}`,
     margin: "10px",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
   },
   customTable: {
-    border: "1px solid #949494",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     borderCollapse: "collapse",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
     fontSize: "12px",
-    "& thead tr": { border: "1px solid #949494" },
-    "& tbody tr": { border: "1px solid #949494" },
-    "& tbody tr td": { padding: "2px 4px", border: "1px solid #949494" },
-    "& tbody tr th": { padding: "2px 4px", border: "1px solid #949494" },
-    "& thead tr th": { padding: "2px 4px", border: "1px solid #949494" },
+    "& thead tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& tbody tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& tbody tr td": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& tbody tr th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& thead tr th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
   },
 };
 

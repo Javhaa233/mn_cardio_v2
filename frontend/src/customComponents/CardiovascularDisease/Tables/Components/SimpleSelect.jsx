@@ -1,12 +1,11 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FormControl, MenuItem, Select, InputLabel } from "@mui/material";
-
-import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
 
 const selectFormControlSx = {
   minWidth: "80px",
-  backgroundColor: "#FFF",
+  backgroundColor: colors.brand.surface,
 };
 
 const selectSx = {
@@ -15,7 +14,7 @@ const selectSx = {
   fontWeight: "400",
   lineHeight: "1.42857",
   textDecoration: "none",
-  color: grayColor[14],
+  color: colors.brand.ink,
   letterSpacing: "0",
   "&:focus": { backgroundColor: "transparent" },
   "&[aria-owns] + input + svg": { transform: "rotate(180deg)" },
@@ -33,9 +32,9 @@ const selectMenuItemSx = {
   fontWeight: "400",
   lineHeight: "2",
   whiteSpace: "nowrap",
-  color: "#333",
+  color: colors.brand.ink,
   paddingRight: "30px",
-  "&:hover": { backgroundColor: "#999", color: "#FFF" },
+  "&:hover": { backgroundColor: colors.brand.tint, color: colors.brand.ink },
 };
 
 export default function SimpleSelect(props) {
@@ -95,7 +94,7 @@ export default function SimpleSelect(props) {
                 fontSize: "14px",
                 textAlign: "left",
                 listStyle: "none",
-                backgroundColor: "#FFF",
+                backgroundColor: colors.brand.surface,
                 backgroundClip: "padding-box",
               },
               "& .MuiMenu-paper": {

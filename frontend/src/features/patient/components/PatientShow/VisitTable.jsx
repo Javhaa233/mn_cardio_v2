@@ -116,6 +116,7 @@ class VisitTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title={this.props.Title}
           ref={this.DialogRef}
           Close={() => this.setState({ DialogData: null })}
           Print={(onComplete) => {

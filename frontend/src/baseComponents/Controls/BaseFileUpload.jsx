@@ -2,44 +2,35 @@ import React, { useEffect, useState, useRef } from "react";
 // translation
 import { useTranslation } from "react-i18next";
 // @mui/material components
-import { styled } from "@mui/material/styles";
 import FormLabel from "@mui/material/FormLabel";
-import Tooltip from "@mui/material/Tooltip";
 import IconButton from "@mui/material/IconButton";
 import Dialog from "@mui/material/Dialog";
-import DialogContent from "@mui/material/DialogContent";
+import Box from "@mui/material/Box";
+import Chip from "@mui/material/Chip";
+import Typography from "@mui/material/Typography";
 // @mui/icons-material
 import CloseIcon from "@mui/icons-material/Close";
+import AttachFileIcon from "@mui/icons-material/AttachFile";
+import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
+import MicIcon from "@mui/icons-material/Mic";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
 // default components
-import Button from "components/CustomButtons/Button";
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
 // helper
 import Helper from "helper";
 
-import baseControlsStyles from "assets/jss/material-dashboard-pro-react/custom/baseControlsStyles";
-
-const LightTooltip = styled(Tooltip)({
-  tooltip: {
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    color: "#FFF",
-    textTransform: "uppercase",
-    fontSize: 11,
-    marginTop: "2px",
-  },
-});
-
-const ThumbnailDiv = styled("div")({
-  ...baseControlsStyles.thumbnail,
-  margin: "0 10px 5px 0",
-});
-const ImagePanelDiv = styled("div")(baseControlsStyles.imagePanel);
-const ImageStyled = styled("img")(baseControlsStyles.image);
-const DownloadDiv = styled("div")(baseControlsStyles.download);
-const LinkStyled = styled("a")(baseControlsStyles.link);
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
+import { docIcon } from "customComponents/AdviceFeed/PostMedia";
+import {
+  AUDIO_EXTENSIONS,
+  durationLabel,
+} from "customComponents/AdviceFeed/mediaUtils";
+import { colors } from "@/theme/colors";
+import { radius, space, motion } from "@/theme/tokens";
 
 const labelHorizontalSx = {
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize: "14px",
@@ -73,7 +64,7 @@ export default function BaseFileUpload(props) {
     WithLabel = false,
     md = 4.8,
     LabelWidth,
-    borderColor = "#eee",
+    borderColor = FIELD.rowBorder,
     Id = null,
     ChangeValue,
     maxFileSize = 100, // MB, default 100MB
@@ -101,15 +92,16 @@ export default function BaseFileUpload(props) {
 
   const effectiveMd = LabelWidth ? (LabelWidth / 100) * 12 : md;
 
-  // The real <input type="file"> is display:none (see .fileinput in
-  // assets/css/material-dashboard-pro-react.css) and is driven by the visible
-  // "Choose files" button. It still gets an id so the field label can be
+  // The real <input type="file"> is hidden with an inline display:none and is
+  // driven by the drop zone, which is a real button. It still gets an id so the field label can be
   // associated with it, and an aria-label so it is never nameless.
   const inputId = Id || generatedId;
 
   const [currentValue, setCurrentValue] = useState(Value);
   const [Update, setUpdate] = useState(false);
-  const [validationError, setValidationError] = useState(null);
+  // Files the last pick or drop refused, each with its reason.
+  const [rejected, setRejected] = useState([]);
+  const [dragActive, setDragActive] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState(null);
 
@@ -154,26 +146,20 @@ export default function BaseFileUpload(props) {
     const fileSizeMB = file.size / (1024 * 1024);
     const fileExtension = file.name.split(".").pop().toLowerCase();
 
-    // Check file size
+    // Short on purpose: the drop zone above already lists the accepted types
+    // and the size limit, so a rejection only has to say which file and why.
     if (fileSizeMB > maxFileSize) {
       return {
         valid: false,
-        error:
-          t("File size exceeds maximum allowed size") +
-          ` (${maxFileSize}MB). ${file.name}: ${fileSizeMB.toFixed(2)}MB`,
+        error: `${file.name} — ${t("File size exceeds maximum allowed size")} (${fileSizeMB.toFixed(1)} / ${maxFileSize} MB)`,
       };
     }
 
-    // Check file type if restrictions are specified
     if (allowedFileTypes && allowedFileTypes.length > 0) {
       if (!allowedFileTypes.includes(fileExtension)) {
         return {
           valid: false,
-          error:
-            t("File type not allowed") +
-            `. ${file.name}: .${fileExtension}. ` +
-            t("Allowed types") +
-            `: ${allowedFileTypes.join(", ")}`,
+          error: `${file.name} — ${t("File type not allowed")} (.${fileExtension})`,
         };
       }
     }
@@ -181,34 +167,34 @@ export default function BaseFileUpload(props) {
     return { valid: true };
   };
 
-  const ChooseFile = async (e) => {
-    e.preventDefault();
-    setValidationError(null);
+  /**
+   * Validate and append picked or dropped files. Same rules and the same
+   * {FileSrc, File, Type, FileInfo:{Name}} shape as before (BaseUploadFile
+   * appends `File` under `FileInfo.Name`), so every caller's save path is
+   * untouched. Rejections are kept per file so each one can say what was wrong.
+   */
+  const addFiles = async (fileList) => {
+    const list = Array.from(fileList || []);
+    if (list.length === 0) return;
+    setRejected([]);
 
-    let files = e.target.files;
     // COPIED, not appended in place. This used to be `= currentValue`, pushed
     // into, and handed to ChangeValue - the same array object the parent was
     // already holding. React compares with Object.is, so every parent's
-    // setState was a no-op: the array did gain the file (which is why saving
-    // always worked) but the parent never re-rendered, and anything derived
-    // from it during render - a file count, an enabled/disabled Send button -
-    // silently never updated. Remove() below was always correct because
-    // filter() returns a new array; only this path was mutating.
-    var NewValue = Array.isArray(currentValue) ? [...currentValue] : [];
-    var validationErrors = [];
+    // setState was a no-op and anything derived from it (a file count, an
+    // enabled Send button) silently never updated.
+    const NewValue = Array.isArray(currentValue) ? [...currentValue] : [];
+    const problems = [];
 
-    for (var l = 0; l < files.length; l++) {
-      var file = files[l];
-
-      // Validate file
+    for (const file of list) {
       const validation = validateFile(file);
       if (!validation.valid) {
-        validationErrors.push(validation.error);
-        continue; // Skip this file
+        problems.push({ Name: file.name, Reason: validation.error });
+        continue;
       }
 
-      var FileSrc = null;
-      if (file.type.indexOf("image") > -1) {
+      let FileSrc = null;
+      if (file.type && file.type.indexOf("image") > -1) {
         try {
           FileSrc = await Helper.FileHelper.GetFileSrc(file);
         } catch (err) {
@@ -224,184 +210,363 @@ export default function BaseFileUpload(props) {
       });
     }
 
-    // Show validation errors if any
-    if (validationErrors.length > 0) {
-      setValidationError(validationErrors.join("\n"));
-    }
+    if (problems.length > 0) setRejected(problems);
 
     ChangeValue && ChangeValue(NewValue);
     setCurrentValue(NewValue);
     setUpdate(!Update);
+  };
 
-    // Reset file input
+  const ChooseFile = async (e) => {
+    e.preventDefault();
+    await addFiles(e.target.files);
+    // Reset so picking the same file again still fires onChange.
     fileInput.current.value = "";
   };
 
+  const extOf = (file) => {
+    const info = file.FileInfo || {};
+    if (info.ext) return String(info.ext).toLowerCase();
+    return String(info.Name || info.original_name || "")
+      .split(".")
+      .pop()
+      .toLowerCase();
+  };
+  const nameOf = (file) => {
+    const info = file.FileInfo || {};
+    if (info.Name) return info.Name;
+    return info.ext
+      ? `${info.original_name}.${info.ext}`
+      : info.original_name || "file";
+  };
+  const sizeOf = (file) => {
+    const bytes = file.File ? file.File.size : null;
+    if (!bytes && bytes !== 0) return null;
+    if (bytes < 1024 * 1024)
+      return `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+  const isImage = (file) =>
+    !!file.FileSrc && !!file.Type && file.Type.indexOf("image") > -1;
+
+  // "JPG, PNG, PDF, DOCX +6" - enough to know what is accepted without a
+  // paragraph of extensions under every composer.
+  const typesLabel = (() => {
+    if (!Array.isArray(allowedFileTypes) || allowedFileTypes.length === 0)
+      return "";
+    const shown = allowedFileTypes.slice(0, 4).map((x) => x.toUpperCase());
+    const more = allowedFileTypes.length - shown.length;
+    return shown.join(", ") + (more > 0 ? ` +${more}` : "");
+  })();
+
+  const onDrag = (e, active) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (dragActive !== active) setDragActive(active);
+  };
+
+  /**
+   * Attaching a file before sending.
+   *
+   * Phase 4 replaced the old light-blue button and oversized thumbnails; this
+   * is the step after that, modelled on the chat composer, which already did
+   * attachments well:
+   *   - a drop zone that says what it takes (types, size per file) and accepts
+   *     drag-and-drop as well as a click;
+   *   - every attached file as the same card - a thumbnail or a type icon, the
+   *     name, type and size, and a remove button - so a photo and a PDF no
+   *     longer look like two different features;
+   *   - each rejected file on its own line with its reason, instead of one
+   *     yellow block that listed them all together.
+   */
   const GetControl = () => {
+    const files = Array.isArray(currentValue) ? currentValue : [];
+    const quietIconSx = {
+      color: colors.brand.inkDim,
+      "&:hover": {
+        color: colors.brand.ink,
+        backgroundColor: colors.brand.tint,
+      },
+    };
     return (
-      <div
-        className="fileinput"
-        style={{
+      <Box
+        sx={{
           display: "flex",
           flexDirection: "column",
+          gap: space[2],
           width: "100%",
-          minHeight: "auto",
-          paddingTop: "8px",
+          py: space[1],
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
+        <Box
+          component="button"
+          type="button"
+          onClick={() => fileInput.current.click()}
+          onDragEnter={(e) => onDrag(e, true)}
+          onDragOver={(e) => onDrag(e, true)}
+          onDragLeave={(e) => onDrag(e, false)}
+          onDrop={(e) => {
+            onDrag(e, false);
+            addFiles(e.dataTransfer && e.dataTransfer.files);
+          }}
+          sx={{
             width: "100%",
-            padding: "0px",
+            display: "flex",
+            alignItems: "center",
+            gap: space[3],
+            px: space[3],
+            py: space[2],
+            minHeight: "52px",
+            font: "inherit",
+            textAlign: "left",
+            cursor: "pointer",
+            borderRadius: radius.md,
+            border: `1px dashed ${
+              dragActive ? colors.brand.cyan : colors.brand.hairlineStrong
+            }`,
+            backgroundColor: dragActive
+              ? colors.brand.tint
+              : colors.brand.surface,
+            transition: `background-color ${motion.fast}, border-color ${motion.fast}`,
+            "&:hover": {
+              borderColor: colors.brand.cyan,
+              backgroundColor: colors.brand.tint,
+            },
+            "&:focus-visible": {
+              outline: `2px solid ${colors.brand.focus}`,
+              outlineOffset: "1px",
+            },
           }}
         >
-          <Button
-            onClick={() => fileInput.current.click()}
-            size="sm"
-            style={{
-              margin: "0px",
-              backgroundColor: "#5ba3ff",
-              color: "#FFF",
-              border: "1px solid #5ba3ff",
-              boxShadow: "none",
+          <Box
+            aria-hidden
+            sx={{
+              flex: "0 0 auto",
+              width: "32px",
+              height: "32px",
+              borderRadius: radius.pill,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: colors.brand.tint,
+              color: colors.brand.cyanInk,
             }}
           >
-            {t("Choose files")}
-          </Button>
-        </div>
+            <AttachFileIcon sx={{ fontSize: "18px" }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography
+              variant="body2"
+              component="div"
+              sx={{ color: colors.brand.ink }}
+            >
+              {t("Файлаа энд чирж оруулах эсвэл")}{" "}
+              <Box
+                component="span"
+                sx={{
+                  color: colors.brand.cyanInk,
+                  fontWeight: 600,
+                  textDecoration: "underline",
+                  textUnderlineOffset: "2px",
+                }}
+              >
+                {t("сонгох")}
+              </Box>
+            </Typography>
+            <Typography
+              variant="caption"
+              component="div"
+              sx={{ color: colors.brand.inkDim }}
+            >
+              {typesLabel ? typesLabel + " · " : ""}
+              {t("файл тус бүр {{size}} MB хүртэл", { size: maxFileSize })}
+            </Typography>
+          </Box>
+        </Box>
+
         <input
           id={inputId}
           type="file"
           multiple
+          style={{ display: "none" }}
+          accept={
+            Array.isArray(allowedFileTypes) && allowedFileTypes.length
+              ? allowedFileTypes.map((x) => "." + x).join(",")
+              : undefined
+          }
           aria-label={
             Config && Config.Label ? t(Config.Label + "") : t("Choose files")
           }
           onChange={ChooseFile}
           ref={fileInput}
         />
-        {validationError && (
-          <div
-            style={{
-              marginTop: "8px",
-              padding: "8px 12px",
-              backgroundColor: "#fff3cd",
-              border: "1px solid #ffc107",
-              borderRadius: "4px",
-              color: "#856404",
-              fontSize: "13px",
-              whiteSpace: "pre-line",
+
+        {rejected.length > 0 ? (
+          <Box role="alert" sx={{ display: "grid", gap: space[1] }}>
+            {rejected.map((r, i) => (
+              <Box
+                key={"rej" + i}
+                sx={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  gap: space[2],
+                  padding: `${space[1]} ${space[2]}`,
+                  borderRadius: radius.sm,
+                  backgroundColor: colors.status.dangerTint,
+                  color: colors.status.dangerInk,
+                }}
+              >
+                <ErrorOutlineIcon sx={{ fontSize: "18px", mt: "1px" }} />
+                <Typography
+                  variant="caption"
+                  component="div"
+                  sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere" }}
+                >
+                  {r.Reason}
+                </Typography>
+                {i === 0 ? (
+                  <IconButton
+                    size="small"
+                    aria-label={t("Хаах")}
+                    onClick={() => setRejected([])}
+                    sx={{ p: "2px", color: "inherit" }}
+                  >
+                    <CloseIcon sx={{ fontSize: "16px" }} />
+                  </IconButton>
+                ) : null}
+              </Box>
+            ))}
+          </Box>
+        ) : null}
+
+        {files.length > 0 ? (
+          <Box
+            sx={{
+              display: "grid",
+              gap: space[2],
+              gridTemplateColumns: {
+                xs: "1fr",
+                sm: "repeat(auto-fill, minmax(220px, 1fr))",
+              },
             }}
           >
-            <strong>{t("Validation Error")}:</strong>
-            <br />
-            {validationError}
-          </div>
-        )}
-        {Array.isArray(currentValue)
-          ? currentValue.map((file, key) => {
-              if (file.Type && file.Type.indexOf("image") > -1) {
-                return (
-                  <div
-                    style={{
-                      float: "left",
-                      display: "inline-block",
-                      position: "relative",
-                    }}
-                    key={"Div" + key}
-                  >
-                    <ThumbnailDiv className="thumbnail">
-                      <ImagePanelDiv
-                        onClick={() => openPreview(file)}
-                        style={{ cursor: "pointer" }}
-                      >
-                        <ImageStyled
-                          src={file.FileSrc}
-                          alt={file.FileInfo.name}
-                        />
-                      </ImagePanelDiv>
-                      <LightTooltip title={t("Download")}>
-                        <DownloadDiv
-                          className="download"
-                          onClick={() => downloadFile(file)}
-                        >
-                          <i
-                            className={"fa fa-download"}
-                            style={{ fontSize: "18px", marginTop: "4px" }}
-                          />
-                        </DownloadDiv>
-                      </LightTooltip>
-                    </ThumbnailDiv>
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "-10px",
-                        right: "14px",
-                        zIndex: "999",
-                      }}
-                    >
-                      <IconButton
-                        aria-label={t("Remove file")}
-                        style={{
-                          backgroundColor: "#5c5c5c",
-                          boxShadow: "0 1px 4px 0 rgba(255, 255, 255, 0.34)",
-                          color: "#FFF",
-                        }}
-                        size="small"
-                        onClick={() => Remove(file.FileInfo.Name)}
-                      >
-                        <CloseIcon fontSize="inherit" />
-                      </IconButton>
-                    </div>
-                  </div>
-                );
-              } else {
-                return (
-                  <div
-                    style={{
+            {files.map((file, key) => {
+              const image = isImage(file);
+              const ext = extOf(file);
+              const size = sizeOf(file);
+              return (
+                <Box
+                  key={"Div" + key}
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: space[2],
+                    minWidth: 0,
+                    padding: space[1],
+                    paddingRight: space[1],
+                    borderRadius: radius.md,
+                    border: `1px solid ${colors.brand.hairline}`,
+                    backgroundColor: colors.brand.surface,
+                  }}
+                >
+                  <Box
+                    component={image ? "button" : "div"}
+                    type={image ? "button" : undefined}
+                    aria-label={image ? nameOf(file) : undefined}
+                    onClick={image ? () => openPreview(file) : undefined}
+                    sx={{
+                      flex: "0 0 auto",
+                      width: "44px",
+                      height: "44px",
+                      padding: 0,
+                      border: "none",
+                      borderRadius: radius.sm,
+                      overflow: "hidden",
                       display: "flex",
-                      width: "100%",
-                      marginBottom: "5px",
-                      padding: "2px 8px",
-                      borderLeft: "2px solid #ccc",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      backgroundColor: colors.brand.tintSolid,
+                      color: colors.brand.cyanInk,
+                      cursor: image ? "zoom-in" : "default",
                     }}
-                    key={"Div" + key}
                   >
-                    <div style={{ float: "left", minWidth: "250px" }}>
-                      <LightTooltip title={t("Download")}>
-                        <LinkStyled
-                          style={{ cursor: "pointer" }}
-                          onClick={() => downloadFile(file)}
-                        >
-                          {file.FileInfo.Name}
-                        </LinkStyled>
-                      </LightTooltip>
-                    </div>
-                    <div
-                      style={{ display: "inline-block", marginLeft: "15px" }}
-                    >
-                      <IconButton
-                        aria-label={t("Remove file")}
-                        style={{
-                          padding: "0",
-                          backgroundColor: "#ff1414",
-                          boxShadow: "0 1px 4px 0 rgba(255, 255, 255, 0.34)",
-                          color: "#FFF",
+                    {image ? (
+                      <Box
+                        component="img"
+                        src={file.FileSrc}
+                        alt=""
+                        sx={{
+                          width: "100%",
+                          height: "100%",
+                          objectFit: "cover",
+                          display: "block",
                         }}
-                        size="small"
-                        onClick={() => Remove(file.FileInfo.Name)}
-                      >
-                        <CloseIcon fontSize="inherit" />
-                      </IconButton>
-                    </div>
-                  </div>
-                );
-              }
-            })
-          : null}
-      </div>
+                      />
+                    ) : AUDIO_EXTENSIONS.includes(ext) ? (
+                      <MicIcon fontSize="small" />
+                    ) : (
+                      docIcon(ext)
+                    )}
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="body2"
+                      component="div"
+                      noWrap
+                      title={nameOf(file)}
+                      sx={{ color: colors.brand.ink, fontWeight: 500 }}
+                    >
+                      {nameOf(file)}
+                    </Typography>
+                    <Typography
+                      variant="caption"
+                      component="div"
+                      sx={{ color: colors.brand.inkDim }}
+                    >
+                      {[
+                        ext ? ext.toUpperCase() : null,
+                        // A recorded voice note carries its length.
+                        file.FileInfo && file.FileInfo.DurationMs
+                          ? durationLabel(file.FileInfo.DurationMs)
+                          : null,
+                        size,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </Typography>
+                  </Box>
+                  {/* A file that is already on the server can be fetched
+                      back; a just-picked one is still on this machine. */}
+                  {file.FileInfo && file.FileInfo.id_data ? (
+                    <IconButton
+                      size="small"
+                      aria-label={t("Download")}
+                      onClick={() => downloadFile(file)}
+                      sx={quietIconSx}
+                    >
+                      <DownloadOutlinedIcon sx={{ fontSize: "18px" }} />
+                    </IconButton>
+                  ) : null}
+                  <IconButton
+                    size="small"
+                    aria-label={t("Remove file")}
+                    onClick={() => Remove(file.FileInfo.Name)}
+                    sx={{
+                      ...quietIconSx,
+                      "&:hover": {
+                        color: colors.status.danger,
+                        backgroundColor: colors.status.dangerTint,
+                      },
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: "18px" }} />
+                  </IconButton>
+                </Box>
+              );
+            })}
+          </Box>
+        ) : null}
+      </Box>
     );
   };
 
@@ -411,48 +576,78 @@ export default function BaseFileUpload(props) {
       onClose={closePreview}
       maxWidth="lg"
       PaperProps={{
-        style: {
+        sx: {
           backgroundColor: "transparent",
           boxShadow: "none",
+          borderRadius: radius.md,
         },
       }}
     >
-      <DialogContent
-        style={{
-          padding: 0,
+      {/* A dark plate with a floor, so a small image is not covered by the
+          two buttons and a large one still fits the viewport. */}
+      <Box
+        sx={{
           position: "relative",
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
+          minWidth: "min(280px, 90vw)",
+          minHeight: "200px",
+          backgroundColor: "rgba(12, 34, 51, 0.85)",
+          borderRadius: radius.md,
+          overflow: "hidden",
         }}
       >
-        <IconButton
-          aria-label={t("Close preview")}
-          onClick={closePreview}
-          style={{
+        <Box
+          sx={{
             position: "absolute",
-            top: 8,
-            right: 8,
-            backgroundColor: "rgba(0, 0, 0, 0.5)",
-            color: "#FFF",
+            top: space[2],
+            right: space[2],
+            display: "flex",
+            gap: space[1],
             zIndex: 1,
           }}
-          size="small"
         >
-          <CloseIcon />
-        </IconButton>
+          {previewFile ? (
+            <IconButton
+              aria-label={t("Download")}
+              size="small"
+              onClick={() => downloadFile(previewFile)}
+              sx={{
+                color: colors.text.white,
+                backgroundColor: "rgba(12, 34, 51, 0.7)",
+                "&:hover": { backgroundColor: colors.brand.ink },
+              }}
+            >
+              <DownloadOutlinedIcon />
+            </IconButton>
+          ) : null}
+          <IconButton
+            aria-label={t("Close preview")}
+            onClick={closePreview}
+            size="small"
+            sx={{
+              color: colors.text.white,
+              backgroundColor: "rgba(12, 34, 51, 0.7)",
+              "&:hover": { backgroundColor: colors.brand.ink },
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </Box>
         {previewFile && (
           <img
             src={previewFile.FileSrc}
-            alt={previewFile.FileInfo?.Name || "Preview"}
+            alt={nameOf(previewFile)}
             style={{
               maxWidth: "90vw",
               maxHeight: "90vh",
               objectFit: "contain",
+              borderRadius: radius.md,
             }}
           />
         )}
-      </DialogContent>
+      </Box>
     </Dialog>
   );
 
@@ -466,7 +661,7 @@ export default function BaseFileUpload(props) {
               margin: "0",
               width: "100%",
               border: `1px solid ${borderColor}`,
-              borderBottom: "1px solid #eee",
+              borderBottom: `1px solid ${FIELD.rowBorder}`,
               minHeight: "32px",
               alignItems: "stretch",
               boxSizing: "border-box",
@@ -477,7 +672,7 @@ export default function BaseFileUpload(props) {
               sm={6}
               md={effectiveMd}
               style={{
-                backgroundColor: "#eff9fe",
+                backgroundColor: FIELD.labelBg,
                 borderRight: `1px solid ${borderColor}`,
                 display: "flex",
                 alignItems: "center",
@@ -505,7 +700,7 @@ export default function BaseFileUpload(props) {
                 flexDirection: "row",
                 justifyContent: "flex-start",
                 alignItems: "center",
-                backgroundColor: "#fff",
+                backgroundColor: FIELD.inputBg,
                 minHeight: "32px",
                 position: "relative",
                 zIndex: 1,

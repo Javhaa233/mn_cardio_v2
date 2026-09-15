@@ -18,18 +18,28 @@ import UserDialogLink from "customComponents/DoctorProfile/UserDialogLink";
 import GroupPanel from "customComponents/GroupPanel";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 const sx = {
   customTable: {
-    border: "1px solid #949494",
+    border: `1px solid ${colors.brand.hairlineStrong}`,
     borderCollapse: "collapse",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
     fontSize: "12px",
-    "& > thead > tr": { border: "1px solid #949494" },
-    "& > tbody > tr": { border: "1px solid #949494" },
-    "& > tbody > tr > td": { padding: "2px 4px", border: "1px solid #949494" },
-    "& > tbody > tr > th": { padding: "2px 4px", border: "1px solid #949494" },
-    "& > thead > tr > th": { padding: "2px 4px", border: "1px solid #949494" },
+    "& > thead > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr > td": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& > tbody > tr > th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& > thead > tr > th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
   },
 };
 
@@ -555,9 +565,9 @@ class ValveDiseasesEndo extends Component {
                             style={{
                               position: "relative",
                               padding: "20px 10px 10px",
-                              border: "1px solid #ccc",
+                              border: `1px solid ${colors.brand.hairline}`,
                               margin: "20px 0 10px",
-                              backgroundColor: "#fafafa",
+                              backgroundColor: colors.brand.tintSolid,
                             }}
                           >
                             <BaseArrayInfo
@@ -625,9 +635,9 @@ class ValveDiseasesEndo extends Component {
                             style={{
                               position: "relative",
                               padding: "20px 10px 10px",
-                              border: "1px solid #ccc",
+                              border: `1px solid ${colors.brand.hairline}`,
                               margin: "20px 0 10px",
-                              backgroundColor: "#fafafa",
+                              backgroundColor: colors.brand.tintSolid,
                             }}
                           >
                             <BaseArrayInfo
@@ -699,9 +709,9 @@ class ValveDiseasesEndo extends Component {
                             style={{
                               position: "relative",
                               padding: "20px 10px 10px",
-                              border: "1px solid #ccc",
+                              border: `1px solid ${colors.brand.hairline}`,
                               margin: "20px 0 10px",
-                              backgroundColor: "#fafafa",
+                              backgroundColor: colors.brand.tintSolid,
                             }}
                           >
                             <BaseArrayInfo
@@ -766,9 +776,9 @@ class ValveDiseasesEndo extends Component {
                             style={{
                               position: "relative",
                               padding: "20px 10px 10px",
-                              border: "1px solid #ccc",
+                              border: `1px solid ${colors.brand.hairline}`,
                               margin: "20px 0 10px",
-                              backgroundColor: "#fafafa",
+                              backgroundColor: colors.brand.tintSolid,
                             }}
                           >
                             <BaseArrayInfo
@@ -864,9 +874,9 @@ class ValveDiseasesEndo extends Component {
                           style={{
                             position: "relative",
                             padding: "20px 10px 10px",
-                            border: "1px solid #ccc",
+                            border: `1px solid ${colors.brand.hairline}`,
                             margin: "20px 0 10px",
-                            backgroundColor: "#fafafa",
+                            backgroundColor: colors.brand.tintSolid,
                           }}
                         >
                           <BaseInfo
@@ -1417,9 +1427,9 @@ class ValveDiseasesEndo extends Component {
                             style={{
                               position: "relative",
                               padding: "20px 10px 10px",
-                              border: "1px solid #ccc",
+                              border: `1px solid ${colors.brand.hairline}`,
                               margin: "20px 0 10px",
-                              backgroundColor: "#fafafa",
+                              backgroundColor: colors.brand.tintSolid,
                             }}
                           >
                             <BaseInfo

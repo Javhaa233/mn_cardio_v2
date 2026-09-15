@@ -16,9 +16,10 @@ import {
   inputSize,
 } from "./fieldRowStyles";
 import { CONTROL, TOUCH, COARSE } from "@/theme.js";
+import { FIELD } from "./fieldRowStyles";
 
 const getLabelSx = (fontSize = "14px") => ({
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize,
@@ -47,7 +48,7 @@ export default function BaseTextField(props) {
     LabelWidth,
     LabelSize = "14px",
     HideLabel = false,
-    borderColor = "#eee", // Default border color to match BaseField
+    borderColor = FIELD.rowBorder, // Default border color to match BaseField
     Value: PropValue,
   } = props;
 
@@ -129,12 +130,12 @@ export default function BaseTextField(props) {
           onChange: (e) => onChangeValue(e.target.value),
           disableUnderline: true,
           sx: {
-            border: "1px solid #eee",
+            border: `1px solid ${FIELD.rowBorder}`,
             "&:hover:not(.Mui-disabled)": {
-              border: "1px solid #ccc",
+              border: `1px solid ${FIELD.inputBorderHover}`,
             },
             "&.Mui-focused": {
-              border: "1px solid #aaa",
+              border: `1px solid ${FIELD.inputBorderFocus}`,
             },
             // CustomInput's StyledInput pads the input root with 8px 12px,
             // which the theme does not reach - keep this.
@@ -216,14 +217,14 @@ export default function BaseTextField(props) {
             onChange: (e) => onChangeValue(e.target.value),
             disableUnderline: true,
             sx: {
-              border: "1px solid #eee",
+              border: `1px solid ${FIELD.rowBorder}`,
               position: "relative",
               zIndex: 2,
               "&:hover:not(.Mui-disabled)": {
-                border: "1px solid #ccc",
+                border: `1px solid ${FIELD.inputBorderHover}`,
               },
               "&.Mui-focused": {
-                border: "1px solid #aaa",
+                border: `1px solid ${FIELD.inputBorderFocus}`,
               },
               // CustomInput's StyledInput pads the input root with 8px 12px,
               // which the theme does not reach - keep this.

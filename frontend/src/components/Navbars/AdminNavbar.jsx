@@ -162,6 +162,10 @@ export default function AdminNavbar(props) {
   );
 }
 
+// The bar shell and its inner toolbar, for the patient portal's top bar
+// (PatientNavbar), so both bars share one height, shadow and padding.
+export { Navbar as TopBarShell, NavbarContainer as TopBarInner };
+
 AdminNavbar.propTypes = {
   handleDrawerToggle: PropTypes.func,
 };

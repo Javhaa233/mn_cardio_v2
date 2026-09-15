@@ -18,6 +18,7 @@ import {
 } from "./fieldRowStyles";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "./fieldRowStyles";
 
 // Validate date string in YYYY-MM-DD format
 const isValidDate = (dateString) => {
@@ -83,7 +84,7 @@ export default function BaseInputMask(props) {
   const [hasError, setHasError] = useState(false);
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",
@@ -147,7 +148,7 @@ export default function BaseInputMask(props) {
     }
   };
 
-  const errorBorderStyle = hasError ? "1px solid #f44336" : "1px solid #eee";
+  const errorBorderStyle = hasError ? "1px solid #f44336" : `1px solid ${FIELD.rowBorder}`;
 
   const { HideLabel } = props;
 
@@ -193,7 +194,7 @@ export default function BaseInputMask(props) {
   return (
     <GridContainer
       sx={(theme) => ({
-        ...fieldRowSx(theme, { borderColor: "#eee" }),
+        ...fieldRowSx(theme, { borderColor: FIELD.rowBorder }),
         // This control signals validation state on the row border, so it keeps
         // its own border rather than the shared one.
         border: errorBorderStyle,
@@ -204,7 +205,7 @@ export default function BaseInputMask(props) {
       <GridItem
         {...labelSize(effectiveMd)}
         sx={(theme) => ({
-          ...labelCellSx(theme, { borderColor: "#eee" }),
+          ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
           justifyContent: "flex-start",
         })}
       >

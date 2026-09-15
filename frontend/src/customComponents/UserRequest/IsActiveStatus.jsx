@@ -1,50 +1,19 @@
 import React from "react";
-// translation
 import { useTranslation } from "react-i18next";
 
+import StatusChip from "customComponents/StatusChip";
+
+/**
+ * Account request state: 2 declined, 0 received, anything else confirmed.
+ * Drawn with StatusChip; it was white text on a saturated fill.
+ */
 export default function IsActiveStatus(props) {
   const { t } = useTranslation();
+  const { rowdata = {} } = props;
+  const value = rowdata.IsActive + "";
 
-  const {
-    rowdata: { IsActive },
-  } = props;
-
-  return (
-    <div>
-      {IsActive + "" !== "0" && IsActive + "" !== "2" ? (
-        <span
-          style={{
-            padding: "2px 4px",
-            borderRadius: "2px",
-            color: "white",
-            backgroundColor: "#2bb559",
-          }}
-        >
-          {t("Confirmed")}
-        </span>
-      ) : IsActive + "" === "2" ? (
-        <span
-          style={{
-            padding: "2px 4px",
-            borderRadius: "2px",
-            color: "white",
-            backgroundColor: "#ff5757",
-          }}
-        >
-          {t("Declined")}
-        </span>
-      ) : (
-        <span
-          style={{
-            padding: "2px 4px",
-            borderRadius: "2px",
-            color: "white",
-            backgroundColor: "#ffbd17",
-          }}
-        >
-          {t("Request received")}
-        </span>
-      )}
-    </div>
-  );
+  if (value === "2") return <StatusChip Tone="danger" Label={t("Declined")} />;
+  if (value === "0")
+    return <StatusChip Tone="warning" Label={t("Request received")} />;
+  return <StatusChip Tone="success" Label={t("Confirmed")} />;
 }

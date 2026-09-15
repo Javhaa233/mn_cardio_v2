@@ -17,6 +17,7 @@ import EditNotes from "customComponents/InPatient/FieldActions/EditNotes";
 import UserDialogLink from "customComponents/InPatient/FieldActions/UserDialogLink";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 class WaitingList extends BaseList {
   constructor(props) {
@@ -246,7 +247,7 @@ class WaitingList extends BaseList {
                         style={{
                           margin: "2px",
                           padding: "8px",
-                          color: "green",
+                          color: colors.brand.cyanInk,
                         }}
                         title={t("Hospitalize")}
                         onClick={() => {}}
@@ -259,7 +260,11 @@ class WaitingList extends BaseList {
                   {
                     Component: (
                       <IconButton
-                        style={{ margin: "2px", padding: "8px", color: "red" }}
+                        style={{
+                          margin: "2px",
+                          padding: "8px",
+                          color: colors.status.dangerInk,
+                        }}
                         title={t("Cancel")}
                         onClick={() => {}}
                       >

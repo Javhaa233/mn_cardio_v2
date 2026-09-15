@@ -30,6 +30,7 @@ import {
 // helper
 import Helper from "helper";
 import { colors } from "@/theme/colors";
+import { radius } from "@/theme/tokens";
 
 export default function CreateComment(props) {
   const { t } = useTranslation();
@@ -133,9 +134,12 @@ export default function CreateComment(props) {
             mb: 0.5,
             "& textarea": {
               border: "1px solid !important",
-              borderColor: "grey.300 !important",
-              borderRadius: "4px !important",
+              borderColor: `${colors.brand.hairlineStrong} !important`,
+              borderRadius: `${radius.sm} !important`,
               p: "8px !important",
+            },
+            "& textarea:focus": {
+              borderColor: `${colors.brand.cyan} !important`,
             },
           }}
         >
@@ -158,10 +162,26 @@ export default function CreateComment(props) {
         </Typography>
       ) : null}
 
+      {/* Attachments get their own full-width row. Squeezed between the
+          microphone and Send, the drop zone and the attached-file cards had
+          no room and pushed the Send button around. */}
+      {!Recording && !IsDisabled ? (
+        <Box sx={{ px: 1, pb: 0.5 }}>
+          <BaseFileUpload
+            Value={Files}
+            Config={{ Name: "Files" }}
+            ChangeValue={(value) => setFiles(value)}
+            WithLabel={false}
+            allowedFileTypes={ADVICE_UPLOAD_EXT}
+            maxFileSize={ADVICE_MAX_FILE_MB}
+          />
+        </Box>
+      ) : null}
+
       <CardActions
         sx={{
           display: "flex",
-          alignItems: "flex-start",
+          alignItems: "center",
           justifyContent: "space-between",
           px: 1,
           pb: 1,
@@ -185,36 +205,8 @@ export default function CreateComment(props) {
           />
         ) : (
           <>
-            {/* LEFT: File upload + voice note */}
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-
-                "& .fileinput": {
-                  minHeight: 36,
-                  padding: "0px !important",
-                  display: "flex",
-                  alignItems: "center",
-                },
-
-                "& .fileinput button": {
-                  height: 36,
-                  minHeight: 36,
-                  padding: "0 12px",
-                  lineHeight: "36px",
-                },
-              }}
-            >
-              <BaseFileUpload
-                Value={Files}
-                Config={{ Name: "Files" }}
-                ChangeValue={(value) => setFiles(value)}
-                WithLabel={false}
-                allowedFileTypes={ADVICE_UPLOAD_EXT}
-                maxFileSize={ADVICE_MAX_FILE_MB}
-              />
-
+            {/* LEFT: voice note */}
+            <Box sx={{ display: "flex", alignItems: "center" }}>
               <Tooltip
                 title={RecorderBlocked ? t(RecorderBlocked) : t("Дуу бичих")}
               >
@@ -230,7 +222,7 @@ export default function CreateComment(props) {
                       setRecordError(null);
                       setRecording(true);
                     }}
-                    sx={{ ml: 1, color: colors.brand.cyanInk }}
+                    sx={{ color: colors.brand.cyanInk }}
                   >
                     <MicIcon fontSize="small" />
                   </IconButton>
@@ -240,7 +232,7 @@ export default function CreateComment(props) {
 
             {/* RIGHT: Send button */}
             <Button
-              color="info"
+              color="primary"
               size="sm"
               sx={{
                 height: 36,

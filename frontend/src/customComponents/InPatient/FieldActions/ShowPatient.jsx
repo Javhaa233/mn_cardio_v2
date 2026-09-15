@@ -3,6 +3,7 @@ import React from "react";
 // @mui/icons-material
 import VisibilityIcon from "@mui/icons-material/Visibility";
 import navClick from "customComponents/PageTabs/navClick";
+import { colors } from "@/theme/colors";
 
 export default function ShowPatient(props) {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ export default function ShowPatient(props) {
           e.currentTarget.style.textDecoration = "none";
         }}
       >
-        <VisibilityIcon fontSize="small" style={{ color: "#00acc1" }} />
+        <VisibilityIcon fontSize="small" style={{ color: colors.brand.cyanInk }} />
         {rowdata.Patient ? rowdata.Patient.p_registration : null}
       </a>
     );

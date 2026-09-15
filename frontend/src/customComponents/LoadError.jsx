@@ -3,13 +3,16 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material components
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 // @mui/icons-material
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import RefreshIcon from "@mui/icons-material/Refresh";
-// default components
-import Button from "components/CustomButtons/Button";
+import CloseIcon from "@mui/icons-material/Close";
 // theme
 import { colors } from "@/theme/colors";
+import { space } from "@/theme/tokens";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 
 /**
  * LoadError
@@ -19,57 +22,71 @@ import { colors } from "@/theme/colors";
  * label-less empty boxes, with no way to recover short of a page reload.
  *
  * Shares its visual language with `view/NotFound.jsx` so the app has one idiom
- * for "this screen cannot show you what you asked for".
+ * for "this screen cannot show you what you asked for". `PageTabs/
+ * TabErrorBoundary` renders this too, with `Title` and `Close`.
  */
-export default function LoadError({ Message, Retry, MinHeight = "160px" }) {
+export default function LoadError({
+  Message,
+  Retry,
+  Close,
+  Title = "Мэдээлэл ачаалахад алдаа гарлаа",
+  MinHeight = "160px",
+}) {
   const { t } = useTranslation();
 
   return (
     <Box
+      role="alert"
       sx={{
         display: "flex",
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: "8px",
+        gap: space[2],
         minHeight: MinHeight,
-        padding: "28px 20px",
+        padding: `${space[6]} ${space[5]}`,
         textAlign: "center",
-        backgroundColor: colors.background.primary,
-        borderRadius: "3px",
       }}
     >
-      <ErrorOutlineIcon sx={{ fontSize: "36px", color: colors.label.error }} />
-      <Box
-        sx={{ fontSize: "15px", fontWeight: 500, color: colors.text.primary }}
-      >
-        {t("Мэдээлэл ачаалахад алдаа гарлаа")}
-      </Box>
+      <ErrorOutlineIcon
+        aria-hidden
+        sx={{ fontSize: "36px", color: colors.status.danger }}
+      />
+      <Typography variant="h5" component="div" sx={{ color: colors.brand.ink }}>
+        {t(Title)}
+      </Typography>
       {Message ? (
-        <Box
-          sx={{
-            fontSize: "12.5px",
-            color: colors.text.secondary,
-            maxWidth: "420px",
-          }}
+        <Typography
+          variant="body2"
+          component="div"
+          sx={{ color: colors.brand.inkDim, maxWidth: "420px" }}
         >
           {t(Message + "")}
-        </Box>
+        </Typography>
       ) : null}
-      {Retry ? (
-        <Button
-          color="info"
-          size="sm"
-          style={{
-            textTransform: "none",
-            borderRadius: "3px",
-            marginTop: "4px",
-          }}
-          onClick={Retry}
-        >
-          <RefreshIcon />
-          {t("Дахин оролдох")}
-        </Button>
+      {Retry || Close ? (
+        <Box sx={{ display: "flex", gap: space[2], marginTop: space[2] }}>
+          {Retry ? (
+            <Button
+              disableElevation
+              startIcon={<RefreshIcon />}
+              onClick={Retry}
+              sx={gridToolbarButtonSx.neutral}
+            >
+              {t("Дахин оролдох")}
+            </Button>
+          ) : null}
+          {Close ? (
+            <Button
+              disableElevation
+              startIcon={<CloseIcon />}
+              onClick={Close}
+              sx={gridToolbarButtonSx.danger}
+            >
+              {t("Хаах")}
+            </Button>
+          ) : null}
+        </Box>
       ) : null}
     </Box>
   );

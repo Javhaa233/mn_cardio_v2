@@ -20,6 +20,7 @@ import StayLeaveForm from "customComponents/Forms/StayLeaveForm";
 import BaseList from "baseComponents/BaseList";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 class AdmittedList extends BaseList {
   constructor(props) {
@@ -318,7 +319,11 @@ class AdmittedList extends BaseList {
                   {
                     Component: (
                       <IconButton
-                        style={{ margin: "2px", padding: "4px", color: "red" }}
+                        style={{
+                          margin: "2px",
+                          padding: "4px",
+                          color: colors.status.dangerInk,
+                        }}
                         title={t("Leave department")}
                       >
                         <CancelIcon fontSize="small" />

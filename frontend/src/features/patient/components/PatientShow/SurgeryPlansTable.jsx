@@ -98,7 +98,10 @@ class SurgeryPlansTable extends BaseList {
 
   ShowData = (data) => {
     const DialogDatas = (
-      <BaseDialog Close={() => this.setState({ DialogData: null })}>
+      <BaseDialog
+        Title={this.props.Title}
+        Close={() => this.setState({ DialogData: null })}
+      >
         <SurgeryPlans DataId={data.id_data} />
       </BaseDialog>
     );

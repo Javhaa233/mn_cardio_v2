@@ -160,7 +160,9 @@ class CVDHistoryTableNew extends BaseList {
           {isLoading ? <DivLoading /> : null}
           <UniCard title={t("Зүрх судасны өвчний хяналт")} padding={15}>
             <GridToolbar>
-              <ToolbarField>
+              {/* Inline label + select: the default 170px left "-- Сонгох --"
+                  under the caret. */}
+              <ToolbarField width={250}>
                 <SimpleSelect
                   Label={t("Хугацаа төлөв")}
                   ChangeValue={(Value) => {
@@ -196,7 +198,7 @@ class CVDHistoryTableNew extends BaseList {
                   }}
                 />
               </ToolbarField>
-              <ToolbarField>
+              <ToolbarField width={230}>
                 <SimpleSelect
                   Label={t("Төлөв")}
                   ChangeValue={(Value) => {

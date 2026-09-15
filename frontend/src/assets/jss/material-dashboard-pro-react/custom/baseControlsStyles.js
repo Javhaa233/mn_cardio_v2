@@ -1,3 +1,4 @@
+import { colors } from "@/theme/colors";
 import i18n from "i18n";
 import {
   primaryColor,
@@ -92,7 +93,7 @@ const baseControlsStyles = {
       borderColor: "#D2D2D2 !important",
       borderWidth: "1px !important",
     },
-    "&:after": { borderColor: "#9c27b0" },
+    "&:after": { borderColor: colors.brand.cyan },
     "& + p": { fontWeight: "300" },
   },
 
@@ -105,7 +106,7 @@ const baseControlsStyles = {
       transition: "all 0.3s ease",
     },
     "& .MuiInput-underline:after": {
-      borderColor: "#9c27b0",
+      borderColor: colors.brand.cyan,
       borderBottomWidth: "2px",
       left: "0",
     },
@@ -114,7 +115,7 @@ const baseControlsStyles = {
       borderBottomWidth: "1px",
     },
     "& .MuiInput-underline:hover::before": {
-      borderColor: "#9c27b0",
+      borderColor: colors.brand.cyan,
       borderBottomWidth: "2px",
     },
   },
@@ -261,7 +262,7 @@ const baseControlsStyles = {
   label: {
     cursor: "pointer",
     paddingLeft: "0",
-    color: "#75736c",
+    color: colors.brand.inkMuted,
     fontSize: "12px",
     lineHeight: "1.428571429",
     fontWeight: "400",
@@ -270,7 +271,7 @@ const baseControlsStyles = {
     letterSpacing: "unset",
   },
   labelHorizontal: {
-    color: "#75736c",
+    color: colors.brand.inkMuted,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "12px",
@@ -284,7 +285,7 @@ const baseControlsStyles = {
 
   // Autocomplete
   autoCompleteLabelHorizontal: {
-    color: "#75736c",
+    color: colors.brand.inkMuted,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "12px",

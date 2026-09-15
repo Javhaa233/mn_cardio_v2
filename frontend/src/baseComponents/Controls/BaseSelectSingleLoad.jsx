@@ -16,9 +16,10 @@ import Helper from "helper";
 // styles
 import styles from "assets/jss/material-dashboard-pro-react/custom/baseControlsStyles";
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 const labelHorizontalSx = {
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize: "14px",
@@ -40,7 +41,7 @@ export default function BaseSelectSingleLoad(props) {
     ChangeValue,
     LabelWidth,
     height = 32,
-    borderColor = "#eee",
+    borderColor = FIELD.rowBorder,
     Id = null,
     LabelledBy = null,
   } = props;
@@ -184,12 +185,12 @@ export default function BaseSelectSingleLoad(props) {
           ...textFieldSx["& .MuiOutlinedInput-root"],
           ...(hasBorder
             ? {
-                border: "1px solid #eee",
+                border: `1px solid ${FIELD.rowBorder}`,
                 "&:hover": {
-                  border: "1px solid #ccc",
+                  border: `1px solid ${FIELD.inputBorderHover}`,
                 },
                 "&.Mui-focused": {
-                  border: "1px solid #aaa",
+                  border: `1px solid ${FIELD.inputBorderFocus}`,
                 },
               }
             : {
@@ -264,7 +265,7 @@ export default function BaseSelectSingleLoad(props) {
         marginBottom: "5px",
         width: "100%",
         border: `1px solid ${borderColor}`,
-        borderBottom: "1px solid #eee",
+        borderBottom: `1px solid ${FIELD.rowBorder}`,
         height: `${height}px`,
         minHeight: `${height}px`,
         maxHeight: `${height}px`,

@@ -2079,3 +2079,84 @@
     transition: none;
   }
 }
+
+/* --- The other sign-in screens (view/Auth/AuthShell.jsx) ---------------------
+   Register, forgot password, reset password and the patient login share this
+   panel. They used to be Creative Tim cards with pink/purple headers on a
+   separate background. Only additions here: nothing above changes the doctor
+   login. */
+
+/* Registration has nine fields; a two-column panel keeps it on one screen. */
+.login-v2 .panel.wide {
+  width: min(600px, 100%);
+  /* Tall enough to reach the top of the window: clear the language switch
+     (AuthNavbar, fixed top-right) instead of sliding under it. */
+  margin-top: 56px;
+}
+.login-v2 .grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 14px;
+}
+@media (max-width: 560px) {
+  .login-v2 .grid2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* A select that looks like the inputs beside it. */
+.login-v2 select {
+  width: 100%;
+  padding: 11px 34px 11px 12px;
+  margin-bottom: 15px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ink);
+  background-color: var(--field);
+  background-image: linear-gradient(45deg, transparent 50%, var(--ink-dim) 50%),
+    linear-gradient(135deg, var(--ink-dim) 50%, transparent 50%);
+  background-position:
+    calc(100% - 17px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--panel-line);
+  border-radius: 3px;
+  appearance: none;
+  cursor: pointer;
+}
+.login-v2 select:focus {
+  outline: none;
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(24, 168, 232, 0.18);
+}
+.login-v2 select:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
+/* A success message, the counterpart of .err. */
+.login-v2 .ok {
+  margin: 0 0 15px;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: #1e7b34;
+  background: rgba(40, 167, 69, 0.09);
+  border: 1px solid rgba(40, 167, 69, 0.28);
+  border-radius: 3px;
+}
+
+/* One line under a field: a hint, or the result of a live check. */
+.login-v2 .hint {
+  margin: -10px 0 15px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--ink-dim);
+}
+.login-v2 .hint.bad {
+  color: #b4184f;
+}
+.login-v2 .hint.good {
+  color: #1e7b34;
+}

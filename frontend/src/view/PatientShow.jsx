@@ -701,13 +701,18 @@ class PatientShow extends Component {
 
     return [
       {
-        tabButton: "Асуулт",
+        // The RECORD, not the place to write. Nine years of clinical Q&A lives
+        // in VisitComments and has to stay readable, but writing moved to chat
+        // so a patient never has to guess where the answer went. ReadOnly hides
+        // the composer; the thread and its attachments still render.
+        tabButton: "Асуултын түүх",
         tabIcon: <QuestionAnswerIcon />,
         tabContent: (
           <div style={{ height: TAB_GRID_MAX_HEIGHT }}>
             <MonitorQuestion
               PatientId={PatientId}
               Patient={{ p_registration: RegisterNo }}
+              ReadOnly={true}
             />
           </div>
         ),

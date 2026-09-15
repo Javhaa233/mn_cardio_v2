@@ -107,6 +107,7 @@ class HfHospitalizationTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title="Heart Failure (Hospitalization)"
           ref={this.DialogRef}
           Close={() => this.setState({ DialogData: null })}
         >

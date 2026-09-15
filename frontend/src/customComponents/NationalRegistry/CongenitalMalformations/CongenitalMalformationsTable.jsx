@@ -145,6 +145,7 @@ class CongenitalMalformationsTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title={this.props.Title || "Congenital malformation"}
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
         >

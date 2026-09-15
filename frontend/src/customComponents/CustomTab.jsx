@@ -7,15 +7,26 @@ import PropTypes from "prop-types";
 // material-ui components
 import { Tab, Tabs, Box } from "@mui/material";
 import { useIsCompact } from "helper/useResponsive";
+import { colors } from "@/theme/colors";
+import { radius, space, motion } from "@/theme/tokens";
 
+/**
+ * Tabs in the brand's segment language - the same one AdviceHome's filter bar
+ * already uses: plain text in ink, the selected tab tinted and in cyanInk.
+ *
+ * They used to be grey pills with a green (#4caf50) selected border and a drop
+ * shadow, and the side rail marked its selection in green too - the only green
+ * accent in an otherwise cyan-and-navy app, on the control doctors touch most.
+ * Sizes and layout are unchanged; only colour, weight and the pill chrome moved.
+ */
 const styles = {
   tabRoot: { minHeight: "44px", marginTop: "6px", marginBottom: "0px" },
   displayNone: { display: "none !important" },
   horizontalDisplay: {
     display: "flex",
     flexWrap: "nowrap",
-    gap: "8px",
-    padding: "2px 2px 2px 15px",
+    gap: "2px",
+    padding: `2px 2px 2px ${space[4]}`,
   },
   pills: {
     float: "left",
@@ -23,61 +34,59 @@ const styles = {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    padding: "5px 14px",
-    color: "#344054",
+    padding: `${space[2]} ${space[3]}`,
+    color: colors.brand.inkDim,
     height: "auto",
     opacity: "1",
     margin: "0",
-    fontSize: "13px",
+    fontSize: "14px",
     width: "auto",
     flex: "0 0 auto",
     minWidth: "auto",
-    minHeight: "32px !important",
+    minHeight: "34px !important",
     maxHeight: "none",
     textAlign: "center",
-    transition:
-      "background-color 150ms ease, border-color 150ms ease, color 150ms ease, box-shadow 150ms ease",
-    fontWeight: "600",
+    transition: `background-color ${motion.fast}, color ${motion.fast}`,
+    fontWeight: 400,
     lineHeight: 1.2,
-    borderRadius: "999px",
+    borderRadius: radius.sm,
     textTransform: "none",
     letterSpacing: "initial",
     whiteSpace: "normal",
-    border: "1px solid #D0D5DD",
-    backgroundColor: "#F2F4F7",
+    border: "none",
+    backgroundColor: "transparent",
     "&:hover": {
-      backgroundColor: "#FFFFFF",
-      boxShadow: "0 1px 4px rgba(16, 24, 40, 0.12)",
+      backgroundColor: colors.brand.tint,
+      color: colors.brand.ink,
     },
     "&.Mui-focusVisible": {
-      outline: "2px solid rgba(76, 175, 80, 0.35)",
-      outlineOffset: "2px",
+      outline: `2px solid ${colors.brand.focus}`,
+      outlineOffset: "1px",
     },
   },
-  vertical: { borderBottom: "1px solid #4caf50" },
+  vertical: { borderBottom: `1px solid ${colors.brand.hairline}` },
   hasMany: { width: "80px" },
   shortVertical: { width: "auto", paddingLeft: "10px", paddingRight: "10px" },
   selected: {
     "&,&:hover": {
-      color: "#101828",
-      backgroundColor: "#FFFFFF",
-      borderColor: "#4caf50",
-      boxShadow: "0 3px 14px rgba(16, 24, 40, 0.14)",
+      color: colors.brand.cyanInk,
+      fontWeight: 600,
+      backgroundColor: colors.brand.tint,
     },
   },
   // --- sideBar mode: a vertical rail of tabs on the left of the content ---
   sideRail: {
     flexShrink: 0,
     alignSelf: "stretch",
-    borderRight: "1px solid #EAECF0",
-    backgroundColor: "#FCFCFD",
-    padding: "8px",
+    borderRight: `1px solid ${colors.brand.hairline}`,
+    backgroundColor: colors.brand.surface,
+    padding: space[2],
     boxSizing: "border-box",
     overflowY: "auto",
     "&::-webkit-scrollbar": { width: "8px" },
     "&::-webkit-scrollbar-thumb": {
-      backgroundColor: "rgba(16, 24, 40, 0.18)",
-      borderRadius: "4px",
+      backgroundColor: colors.brand.hairlineStrong,
+      borderRadius: radius.pill,
     },
   },
   sidePill: {
@@ -91,15 +100,15 @@ const styles = {
     minHeight: "34px",
     padding: "7px 10px 7px 12px",
     margin: 0,
-    color: "#475467",
-    fontSize: "12.5px",
-    fontWeight: 500,
+    color: colors.brand.inkMuted,
+    fontSize: "13px",
+    fontWeight: 400,
     lineHeight: 1.3,
     letterSpacing: "initial",
     textTransform: "none",
     whiteSpace: "normal",
-    borderRadius: "6px",
-    transition: "background-color 150ms ease, color 150ms ease",
+    borderRadius: radius.sm,
+    transition: `background-color ${motion.fast}, color ${motion.fast}`,
     gap: "9px",
     "& .MuiTab-iconWrapper": {
       margin: 0,
@@ -107,10 +116,10 @@ const styles = {
       width: "17px",
       height: "17px",
       fontSize: "17px",
-      color: "#98A2B3",
-      transition: "color 150ms ease",
+      color: colors.brand.inkDim,
+      transition: `color ${motion.fast}`,
     },
-    "&:hover .MuiTab-iconWrapper": { color: "#667085" },
+    "&:hover .MuiTab-iconWrapper": { color: colors.brand.ink },
     "&::before": {
       content: '""',
       position: "absolute",
@@ -118,24 +127,25 @@ const styles = {
       top: "6px",
       bottom: "6px",
       width: "3px",
-      borderRadius: "2px",
+      borderRadius: radius.pill,
       backgroundColor: "transparent",
-      transition: "background-color 150ms ease",
+      transition: `background-color ${motion.fast}`,
     },
-    "&:hover": { backgroundColor: "#F2F4F7", color: "#101828" },
+    "&:hover": { backgroundColor: colors.brand.tint, color: colors.brand.ink },
     "&.Mui-focusVisible": {
-      outline: "2px solid rgba(76, 175, 80, 0.35)",
+      outline: `2px solid ${colors.brand.focus}`,
       outlineOffset: "-2px",
     },
   },
   sidePillSelected: {
     "&,&:hover": {
-      color: "#101828",
+      color: colors.brand.cyanInk,
       fontWeight: 600,
-      backgroundColor: "#ECFDF3",
-      "& .MuiTab-iconWrapper": { color: "#4caf50" },
+      backgroundColor: colors.brand.tint,
+      "& .MuiTab-iconWrapper": { color: colors.brand.cyanInk },
     },
-    "&::before": { backgroundColor: "#4caf50" },
+    // The accent bar is not text, so it may use the brighter cyan.
+    "&::before": { backgroundColor: colors.brand.cyan },
   },
 };
 
@@ -327,14 +337,14 @@ export default function CustomTab(props) {
     return (
       <Box
         sx={{
-          backgroundColor: "#fff",
+          backgroundColor: colors.brand.surface,
           display: "flex",
           flexDirection: { xs: "column", md: "row" },
           alignItems: "stretch",
           width: "100%",
           minHeight: 0,
-          border: "1px solid #EAECF0",
-          borderRadius: "3px",
+          border: `1px solid ${colors.brand.hairline}`,
+          borderRadius: radius.sm,
           overflow: "hidden",
           ...containerSx,
         }}
@@ -344,8 +354,14 @@ export default function CustomTab(props) {
             ...styles.sideRail,
             width: { xs: "100%", md: sideBarWidth + "px" },
             maxHeight: { xs: "none", md: sideBarMaxHeight },
-            borderRight: { xs: "none", md: "1px solid #EAECF0" },
-            borderBottom: { xs: "1px solid #EAECF0", md: "none" },
+            borderRight: {
+              xs: "none",
+              md: `1px solid ${colors.brand.hairline}`,
+            },
+            borderBottom: {
+              xs: `1px solid ${colors.brand.hairline}`,
+              md: "none",
+            },
           }}
         >
           {sideTabButtons}
@@ -373,7 +389,7 @@ export default function CustomTab(props) {
   return (
     <Box
       sx={{
-        backgroundColor: "#fff",
+        backgroundColor: colors.brand.surface,
         display: "flex",
         flexDirection: "column",
         width: "100%",
@@ -423,7 +439,7 @@ export default function CustomTab(props) {
           overflow: fillHeight ? "hidden" : "visible",
           display: "flex",
           flexDirection: "column",
-          backgroundColor: "#fff",
+          backgroundColor: colors.brand.surface,
           borderRadius: vertical ? 0 : "8px",
           margin: vertical ? 0 : "0 0px",
         }}

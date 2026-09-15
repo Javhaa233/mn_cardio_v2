@@ -109,6 +109,7 @@ class MonitoringRhythmTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title="Хэм алдагдлын хяналт"
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
         >

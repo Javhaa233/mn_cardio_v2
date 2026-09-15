@@ -19,7 +19,9 @@ export const colors = {
 
   // Label colors
   label: {
-    primary: "#75736c",
+    // Was #75736c, a warm grey found nowhere else in the palette. Now the same
+    // value as brand.inkMuted: AA on the tinted label cell (fieldRowStyles FIELD).
+    primary: "#3f5a6b",
     secondary: "#6c757d",
     error: "#dc3545",
     disabled: "#adb5bd",
@@ -104,6 +106,28 @@ export const colors = {
     abnormal: "#ff5757", // 9
     abnormalAlt: "#f54242", // 9
     accent: "#00acc1", // 10
+
+    // --- Status as TEXT (customComponents/StatusChip) ---
+    // success/danger/warning above are fills and glyphs: as text on a light
+    // tint they fail AA (#28a745 is ~3:1, #ffc107 ~1.6:1). These are the same
+    // hues darkened until they pass on their own tint.
+    successInk: "#1e7b34", // ~5.0:1 on successTint
+    successTint: "rgba(40, 167, 69, 0.12)",
+    dangerInk: "#b02a37", // ~5.6:1 on dangerTint
+    dangerTint: "rgba(220, 53, 69, 0.10)",
+    warningInk: "#8a5a00", // ~5.4:1 on warningTint
+    warningTint: "rgba(255, 193, 7, 0.18)",
+  },
+
+  // 10-year cardiovascular risk levels (CVD RiskView), 1 = <5% … 5 = >30%.
+  // The exact hues the risk column has always used, so the scale doctors read
+  // does not shift. Fills and dots only - never text (the yellow is ~1.4:1).
+  risk: {
+    1: "#008000", // green, <5%
+    2: "#e6de02", // yellow, 5-10%
+    3: "#ffa500", // orange, 10-20%
+    4: "#ff0000", // red, 20-30%
+    5: "#a52a2a", // brown, >30%
   },
 
   // Shadow/Overlay colors

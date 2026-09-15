@@ -3,6 +3,7 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import BaseDialog from "customComponents/BaseDialog";
 import UserProfile from "customComponents/DoctorProfile/UserProfile";
+import { colors } from "@/theme/colors";
 
 export default function UserDialogLink(props) {
   const { t } = useTranslation();
@@ -35,7 +36,7 @@ export default function UserDialogLink(props) {
           textDecoration: "none",
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.color = "#9c27b0";
+          e.currentTarget.style.color = colors.brand.cyanInk;
           e.currentTarget.style.textDecoration = "underline";
         }}
         onMouseLeave={(e) => {

@@ -109,7 +109,10 @@ class VascularDiseaseTable extends BaseList {
   ShowData = (data) => {
     this.setState({
       DialogData: (
-        <BaseDialog Close={() => this.setState({ DialogData: null })}>
+        <BaseDialog
+          Title="Vascular disease"
+          Close={() => this.setState({ DialogData: null })}
+        >
           <VascularDisease
             ref={(ref) => (this.VascularDiseaseRef = ref)}
             DataId={data.Id}

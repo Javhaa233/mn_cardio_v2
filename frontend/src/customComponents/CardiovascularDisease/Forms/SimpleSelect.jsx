@@ -2,8 +2,8 @@ import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FormControl, MenuItem, Select, InputLabel } from "@mui/material";
-
-import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { elevation } from "@/theme/tokens";
 
 export default function SimpleSelect(props) {
   const { t } = useTranslation();
@@ -11,7 +11,7 @@ export default function SimpleSelect(props) {
 
   const formControlSx = {
     minWidth: "80px",
-    backgroundColor: "#FFF",
+    backgroundColor: colors.brand.surface,
   };
 
   const selectSx = {
@@ -21,7 +21,7 @@ export default function SimpleSelect(props) {
       fontWeight: "400",
       lineHeight: "1.42857",
       textDecoration: "none",
-      color: grayColor[14],
+      color: colors.brand.ink,
       letterSpacing: "0",
     },
     "& .MuiSelect-icon": {
@@ -33,8 +33,8 @@ export default function SimpleSelect(props) {
   };
 
   const menuPaperSx = {
-    backgroundColor: "#FFF",
-    boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+    backgroundColor: colors.brand.surface,
+    boxShadow: elevation[3],
     borderRadius: "4px",
     maxHeight: "266px !important",
   };
@@ -51,7 +51,7 @@ export default function SimpleSelect(props) {
     fontSize: "14px",
     textAlign: "left",
     listStyle: "none",
-    backgroundColor: "#FFF",
+    backgroundColor: colors.brand.surface,
     backgroundClip: "padding-box",
   };
 
@@ -66,13 +66,13 @@ export default function SimpleSelect(props) {
     fontWeight: "400",
     lineHeight: "2",
     whiteSpace: "nowrap",
-    color: "#333",
+    color: colors.brand.ink,
     paddingRight: "30px",
-    "&:hover": { backgroundColor: "#999999", color: "#FFF" },
+    "&:hover": { backgroundColor: colors.brand.tint, color: colors.brand.ink },
     "&.Mui-selected": {
-      backgroundColor: "#f4f4f4",
-      color: "#000",
-      "&:hover": { backgroundColor: "#e0e0e0" },
+      backgroundColor: colors.brand.tintSolid,
+      color: colors.brand.cyanInk,
+      "&:hover": { backgroundColor: colors.brand.tintSolidHover },
     },
   };
 

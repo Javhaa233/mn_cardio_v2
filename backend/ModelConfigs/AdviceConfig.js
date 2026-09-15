@@ -147,17 +147,16 @@ function AdviceConfig() {
       },
       {
         Name: 'adv_id_patient',
-        Label: 'Patient ID',
+        Label: 'Регистрийн дугаар',
         Type: 'GridLookUpSingleLoad',
         Config: {
           ObjectName: 'Patient',
           IdField: 'id_data',
           TextField: 'p_registration',
           Fields: [
-            { Name: 'id_data', Label: 'Id' },
+            { Name: 'p_registration', Label: 'Register' },
             { Name: 'p_lastname', Label: 'Last name' },
             { Name: 'p_firstname', Label: 'first name' },
-            { Name: 'p_registration', Label: 'Register' },
             { Name: 'DictProvinceCity.name', Label: 'City' },
           ],
           MinTextLength: '2',

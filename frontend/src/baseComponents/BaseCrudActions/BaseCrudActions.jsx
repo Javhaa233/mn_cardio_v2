@@ -62,11 +62,18 @@ class BaseCrudActions extends Component {
       >
         <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
           {!HideNew && (
+            // Inside a detail page the bar also carries the record's Save
+            // (extraActions). Save is then the one filled button; a new child
+            // row is secondary, or the bar has two primaries side by side.
             <Button
-              variant="contained"
+              variant={extraActions ? "outlined" : "contained"}
               onClick={() => New && New()}
               startIcon={<AddIcon />}
-              sx={gridToolbarButtonSx.primary}
+              sx={
+                extraActions
+                  ? gridToolbarButtonSx.neutral
+                  : gridToolbarButtonSx.primary
+              }
             >
               {t("New")}
             </Button>

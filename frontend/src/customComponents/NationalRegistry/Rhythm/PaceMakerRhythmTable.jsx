@@ -113,6 +113,7 @@ class PaceMakerRhythmTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title="Пэйсмэйкер суулгах"
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
         >
@@ -149,6 +150,7 @@ class PaceMakerRhythmTable extends BaseList {
 
     const DialogDatas = (
       <BaseDialog
+        Title="Пэйсмэйкер суулгах"
         ref={(ref) => (this.DialogRef = ref)}
         Close={() => this.setState({ DialogData: null })}
         Save={() => {

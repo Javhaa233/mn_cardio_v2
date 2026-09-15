@@ -10,6 +10,7 @@ import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseSelectSingle(props) {
   const { t } = useTranslation();
@@ -29,7 +30,7 @@ export default function BaseSelectSingle(props) {
   const inputId = Id || generatedId;
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",

@@ -7,6 +7,7 @@ import FormLabel from "@mui/material/FormLabel";
 // default components
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseInfo(props) {
   const { t } = useTranslation();
@@ -16,10 +17,10 @@ export default function BaseInfo(props) {
     Label = "",
     Value = "",
     Left = false,
-    LabelColor = "#75736c",
+    LabelColor = FIELD.labelInk,
     Size = "14px",
     LabelWeight = "400",
-    ValueColor = "#000",
+    ValueColor = FIELD.valueInk,
     height = 24,
   } = props;
 
@@ -38,7 +39,8 @@ export default function BaseInfo(props) {
     color: ValueColor,
     backgroundColor: "#ffffff",
     fontWeight: "400",
-    fontSize: "12px",
+    // 14px like the edit controls: a read-only value was 2px smaller than its own label.
+    fontSize: "14px",
     minHeight: `${height}px`,
     lineHeight: `${height}px`,
     boxSizing: "border-box",
@@ -48,7 +50,7 @@ export default function BaseInfo(props) {
     width: "100%",
   };
 
-  const borderColor = "#e8e8e8";
+  const borderColor = FIELD.rowBorder;
 
   return (
     <GridContainer
@@ -78,7 +80,7 @@ export default function BaseInfo(props) {
         sx={{
           display: "flex",
           alignItems: "center",
-          backgroundColor: "#f5f5f5",
+          backgroundColor: FIELD.labelBg,
           borderRight: `1px solid ${borderColor}`,
           px: "15px",
           minHeight: "32px",

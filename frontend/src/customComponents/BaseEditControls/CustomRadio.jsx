@@ -13,6 +13,7 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "./fieldRowStyles";
 
 export default function CustomRadio(props) {
   const { Config = null, ChangeValue, Row = false } = props;
@@ -57,7 +58,7 @@ export default function CustomRadio(props) {
                         height: "0px",
                         padding: "7px",
                         border:
-                          "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                          `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -82,7 +83,7 @@ export default function CustomRadio(props) {
                 ml: "-14px",
                 "& .MuiFormControlLabel-label": {
                   cursor: "pointer",
-                  color: "#75736c",
+                  color: FIELD.labelInk,
                   fontSize: "0.875rem",
                   lineHeight: "1.428571429",
                   fontWeight: "400",

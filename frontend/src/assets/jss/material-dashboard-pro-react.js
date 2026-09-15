@@ -117,44 +117,58 @@ const primaryColor = [
   colors.brand.cyan, // [3] light accent - NON-TEXT only, 2.69:1 on white
   colors.brand.ink, // [4] darkest step
 ];
+// Phase 11 of the UI consistency program: the remaining template palettes on
+// status and brand tokens. Index meanings are kept - [0] is the base (text and
+// fills; the only index fed to hexToRgb, so it stays a hex), [1]-[4] gradient
+// and hover steps, [5]+ light backgrounds. The template greens, reds, oranges,
+// teal and pink no longer reach Card headers, badges, typography helpers,
+// snackbars, pagination or checkboxes. [0] is the AA-passing ink of each hue.
 const warningColor = [
-  "#ff9800",
-  "#ffa726",
-  "#fb8c00",
-  "#ffa21a",
-  "#f57c00",
-  "#faf2cc",
-  "#fcf8e3",
+  colors.status.warningInk, // [0] was #ff9800
+  colors.status.warning, // [1]
+  colors.status.warningInk, // [2]
+  colors.status.warning, // [3]
+  colors.status.warningInk, // [4]
+  colors.status.warningTint, // [5] was #faf2cc
+  colors.status.warningTint, // [6] was #fcf8e3
 ];
 const dangerColor = [
-  "#f44336",
-  "#ef5350",
-  "#e53935",
-  "#f55a4e",
-  "#d32f2f",
-  "#ebcccc",
-  "#f2dede",
+  colors.status.dangerInk, // [0] was #f44336
+  colors.status.danger, // [1]
+  colors.status.dangerInk, // [2]
+  colors.status.danger, // [3]
+  colors.status.dangerInk, // [4]
+  colors.status.dangerTint, // [5] was #ebcccc
+  colors.status.dangerTint, // [6] was #f2dede
 ];
 const successColor = [
-  "#4caf50",
-  "#66bb6a",
-  "#43a047",
-  "#5cb860",
-  "#388e3c",
-  "#d0e9c6",
-  "#dff0d8",
+  colors.status.successInk, // [0] was #4caf50
+  colors.status.success, // [1]
+  colors.status.successInk, // [2]
+  colors.status.success, // [3]
+  colors.status.successInk, // [4]
+  colors.status.successTint, // [5] was #d0e9c6
+  colors.status.successTint, // [6] was #dff0d8
 ];
 const infoColor = [
-  "#00acc1",
-  "#26c6da",
-  "#00acc1",
-  "#00d3ee",
-  "#0097a7",
-  "#c4e3f3",
-  "#d9edf7",
-  "#3f51b5",
+  colors.brand.cyanInk, // [0] was #00acc1 (teal)
+  colors.brand.cyanDeep, // [1]
+  colors.brand.cyanInk, // [2]
+  colors.brand.cyan, // [3] non-text only
+  colors.brand.cyanInk, // [4]
+  colors.brand.tintSolid, // [5] was #c4e3f3
+  colors.brand.tintSolid, // [6] was #d9edf7
+  colors.brand.cyanInk, // [7] was #3f51b5 (indigo)
 ];
-const roseColor = ["#e91e63", "#ec407a", "#d81b60", "#eb3573", "#c2185b"];
+// "rose" was the template accent pink. The product accent is the brand cyan;
+// the brand pink (urgent) is reserved for the one urgent thing on a screen.
+const roseColor = [
+  colors.brand.cyanInk, // [0] was #e91e63
+  colors.brand.cyanDeep, // [1]
+  colors.brand.cyanInk, // [2]
+  colors.brand.cyan, // [3]
+  colors.brand.ink, // [4]
+];
 const grayColor = [
   colors.brand.inkDim, // [0] was #999 - the workhorse neutral, 56 refs
   "#777",

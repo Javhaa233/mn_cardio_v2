@@ -13,6 +13,7 @@ import ReportDoctorsSelect from "customComponents/AllReport/ReportDoctorsSelect"
 import ReportLocationSelect from "customComponents/AllReport/ReportLocationSelect";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 class SearchToolbar extends Component {
   constructor(props) {
@@ -123,7 +124,7 @@ class SearchToolbar extends Component {
             <CircularProgress
               size={24}
               style={{
-                color: "#ff4747",
+                color: colors.brand.cyanInk,
                 position: "absolute",
                 top: "50%",
                 left: "50%",

@@ -107,7 +107,10 @@ class ValveDiseasesTable extends BaseList {
   ShowData = (data) => {
     this.setState({
       DialogData: (
-        <BaseDialog Close={() => this.setState({ DialogData: null })}>
+        <BaseDialog
+          Title="Valve disease"
+          Close={() => this.setState({ DialogData: null })}
+        >
           <ValveDiseases DataId={data.Id} ObjectName="ValveDiseases" />
         </BaseDialog>
       ),

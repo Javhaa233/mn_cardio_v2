@@ -187,3 +187,24 @@ export function fileName(file) {
   const base = info.Name || info.original_name || "file";
   return info.ext ? `${base}.${info.ext}` : base;
 }
+
+/**
+ * Prepare stored attachments for PostMedia outside the feed.
+ *
+ * PostMedia decides "photo" by extension and draws `FileSrc` as the image.
+ * The server only sets FileSrc on an image whose bytes it could read
+ * (BaseControllerHelper.GetFileSrc), so an image row with no bytes behind it
+ * would become a broken tile. Marking it unavailable routes it into PostMedia's
+ * chip row, which says the file is missing instead - the same thing the feed
+ * already does with `Available: false`. Rows without FileInfo are dropped.
+ */
+export function forMediaView(files) {
+  if (!Array.isArray(files)) return [];
+  return files
+    .filter((file) => file && file.FileInfo)
+    .map((file) =>
+      isImageFile(file) && !file.FileSrc
+        ? { ...file, FileInfo: { ...file.FileInfo, Available: false } }
+        : file,
+    );
+}

@@ -25,10 +25,20 @@ import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
 
 import Helper from "helper";
 import { useChatContext } from "customComponents/Chat/ChatContext";
+import { colors } from "@/theme/colors";
+import { radius } from "@/theme/tokens";
 
 export default function MonitorQuestion(props) {
   const { t } = useTranslation();
-  const { Patient, PatientId = null, onChatOpened = null } = props;
+  const {
+    Patient,
+    PatientId = null,
+    onChatOpened = null,
+    // The thread as a RECORD: renders the history and hides the composer.
+    // Writing moved to chat so there is one place a patient looks for a reply;
+    // this stays because nine years of clinical Q&A must remain readable.
+    ReadOnly = false,
+  } = props;
 
   const [Loading, setLoading] = useState(false);
   const [Comments, setComments] = useState([]);
@@ -186,7 +196,15 @@ export default function MonitorQuestion(props) {
       }}
     >
       {!isDoctor && (
-        <Avatar sx={{ mr: 1, bgcolor: "#90caf9" }}>{author?.[0] || "P"}</Avatar>
+        <Avatar
+          sx={{
+            mr: 1,
+            bgcolor: colors.brand.tintSolidHover,
+            color: colors.brand.inkMuted,
+          }}
+        >
+          {author?.[0] || "P"}
+        </Avatar>
       )}
 
       <Paper
@@ -195,7 +213,11 @@ export default function MonitorQuestion(props) {
           px: 2,
           py: 1,
           maxWidth: "70%",
-          bgcolor: isDoctor ? "#dcf8c6" : "#fff",
+          // The doctor's own messages in the brand tint, the patient's on
+          // white - the same pairing as the Advice reply thread.
+          bgcolor: isDoctor ? colors.brand.tint : colors.brand.surface,
+          border: `1px solid ${colors.brand.hairline}`,
+          color: colors.brand.ink,
           borderRadius: 2,
           borderTopRightRadius: isDoctor ? 0 : 8,
           borderTopLeftRadius: isDoctor ? 8 : 0,
@@ -211,7 +233,9 @@ export default function MonitorQuestion(props) {
       </Paper>
 
       {isDoctor && (
-        <Avatar sx={{ ml: 1, bgcolor: "#66bb6a" }}>{author?.[0] || "D"}</Avatar>
+        <Avatar sx={{ ml: 1, bgcolor: colors.brand.cyanInk }}>
+          {author?.[0] || "D"}
+        </Avatar>
       )}
     </ListItem>
   );
@@ -219,17 +243,19 @@ export default function MonitorQuestion(props) {
   return (
     <Box sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {Alert}
-      <Box sx={{ display: "flex", justifyContent: "flex-end", pb: 1 }}>
-        <Button
-          color="info"
-          size="sm"
-          onClick={StartChat}
-          disabled={!PatientId}
-          style={{ boxShadow: "none" }}
-        >
-          {t("Чатаар бичих")}
-        </Button>
-      </Box>
+      {ReadOnly ? null : (
+        <Box sx={{ display: "flex", justifyContent: "flex-end", pb: 1 }}>
+          <Button
+            color="info"
+            size="sm"
+            onClick={StartChat}
+            disabled={!PatientId}
+            style={{ boxShadow: "none" }}
+          >
+            {t("Чатаар бичих")}
+          </Button>
+        </Box>
+      )}
       {/* Chat Body */}
       <Box
         ref={listRef}
@@ -238,7 +264,8 @@ export default function MonitorQuestion(props) {
           overflowY: "auto",
           px: 1,
           py: 0.5,
-          bgcolor: "#e5ddd5",
+          bgcolor: colors.brand.canvas,
+          borderRadius: radius.sm,
         }}
       >
         {Loading ? (
@@ -264,85 +291,91 @@ export default function MonitorQuestion(props) {
         )}
       </Box>
 
-      {/* Input Area */}
-      <Paper
-        elevation={1}
-        sx={{
-          p: 1,
-          borderTop: "1px solid #ddd",
-          display: "flex",
-          gap: 1,
-          alignItems: "flex-end",
-        }}
-      >
-        <div style={{ flex: 1, width: "100%" }}>
-          <BaseTextArea
-            Config={{
-              Value: CommentBody,
-            }}
-            Value={CommentBody}
-            WithLabel={false}
-            Rows="5"
-            ChangeValue={(name, value) => setCommentBody(value)}
-          />
+      {/* Input Area — absent in ReadOnly, which is the point of the mode. */}
+      {ReadOnly ? null : (
+        <Paper
+          elevation={1}
+          sx={{
+            p: 1,
+            borderTop: `1px solid ${colors.brand.hairline}`,
+            display: "flex",
+            gap: 1,
+            alignItems: "flex-end",
+          }}
+        >
+          <div style={{ flex: 1, width: "100%" }}>
+            <BaseTextArea
+              Config={{
+                Value: CommentBody,
+              }}
+              Value={CommentBody}
+              WithLabel={false}
+              Rows="5"
+              ChangeValue={(name, value) => setCommentBody(value)}
+            />
 
-          {Files.length > 0 ? (
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}>
-              {Files.map((f, i) => (
-                <Chip
-                  key={f.name + i}
-                  size="small"
-                  label={f.name}
-                  onDelete={() =>
-                    setFiles((prev) => prev.filter((_, n) => n !== i))
-                  }
-                />
-              ))}
-            </Box>
-          ) : null}
-        </div>
+            {Files.length > 0 ? (
+              <Box
+                sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, mt: 0.5 }}
+              >
+                {Files.map((f, i) => (
+                  <Chip
+                    key={f.name + i}
+                    size="small"
+                    label={f.name}
+                    onDelete={() =>
+                      setFiles((prev) => prev.filter((_, n) => n !== i))
+                    }
+                  />
+                ))}
+              </Box>
+            ) : null}
+          </div>
 
-        {/* The patient has been able to attach photos to a question since
+          {/* The patient has been able to attach photos to a question since
             2026-09-14; until now the doctor could read them and not reply in
             kind. Same allowlist and 10-file cap the server enforces. */}
-        <input
-          ref={fileRef}
-          type="file"
-          multiple
-          hidden
-          aria-label={t("Файл хавсаргах")}
-          onChange={(e) => {
-            const picked = Array.from(e.target.files || []);
-            setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
-            e.target.value = "";
-          }}
-        />
-        <Tooltip title={t("Файл хавсаргах")}>
-          <span>
-            <IconButton
-              size="small"
-              aria-label={t("Файл хавсаргах")}
-              disabled={Saving || Files.length >= MAX_FILES}
-              onClick={() => fileRef.current && fileRef.current.click()}
-            >
-              <AttachFileIcon fontSize="small" />
-            </IconButton>
-          </span>
-        </Tooltip>
+          <input
+            ref={fileRef}
+            type="file"
+            multiple
+            hidden
+            aria-label={t("Файл хавсаргах")}
+            onChange={(e) => {
+              const picked = Array.from(e.target.files || []);
+              setFiles((prev) => [...prev, ...picked].slice(0, MAX_FILES));
+              e.target.value = "";
+            }}
+          />
+          <Tooltip title={t("Файл хавсаргах")}>
+            <span>
+              <IconButton
+                size="small"
+                aria-label={t("Файл хавсаргах")}
+                disabled={Saving || Files.length >= MAX_FILES}
+                onClick={() => fileRef.current && fileRef.current.click()}
+              >
+                <AttachFileIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
 
-        <Button
-          color="info"
-          size="sm"
-          onClick={SaveComment}
-          // A file-only answer is legitimate - an annotated ECG needs no words.
-          disabled={
-            Saving || (!CommentBody.trim() && Files.length === 0) || !PatientId
-          }
-          style={{ boxShadow: "none" }}
-        >
-          {Saving ? t("Илгээж байна...") : t("Send")}
-        </Button>
-      </Paper>
+          <Button
+            color="primary"
+            size="sm"
+            onClick={SaveComment}
+            // A file-only answer is legitimate - an annotated ECG needs no words.
+            disabled={
+              Saving ||
+              (!CommentBody.trim() && Files.length === 0) ||
+              !PatientId
+            }
+            style={{ boxShadow: "none" }}
+          >
+            {Saving ? t("Илгээж байна...") : t("Send")}
+          </Button>
+        </Paper>
+      )}
     </Box>
   );
 }

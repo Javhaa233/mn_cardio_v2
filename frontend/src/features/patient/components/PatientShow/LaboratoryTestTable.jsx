@@ -101,6 +101,7 @@ class LaboratoryTestTable extends BaseList {
     const { PatientId } = this.state;
     const DialogDatas = (
       <BaseDialog
+        Title={this.props.Title}
         ref={(ref) => (this.DialogRef = ref)}
         Close={() => this.setState({ DialogData: null })}
         Print={(stopLoading) => {

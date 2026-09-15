@@ -3,10 +3,6 @@ import "react";
 // translation
 import { withTranslation } from "react-i18next";
 
-import Card from "components/Card/Card";
-import CardHeader from "components/Card/CardHeader";
-import CardBody from "components/Card/CardBody";
-
 import BaseGrid from "baseComponents/BaseGrid/BaseGrid";
 import BaseList from "baseComponents/BaseList";
 import BaseDetailView from "baseComponents/BaseDetailView";
@@ -14,6 +10,7 @@ import BaseDetailView from "baseComponents/BaseDetailView";
 import DivLoading from "customComponents/DivLoading";
 import LinkObjectView from "customComponents/Profile/ColumnActions/LinkObjectView";
 import RangeDate from "customComponents/RangeDate";
+import UniCard from "customComponents/UniCard";
 
 import Helper from "helper";
 
@@ -119,71 +116,53 @@ class UserActionHistoryAdmin extends BaseList {
         }}
       >
         {DialogData}
-        <Card
-          style={{
-            margin: 0,
-            width: "100%",
-            height: "100%",
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <CardHeader color="info" title={t("Logs")} />
-          <CardBody
+        {/* Was a Creative Tim Card with the floating cyan title pill. */}
+        <UniCard title={t("Logs")} cardBodyStyle={{ gap: "8px" }}>
+          <div style={{ flex: "0 0 auto", marginTop: "1px" }}>
+            <RangeDate ChangeValue={this.SetSearchOption} />
+          </div>
+          <div
             style={{
               flex: "1 1 auto",
-              display: "flex",
-              flexDirection: "column",
+              position: "relative",
+              width: "100%",
+              maxWidth: "100%",
               minHeight: 0,
               overflow: "hidden",
             }}
           >
-            <div style={{ flex: "0 0 auto", marginTop: "1px" }}>
-              <RangeDate ChangeValue={this.SetSearchOption} />
-            </div>
-            <div
-              style={{
-                flex: "1 1 auto",
-                position: "relative",
-                width: "100%",
-                maxWidth: "100%",
-                minHeight: 0,
-                overflow: "hidden",
-              }}
-            >
-              {isLoading ? <DivLoading WithoutCard /> : null}
-              <BaseGrid
-                Data={Data}
-                Option={GridOption}
-                TextLength={200}
-                ChangePage={this.PageLimitChange}
-                SearchField={this.SearchField}
-                PageSize={20}
-                OrderBy={this.OrderBy}
-                FillHeight={true}
-                widthPattern="40c, 120, 120, 120, 120, 120, 120c, 220c"
-                RowActions={[
-                  {
-                    Component: <LinkObjectView />,
-                    onClick: (Data) => this.ShowDataLinkData(Data),
-                  },
-                ]}
-                HideCheck={true}
-                Fields={[
-                  { Label: t("Last name"), Name: "DoctorsProfile.lastname" },
-                  { Label: t("First name"), Name: "DoctorsProfile.firstname" },
-                  {
-                    Label: t("ObjectName"),
-                    Name: "ObjectNameDic.ObjectNameMn",
-                  },
-                  { Label: t("LinkObjectName"), Name: "LinkObjectName" },
-                  { Label: t("NotesDetail"), Name: "NotesDetail" },
-                  { Label: t("LogDate"), Name: "LogDate", Type: "Date" },
-                ]}
-              />
-            </div>
-          </CardBody>
-        </Card>
+            {isLoading ? <DivLoading WithoutCard /> : null}
+            <BaseGrid
+              Data={Data}
+              Option={GridOption}
+              TextLength={200}
+              ChangePage={this.PageLimitChange}
+              SearchField={this.SearchField}
+              PageSize={20}
+              OrderBy={this.OrderBy}
+              FillHeight={true}
+              widthPattern="40c, 120, 120, 120, 120, 120, 120c, 220c"
+              RowActions={[
+                {
+                  Component: <LinkObjectView />,
+                  onClick: (Data) => this.ShowDataLinkData(Data),
+                },
+              ]}
+              HideCheck={true}
+              Fields={[
+                { Label: t("Last name"), Name: "DoctorsProfile.lastname" },
+                { Label: t("First name"), Name: "DoctorsProfile.firstname" },
+                {
+                  Label: t("ObjectName"),
+                  Name: "ObjectNameDic.ObjectNameMn",
+                },
+                { Label: t("LinkObjectName"), Name: "LinkObjectName" },
+                { Label: t("NotesDetail"), Name: "NotesDetail" },
+                { Label: t("LogDate"), Name: "LogDate", Type: "Date" },
+              ]}
+            />
+          </div>
+        </UniCard>
       </div>
     );
   };

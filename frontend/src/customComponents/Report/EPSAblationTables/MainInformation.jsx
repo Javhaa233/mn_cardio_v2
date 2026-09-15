@@ -13,13 +13,12 @@ class MainInformation extends Component {
   }
 
   render() {
-    const { t } = this.props;
     const classes = {
       main: "main",
       body: "body",
       header: "header",
       table: "table",
-      tableHeader: t("tableHeader"),
+      tableHeader: "tableHeader",
       tdDiv: "tdDiv",
     };
 

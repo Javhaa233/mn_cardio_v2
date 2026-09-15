@@ -18,14 +18,15 @@ import UserDialogLink from "customComponents/DoctorProfile/UserDialogLink";
 import GroupPanel from "customComponents/GroupPanel";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 const sx = {
   childDiv: {
     position: "relative",
     padding: "10px",
-    border: "1px solid #ccc",
+    border: `1px solid ${colors.brand.hairline}`,
     margin: "10px",
-    backgroundColor: "#f5f5f5",
+    backgroundColor: colors.brand.tintSolid,
   },
 };
 

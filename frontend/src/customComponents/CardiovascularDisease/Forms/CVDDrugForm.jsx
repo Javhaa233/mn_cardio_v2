@@ -241,8 +241,13 @@ class CVDDrugForm extends BaseCustomForm {
     const { Year, Month } = this;
     return (
       <div>
-        <GridContainer sx={{ marginTop: "10px", marginBottom: "10px" }}>
-          <GridItem xs={12} sm={4} md={1}>
+        {/* Year and month were md=1 columns: each label and select squeezed
+            into ~110px, so "2026" ran into the "Сар:" label beside it. */}
+        <GridContainer
+          spacing={2}
+          sx={{ marginTop: "10px", marginBottom: "10px" }}
+        >
+          <GridItem xs={12} sm={4} md={2}>
             <BaseSelect
               ChangeValue={this.ChangeValue}
               Config={{
@@ -268,7 +273,7 @@ class CVDDrugForm extends BaseCustomForm {
               FullWidth={true}
             />
           </GridItem>
-          <GridItem xs={12} sm={4} md={1} sx={{ marginLeft: "10px" }}>
+          <GridItem xs={12} sm={4} md={2}>
             <BaseSelect
               ChangeValue={this.ChangeValue}
               Config={{

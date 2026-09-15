@@ -18,6 +18,7 @@ import {
 } from "assets/jss/material-dashboard-pro-react.js";
 // translation
 import { useTranslation } from "react-i18next";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 const StyledFormControl = styled(FormControl, {
   shouldForwardProp: (prop) => prop !== "hasLabel",
@@ -35,7 +36,7 @@ const StyledInputLabel = styled(InputLabel, {
   shouldForwardProp: (prop) => prop !== "error" && prop !== "success",
 })(({ theme, error, success }) => ({
   ...defaultFont,
-  color: grayColor[3] + " !important",
+  color: FIELD.labelInk + " !important",
   fontWeight: "400",
   fontSize: "14px",
   lineHeight: "1.42857",
@@ -49,10 +50,10 @@ const StyledInput = styled(Input, {
   shouldForwardProp: (prop) =>
     prop !== "white" && prop !== "error" && prop !== "success",
 })(({ theme, white, error, success }) => ({
-  color: grayColor[14],
+  color: FIELD.valueInk,
   height: "32px", // <<<< HEIGHT FIX (increased to match BaseInputMask)
   padding: "8px 12px", // <<<< increased from default ~7px 12px to proportionally match height
-  borderTop: "1px solid #eee",
+  borderTop: `1px solid ${FIELD.rowBorder}`,
   boxSizing: "border-box",
   "&,&::placeholder": {
     fontSize: "14px",
@@ -61,14 +62,14 @@ const StyledInput = styled(Input, {
     lineHeight: "1.42857",
     opacity: "1",
   },
-  "&::placeholder": { color: grayColor[3] },
+  "&::placeholder": { color: FIELD.placeholder },
   ...(white && {
     "&,&::placeholder": { color: whiteColor, opacity: "1" },
   }),
   // Underline styles
   "&:after": { borderColor: primaryColor[0] },
   "&:hover:not(.Mui-disabled):before,&:before": {
-    borderColor: grayColor[4] + "!important",
+    borderColor: FIELD.inputBorder + "!important",
     borderWidth: "1px !important",
   },
   "& + p": { fontWeight: "300" },

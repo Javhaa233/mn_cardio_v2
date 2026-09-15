@@ -2,13 +2,17 @@ import { useTranslation } from "react-i18next";
 import React, { useState, createRef } from "react";
 // @mui/material components
 import Box from "@mui/material/Box";
-import IconButton from "@mui/material/IconButton";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 // @mui/icons-material
-import CloseIcon from "@mui/icons-material/Close";
+import PhotoCameraOutlinedIcon from "@mui/icons-material/PhotoCameraOutlined";
+import PersonOutlineIcon from "@mui/icons-material/PersonOutline";
 // helper
 import Helper from "helper";
 
-import defaultImage from "assets/img/user_placeholder.png";
+import { colors } from "@/theme/colors";
+import { radius, space } from "@/theme/tokens";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 
 // var Value = [{
 // id_data
@@ -22,6 +26,18 @@ import defaultImage from "assets/img/user_placeholder.png";
 // FileSrc:"base64" only picture,
 // }];
 
+/**
+ * A single photo field (config Type "SingleImage": the patient and doctor
+ * photos).
+ *
+ * It was a grey user-placeholder PNG with a FontAwesome camera strip that only
+ * appeared on hover - invisible on a touch screen - and a grey close circle
+ * hanging off the corner. It now follows the account dialogs' photo picker
+ * (Profile/ProfileEditDialog, DoctorProfile/DoctorEditDialog): a preview, an
+ * outlined "Add photo" / "Change photo" button, a remove button once there is
+ * a photo, and a one-line hint. A photo can also be dropped on the preview.
+ * The value shape and the ChangeValue calls are unchanged.
+ */
 export default function BaseImageSingle(props) {
   const { t } = useTranslation();
   const generatedId = React.useId();
@@ -31,84 +47,22 @@ export default function BaseImageSingle(props) {
     Value = [],
     ChangeValue,
     round = false,
-    square = false,
     FullWidth = false,
   } = props;
 
-  const thumbnailImageSx = {
-    clear: "both",
-    display: "block",
-    borderRadius: "0",
-    marginTop: "8px",
-    overflow: "inherit",
-    width: FullWidth ? "100%" : "100px",
-    background: "transparent",
-    boxShadow: "none !important",
-    "&:hover .upload": { display: "block" },
-  };
-
-  const uploadSx = {
-    display: "none",
-    position: "absolute",
-    cursor: "pointer",
-    bottom: "0",
-    left: "0",
-    right: "0",
-    zIndex: "999",
-    textAlign: "center",
-    color: "#FFF",
-    backgroundColor: "rgba(0, 0, 0, 0.4)",
-    padding: "0 4px 7px",
-    fontWeight: "400",
-    "&:hover": { display: "block" },
-  };
-
-  const closeSx = {
-    position: "absolute",
-    zIndex: "999",
-    top: "-2px",
-    right: FullWidth ? "0" : "5px",
-  };
-
-  const closeRoundSx = {
-    top: "22%",
-    right: "12%",
-    transform: "scale(1) translate(50%, -50%)",
-    transformOrigin: "100% 0%",
-  };
-
-  const closeIconButtonSx = {
-    backgroundColor: "#5c5c5c",
-    boxShadow: "0 1px 4px 0 rgba(255, 255, 255, 0.34)",
-    color: "#FFF",
-    padding: "4px",
-    "&:hover": { backgroundColor: "#919191" },
-  };
-
-  const imagePanelSx = {
-    position: "relative",
-    overflow: "hidden",
-    width: FullWidth ? "100%" : "100px",
-    height: "auto",
-  };
-
-  const imagePanelRoundSx = { borderRadius: "50%" };
-  const imagePanelSquareSx = {
-    height: FullWidth ? "auto" : "100px",
-    minHeight: FullWidth ? "100px" : "auto",
-  };
-
-  const imageSingleSx = { width: "100%", height: "100%", objectFit: "cover" };
-
-  // The real <input type="file"> is display:none and is driven by the camera
-  // overlay; it still gets an id and an accessible name.
+  // The real <input type="file"> is hidden and driven by the button; it still
+  // gets an id and an accessible name.
   const inputId = Id || generatedId;
 
   const [currentValue, setCurrentValue] = useState(Value);
   const [update, setUpdate] = useState(false);
-  //   const [Procent, setProcent] = useState(0);
 
   let fileInput = createRef();
+
+  const hasImage =
+    Array.isArray(currentValue) &&
+    currentValue.length > 0 &&
+    !!currentValue[0].FileSrc;
 
   const Remove = () => {
     ChangeValue && ChangeValue([]);
@@ -116,10 +70,7 @@ export default function BaseImageSingle(props) {
     setUpdate(!update);
   };
 
-  const ChooseFile = async (e) => {
-    e.preventDefault();
-
-    let file = e.target.files[0];
+  const takeFile = async (file) => {
     var FileSrc = null;
     if (file) {
       if (file.type.indexOf("image") > -1)
@@ -133,75 +84,100 @@ export default function BaseImageSingle(props) {
     setUpdate(!update);
   };
 
-  if (Config) {
-    return (
-      <div className="fileinput">
-        <div style={{ position: "relative" }}>
-          <Box className="thumbnail" sx={thumbnailImageSx}>
-            <Box
-              sx={{
-                ...imagePanelSx,
-                ...(round ? imagePanelRoundSx : {}),
-                ...(square ? imagePanelSquareSx : {}),
-              }}
-            >
-              <Box
-                component="img"
-                sx={imageSingleSx}
-                src={
-                  Array.isArray(currentValue) && currentValue.length > 0
-                    ? currentValue[0].FileSrc
-                    : defaultImage
-                }
-                alt="SingleImage"
-              />
-              <Box
-                component="button"
-                type="button"
-                className="upload"
-                aria-label={t("Choose image")}
-                sx={{ ...uploadSx, border: "none", width: "100%" }}
-                onClick={() => {
-                  fileInput.current.click && fileInput.current.click();
-                }}
-              >
-                <i
-                  className={"fa fa-camera-retro"}
-                  style={{ fontSize: "12px", margin: "5px" }}
-                />
-              </Box>
-            </Box>
-          </Box>
-          {Array.isArray(currentValue) && currentValue.length > 0 ? (
-            <Box sx={{ ...closeSx, ...(round ? closeRoundSx : {}) }}>
-              <IconButton
-                size="small"
-                aria-label={t("Remove image")}
-                sx={closeIconButtonSx}
-                onClick={() =>
-                  currentValue[0].FileInfo &&
-                  Remove(currentValue[0].FileInfo.Name)
-                }
-              >
-                <CloseIcon fontSize="inherit" />
-              </IconButton>
-            </Box>
-          ) : null}
-        </div>
+  const ChooseFile = async (e) => {
+    e.preventDefault();
+    await takeFile(e.target.files[0]);
+  };
 
-        <input
-          id={inputId}
-          type="file"
-          aria-label={
-            Config && Config.Label ? t(Config.Label + "") : t("Choose image")
-          }
-          onChange={ChooseFile}
-          ref={fileInput}
-          accept="image/*"
-        />
-      </div>
-    );
-  } else {
-    return null;
-  }
+  if (!Config) return null;
+
+  const size = FullWidth ? "120px" : "88px";
+
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        flexWrap: "wrap",
+        gap: space[3],
+        py: space[1],
+      }}
+    >
+      <Box
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={(e) => {
+          e.preventDefault();
+          const file = e.dataTransfer && e.dataTransfer.files[0];
+          if (file && file.type.indexOf("image") > -1) takeFile(file);
+        }}
+        sx={{
+          flex: "0 0 auto",
+          width: size,
+          height: size,
+          borderRadius: round ? radius.pill : radius.md,
+          overflow: "hidden",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: colors.brand.tintSolid,
+          border: `1px solid ${colors.brand.hairline}`,
+          color: colors.brand.inkDim,
+        }}
+      >
+        {hasImage ? (
+          <Box
+            component="img"
+            src={currentValue[0].FileSrc}
+            alt={t("Choose image")}
+            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ) : (
+          <PersonOutlineIcon sx={{ fontSize: "40px" }} />
+        )}
+      </Box>
+
+      <Box sx={{ minWidth: 0 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: space[2] }}>
+          <Button
+            type="button"
+            disableElevation
+            startIcon={<PhotoCameraOutlinedIcon />}
+            onClick={() => fileInput.current && fileInput.current.click()}
+            sx={gridToolbarButtonSx.neutral}
+          >
+            {hasImage ? t("Change photo") : t("Зураг оруулах")}
+          </Button>
+          {hasImage ? (
+            <Button
+              type="button"
+              disableElevation
+              onClick={Remove}
+              sx={gridToolbarButtonSx.danger}
+            >
+              {t("Remove image")}
+            </Button>
+          ) : null}
+        </Box>
+        <Typography
+          variant="caption"
+          component="div"
+          sx={{ mt: space[1], color: colors.brand.inkDim }}
+        >
+          {t("JPG or PNG image")}
+        </Typography>
+      </Box>
+
+      <input
+        id={inputId}
+        type="file"
+        hidden
+        aria-label={
+          Config && Config.Label ? t(Config.Label + "") : t("Choose image")
+        }
+        onChange={ChooseFile}
+        ref={fileInput}
+        accept="image/*"
+      />
+    </Box>
+  );
 }

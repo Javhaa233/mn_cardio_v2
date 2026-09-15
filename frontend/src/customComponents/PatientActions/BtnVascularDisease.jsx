@@ -48,8 +48,9 @@ export default function BtnVascularDisease(props) {
   return (
     <div>
       {Dialog}
+      {/* Opens a form: neutral. "rose" maps to the destructive (red) rank. */}
       <Button
-        color="rose"
+        color="info"
         disabled={!PatientId ? true : false}
         className={className}
         onClick={ShowForm}

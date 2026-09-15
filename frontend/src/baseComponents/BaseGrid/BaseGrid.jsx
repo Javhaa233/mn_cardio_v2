@@ -323,7 +323,10 @@ const CustomPagination = React.forwardRef(
           alignItems: "center",
           flexWrap: "wrap",
           pl: 1.25,
-          pr: 1.25,
+          // The chat button (Chat.jsx, fixed 60px at 30px from the bottom
+          // right) sat on top of "Хуудас руу очих" on every full-height list.
+          // The footer keeps that corner free instead of moving the button.
+          pr: { xs: 1.25, md: "88px" },
           gap: 1.5,
           width: "100%",
           height: "100%",

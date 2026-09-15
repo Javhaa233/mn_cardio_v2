@@ -144,7 +144,10 @@ export default function BaseDetailView(props) {
           flex: "1 1 auto",
           minHeight: 0,
           height: "100%",
-          overflow: "hidden",
+          // Scrolls when the page gives the detail less room than its fields
+          // plus a usable grid (see the tab area below).
+          overflowY: "auto",
+          overflowX: "hidden",
         }}
       >
         {loading ? (
@@ -167,7 +170,11 @@ export default function BaseDetailView(props) {
               <div
                 style={{
                   flex: "1 1 auto",
-                  minHeight: 0,
+                  // /optionType stacks two managers, so this detail got half
+                  // the page; its fields took all of it and the child grid
+                  // collapsed to a header and a footer with no rows. The grid
+                  // keeps room for a few rows and the detail scrolls instead.
+                  minHeight: "320px",
                   display: "flex",
                   flexDirection: "column",
                   overflow: "hidden",

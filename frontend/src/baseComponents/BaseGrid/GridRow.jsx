@@ -13,6 +13,8 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 var IdKey = 0;
 const GetKey = () => {
@@ -44,13 +46,13 @@ export default function GridRow(props) {
     padding: "8px",
     margin: "-8px 4px",
     "&:hover": { backgroundColor: "unset" },
-    "&:.Mui-checked": { color: primaryColor[0] + "!important" },
+    "&.Mui-checked": { color: FIELD.checked + "!important" },
   };
 
   const checkedIconSx = {
     width: "20px",
     height: "20px",
-    border: "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+    border: `1px solid ${FIELD.unchecked}`,
     borderRadius: "3px",
   };
 
@@ -58,7 +60,7 @@ export default function GridRow(props) {
     width: "0px",
     height: "0px",
     padding: "9px",
-    border: "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+    border: `1px solid ${FIELD.unchecked}`,
     borderRadius: "3px",
   };
 
@@ -122,7 +124,13 @@ export default function GridRow(props) {
       style={{
         cursor,
         backgroundColor:
-          Selected === true ? "#c8fada" : RowNumber % 2 === 1 ? "#f0f0f0" : "",
+          // Brand tints; the selected row was a mint green (#c8fada) that
+          // matched nothing else, and the zebra a neutral #f0f0f0 grey.
+          Selected === true
+            ? colors.brand.tintSolidHover
+            : RowNumber % 2 === 1
+              ? colors.brand.tintSolid
+              : "",
       }}
       tabIndex={-1}
       onClick={() => {

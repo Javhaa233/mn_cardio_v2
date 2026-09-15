@@ -1,49 +1,22 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
-import Box from "@mui/material/Box";
 
+import StatusChip from "customComponents/StatusChip";
+
+/**
+ * Cardiovascular monitoring state.
+ * Drawn with StatusChip; it was white text on a saturated fill.
+ */
 export default function IsActive(props) {
   const { t } = useTranslation();
-
   const { rowdata = {} } = props;
+  const value = rowdata.Status + "";
 
-  const spanSx = { padding: "2px 4px", borderRadius: "2px", color: "white" };
-
-  return (
-    <div>
-      {rowdata.Status + "" === "activated" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#2bb559" }}
-        >
-          {t("Идэвхитэй")}
-        </Box>
-      ) : rowdata.Status + "" === "out_control" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#ff5757" }}
-        >
-          {t("Хяналтаас гарсан")}
-        </Box>
-      ) : rowdata.Status + "" === "expired" ? (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#ffcc00" }}
-        >
-          {t("Үзлэгт хамрагдсан")}
-        </Box>
-      ) : (
-        <Box
-          component="span"
-          sx={spanSx}
-          style={{ backgroundColor: "#a9b0ab" }}
-        >
-          {t("Идэвхигүй")}
-        </Box>
-      )}
-    </div>
-  );
+  if (value === "activated")
+    return <StatusChip Tone="success" Label={t("Идэвхитэй")} />;
+  if (value === "out_control")
+    return <StatusChip Tone="danger" Label={t("Хяналтаас гарсан")} />;
+  if (value === "expired")
+    return <StatusChip Tone="warning" Label={t("Үзлэгт хамрагдсан")} />;
+  return <StatusChip Tone="neutral" Label={t("Идэвхигүй")} />;
 }

@@ -11,6 +11,7 @@ import Button from "components/CustomButtons/Button";
 import Helper from "helper";
 
 import baseControlsStyles from "assets/jss/material-dashboard-pro-react/custom/baseControlsStyles";
+import { colors } from "@/theme/colors";
 
 // eslint-disable-next-line no-control-regex
 const RegistrationNumberRegex = /[^\u0000-\u007F][^\u0000-\u007F][0-9]{8}$/;
@@ -83,7 +84,7 @@ export default function PatientCheck() {
               borderColor: "#D2D2D2 !important",
               borderWidth: "1px !important",
             },
-            "& .MuiInput-underline:after": { borderColor: "#9c27b0" },
+            "& .MuiInput-underline:after": { borderColor: colors.brand.cyan },
           }}
           InputProps={{
             startAdornment: (

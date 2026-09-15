@@ -21,6 +21,8 @@ import GridItem from "components/Grid/GridItem";
 import BaseGrid from "baseComponents/BaseGrid/BaseLookUpGrid";
 
 import { grayColor } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseGridLookUp(props) {
   const { t } = useTranslation();
@@ -41,7 +43,7 @@ export default function BaseGridLookUp(props) {
   const inputId = Id || generatedId;
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     cursor: "pointer",
     display: "inline-flex",
     fontSize: "14px",
@@ -72,7 +74,7 @@ export default function BaseGridLookUp(props) {
       borderBottomWidth: "1px !important",
     },
     "& .MuiInput-underline:after": {
-      borderBottomColor: "#9c27b0",
+      borderBottomColor: colors.brand.cyan,
     },
   };
 
@@ -88,7 +90,7 @@ export default function BaseGridLookUp(props) {
 
   const scrollSx = {
     maxHeight: "178px",
-    border: "1px solid #ccc",
+    border: `1px solid ${FIELD.inputBorderHover}`,
     borderRadius: "4px",
     padding: "3px",
     overflow: "auto",

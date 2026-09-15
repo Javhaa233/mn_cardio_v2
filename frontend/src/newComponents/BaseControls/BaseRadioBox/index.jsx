@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { RadioGroup, FormControlLabel, Radio } from "@mui/material";
 
 import useSelect from "../useLocalSelect";
+import { colors } from "@/theme/colors";
 
 export default ({ config, ...props }) => {
   const { t } = useTranslation();
@@ -41,7 +42,13 @@ export default ({ config, ...props }) => {
             value={item[config.valueExpr || "id"]}
             control={<Radio />}
             label={t(item.label || item.text)}
-            sx={{ paddingLeft: "16px" }}
+            // Labels rendered #aaa (2.3:1, reads as disabled) on the
+            // Organization form; the option text is ink like every other radio.
+            sx={{
+              paddingLeft: "16px",
+              color: colors.brand.ink,
+              "& .MuiFormControlLabel-label": { color: colors.brand.ink },
+            }}
           />
         ))}
     </RadioGroup>

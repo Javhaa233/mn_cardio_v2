@@ -17,7 +17,14 @@ const options = {
   // writes the chosen language to localStorage, but a key missing from this
   // list is never read back, so the toggle was written and then ignored on the
   // next load.
-  order: ["localStorage", "cookie", "navigator", "htmlTag", "path", "subdomain"],
+  //
+  // "navigator" and "htmlTag" are gone: an en-US phone (and index.html's
+  // lang="en") made the patient portal half English - every key with an
+  // English translation switched, every Mongolian-only key did not. The staff
+  // side never showed it because AuthNavbar forces "mn" on mount; the patient
+  // login and portal have no language switch at all. A saved choice still
+  // wins; with none, the fallback below (mn) applies.
+  order: ["localStorage", "cookie"],
 
   // keys or params to lookup language from
   lookupQuerystring: "lng",

@@ -27,8 +27,34 @@ import ShowPatient from "customComponents/FieldActions/ShowPatient";
 import RangeDate from "customComponents/RangeDate";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
+
 import Visit2 from "./Visit2";
 import TCD from "./TCD";
+
+// Every tab's bar: date range on the left, Export (and on Visit, the АМ-1Б
+// print) on the right. The row must not wrap: RangeDate is width 100%, so it
+// would take a line of its own. The actions stack instead when space runs out.
+const toolbarRowStyle = {
+  display: "flex",
+  flexWrap: "nowrap",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: "8px",
+  marginBottom: "10px",
+};
+const toolbarActionsStyle = {
+  // Does not shrink, or the full-width RangeDate squeezes Export and the print
+  // onto two lines on a desktop; capped so a phone still keeps room for dates.
+  flexShrink: 0,
+  maxWidth: "60%",
+  position: "relative",
+  display: "flex",
+  flexWrap: "wrap",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: "8px",
+};
 
 const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
 
@@ -285,7 +311,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...visitSearchOption };
@@ -299,9 +325,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -326,7 +352,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -346,7 +372,6 @@ class CreateAllVisits extends Component {
                 <Button
                   color="info"
                   size="sm"
-                  style={{ marginLeft: "6px" }}
                   disabled={printLoading}
                   onClick={() => this.PrintAmbulatori()}
                 >
@@ -401,13 +426,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...echoSearchOption };
@@ -421,9 +440,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -448,7 +467,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -506,13 +525,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...ecgSearchOption };
@@ -526,9 +539,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -551,7 +564,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -604,13 +617,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...bloodStrokeSearchOption };
@@ -627,9 +634,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -652,7 +659,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -703,13 +710,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...surgeryReportSearchOption };
@@ -726,9 +727,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -753,7 +754,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -811,13 +812,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...tcdSearchOption };
@@ -831,9 +826,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -856,7 +851,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",
@@ -910,13 +905,7 @@ class CreateAllVisits extends Component {
             flexDirection: "column",
           }}
         >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              marginBottom: "10px",
-            }}
-          >
+          <div style={toolbarRowStyle}>
             <RangeDate
               ChangeValue={(StartDate, EndDate) => {
                 const newOption = { ...monitoringRhythmSearchOption };
@@ -933,9 +922,9 @@ class CreateAllVisits extends Component {
               }}
             />
             {!this.props.HideExports && (
-              <div style={{ position: "relative" }}>
+              <div style={toolbarActionsStyle}>
                 <Button
-                  color="success"
+                  color="info"
                   size="sm"
                   onClick={async () => {
                     this.setState({ exportLoading: true });
@@ -960,7 +949,7 @@ class CreateAllVisits extends Component {
                   <CircularProgress
                     size={24}
                     style={{
-                      color: "#00b530",
+                      color: colors.brand.cyanInk,
                       position: "absolute",
                       top: "50%",
                       left: "50%",

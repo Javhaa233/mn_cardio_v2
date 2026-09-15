@@ -24,6 +24,7 @@ import {
   blackColor,
   hexToRgb,
 } from "assets/jss/material-dashboard-pro-react.js";
+import { FIELD } from "./fieldRowStyles";
 
 export default function BaseRadio(props) {
   const { t } = useTranslation();
@@ -72,7 +73,7 @@ export default function BaseRadio(props) {
   }, [Value, Config, defaultValue]);
 
   const labelHorizontalSx = {
-    color: "#75736c",
+    color: FIELD.labelInk,
     display: "inline-flex",
     fontSize: "0.875rem",
     lineHeight: "1.428571429",
@@ -125,7 +126,7 @@ export default function BaseRadio(props) {
                         height: "0px",
                         padding: "7px",
                         border:
-                          "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                          `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -152,7 +153,7 @@ export default function BaseRadio(props) {
                 ml: Row ? "-14px" : "-6px",
                 "& .MuiFormControlLabel-label": {
                   cursor: "pointer",
-                  color: "#75736c",
+                  color: FIELD.labelInk,
                   fontSize: "0.875rem",
                   lineHeight: "1.428571429",
                   fontWeight:
@@ -196,7 +197,7 @@ export default function BaseRadio(props) {
                         height: "0px",
                         padding: "7px",
                         border:
-                          "1px solid rgba(" + hexToRgb(blackColor) + ", .54)",
+                          `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -223,7 +224,7 @@ export default function BaseRadio(props) {
                 ml: Row ? "-14px" : "-6px",
                 "& .MuiFormControlLabel-label": {
                   cursor: "pointer",
-                  color: "#75736c",
+                  color: FIELD.labelInk,
                   fontSize: "0.875rem",
                   lineHeight: "1.428571429",
                   fontWeight: selectedValue === "-1" ? "600" : "400",
@@ -275,13 +276,13 @@ export default function BaseRadio(props) {
     return (
       <GridContainer
         sx={(theme) =>
-          fieldRowSx(theme, { borderColor: "#eee", fixedHeight: false })
+          fieldRowSx(theme, { borderColor: FIELD.rowBorder, fixedHeight: false })
         }
       >
         <GridItem
           {...labelSize(effectiveMd)}
           sx={(theme) => ({
-            ...labelCellSx(theme, { borderColor: "#eee" }),
+            ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
             justifyContent: "flex-start",
             ...(Row ? { paddingTop: "8px", paddingBottom: "8px" } : {}),
           })}
@@ -314,7 +315,7 @@ export default function BaseRadio(props) {
             padding: Row ? "0 5px 0 15px" : "0 5px 0 10px",
             flexWrap: "wrap",
             rowGap: Row ? "5px" : "2px",
-            border: "1px solid #eee",
+            border: `1px solid ${FIELD.rowBorder}`,
           }}
         >
           {GetRadio()}

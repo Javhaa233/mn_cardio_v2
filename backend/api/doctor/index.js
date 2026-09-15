@@ -73,6 +73,11 @@ const may = require('../../helper/RequirePermission');
 
 router.get('/me', gate, c.getMe);
 
+// Dropdown wording (rehab risk, phase, category, e-visit status). Ungated like
+// /me: it is dictionary text, not a clinical object, and a doctor with no
+// permissions still needs a form that can render
+router.get('/options/:dico', gate, c.listOptions);
+
 // 28 Миний үзлэгүүд
 router.get('/visits', gate, may('Visit', 'read'), c.listVisits);
 // §1.8 - the same filters as the list, as a file. Declared BEFORE /visits/:id

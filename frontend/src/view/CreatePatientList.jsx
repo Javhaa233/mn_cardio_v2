@@ -19,6 +19,7 @@ import ShowPatient from "customComponents/FieldActions/ShowPatient";
 import UserDialogLink from "customComponents/InPatient/FieldActions/UserDialogLink";
 // helper
 import Helper from "helper";
+import { colors } from "@/theme/colors";
 
 const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
 
@@ -199,7 +200,7 @@ class CreatePatientList extends Component {
                     <CircularProgress
                       size={24}
                       style={{
-                        color: "#00b530",
+                        color: colors.brand.cyanInk,
                         position: "absolute",
                         top: "50%",
                         left: "50%",

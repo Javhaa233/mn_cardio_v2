@@ -2,15 +2,31 @@ import React, { Component } from "react";
 import Box from "@mui/material/Box";
 
 import GridItem from "components/Grid/GridItem";
-import Card from "components/Card/Card";
-import CardHeader from "components/Card/CardHeader";
-import CardBody from "components/Card/CardBody";
 import DivLoading from "customComponents/DivLoading";
 
 import Chart from "customComponents/CardiovascularDisease/Forms/ChartBar";
 import reportStyles from "assets/jss/material-dashboard-pro-react/custom/reportStyles";
 
 import Helper from "helper";
+import Typography from "@mui/material/Typography";
+import { colors } from "@/theme/colors";
+import { radius, elevation } from "@/theme/tokens";
+
+// A chart card on the same surface as UniCard. The title wraps: indicator names
+// are long clinical sentences, so they cannot use UniCard's one-line header.
+const indicatorCardSx = {
+  height: "100%",
+  minHeight: "270px",
+  display: "flex",
+  flexDirection: "column",
+  gap: 1,
+  p: 2,
+  backgroundColor: colors.brand.surface,
+  border: `1px solid ${colors.brand.hairline}`,
+  borderRadius: radius.lg,
+  boxShadow: elevation[1],
+};
+const indicatorTitleSx = { color: colors.brand.ink, fontWeight: 600 };
 
 class Report6 extends Component {
   constructor(props) {
@@ -36,15 +52,12 @@ class Report6 extends Component {
     const { Data, Loading } = this.state;
     return (
       <GridItem xs={12} sm={6} md={4}>
-        <Card style={{ minHeight: "270px", marginTop: 0, marginBottom: 0 }}>
-          <CardHeader color="rose" icon>
-            <Box component="h6" sx={reportStyles.cardIconTitle}>
-              6. Зорилтот хүн амын дунд ЧШ-тэй байж болзошгүй нийт хүмүүсийн
-              дотор Чихрийн шижинтэй, эмчилгээнд хамрагдсан өвчтөнүүдийн эзлэх
-              хувь
-            </Box>
-          </CardHeader>
-          <CardBody>
+        <Box sx={indicatorCardSx}>
+          <Typography variant="body2" component="div" sx={indicatorTitleSx}>
+            6. Зорилтот хүн амын дунд ЧШ-тэй байж болзошгүй нийт хүмүүсийн дотор
+            Чихрийн шижинтэй, эмчилгээнд хамрагдсан өвчтөнүүдийн эзлэх хувь
+          </Typography>
+          <Box sx={{ flex: 1, minHeight: 0 }}>
             {Loading ? (
               <div style={{ position: "relative", height: "180px" }}>
                 <DivLoading />
@@ -52,8 +65,8 @@ class Report6 extends Component {
             ) : (
               <Chart Data={Data} chartType={"bar"} Id={"t5"} />
             )}
-          </CardBody>
-        </Card>
+          </Box>
+        </Box>
       </GridItem>
     );
   }

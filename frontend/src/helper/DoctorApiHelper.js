@@ -76,8 +76,11 @@ DoctorApiHelper.prototype.GetMe = () => request("GET", "/me");
 DoctorApiHelper.prototype.GetMonitoring = (params) =>
   request("GET", "/monitoring", { params });
 
+// PascalCase `PatientId` - addMonitoring reads req.body.PatientId. Sending
+// `patientId` gets a PATIENT_REQUIRED refusal that reads as "pick a patient"
+// when one was in fact picked.
 DoctorApiHelper.prototype.AddMonitoring = (PatientId) =>
-  request("POST", "/monitoring", { data: { patientId: PatientId } });
+  request("POST", "/monitoring", { data: { PatientId } });
 
 DoctorApiHelper.prototype.RemoveMonitoring = (PatientId) =>
   request("DELETE", "/monitoring/" + PatientId);

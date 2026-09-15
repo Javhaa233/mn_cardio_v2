@@ -34,6 +34,7 @@ import NavigationSetter from "./NavigationSetter.jsx";
 import { Provider } from "react-redux";
 import store from "store";
 import theme from "./theme";
+import { colors } from "./theme/colors";
 import "./i18n";
 
 const queryClient = new QueryClient({
@@ -71,6 +72,21 @@ root.render(
               styles={{
                 "@media (pointer: coarse)": {
                   "input, select, textarea": { fontSize: "16px !important" },
+                },
+              }}
+            />
+            {/* Plain links in brand ink. _misc.scss sets every <a> to the
+                template purple (#9c27b0) - the register-number links in every
+                grid, "Doctor profile" links, ticket links - and that file is
+                off-limits (CLAUDE.md section 6). `html a` is (0,0,2), so it
+                beats the (0,0,1) template rule whatever the injection order,
+                while any link styled by a class (MUI Link, the sidebar, the top
+                bar) still keeps its own colour. */}
+            <GlobalStyles
+              styles={{
+                "html a": { color: colors.brand.cyanInk },
+                "html a:hover, html a:focus": {
+                  color: colors.brand.cyanInkHover,
                 },
               }}
             />

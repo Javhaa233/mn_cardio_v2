@@ -35,6 +35,12 @@ export default function Pagination(props) {
       page={pageNumber}
       onPageChange={ChangePageNumber}
       onRowsPerPageChange={ChangePageSize}
+      // MUI's own defaults are English ("Rows per page:", "1–10 of 438"). Same
+      // words and order as the BaseGrid footer; a caller can still override.
+      labelRowsPerPage={t("Show rows") + ":"}
+      labelDisplayedRows={({ from, to, count }) =>
+        `${from}-${to} ${t("of")} ${count}`
+      }
       sx={{
         "& .MuiTablePagination-toolbar": {
           display: "flex",

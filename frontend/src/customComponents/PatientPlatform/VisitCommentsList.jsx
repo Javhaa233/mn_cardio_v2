@@ -20,6 +20,7 @@ import LoadError from "customComponents/LoadError";
 import { colors } from "@/theme/colors";
 // helper
 import Helper from "helper";
+import { radius, elevation } from "@/theme/tokens";
 
 const PAGE_SIZE = 5;
 
@@ -126,7 +127,7 @@ class VisitCommentsList extends BaseList {
             style={{
               width: 32,
               height: 32,
-              backgroundColor: colors.status.accent,
+              backgroundColor: colors.brand.cyanInk,
               marginRight: 8,
               marginBottom: 4,
             }}
@@ -148,14 +149,15 @@ class VisitCommentsList extends BaseList {
               borderRadius: isDoctor
                 ? "18px 18px 18px 4px"
                 : "18px 18px 4px 18px",
+              // White text on the teal accent (#00acc1) was ~2.9:1. The
+              // patient's own messages are now the brand tint in ink, the
+              // doctor's white with a hairline - both AA.
               backgroundColor: isDoctor
-                ? colors.background.primary
-                : colors.status.accent,
-              boxShadow: isDoctor
-                ? "0 2px 8px " + colors.shadow.light
-                : "0 4px 12px " + colors.shadow.medium,
-              color: isDoctor ? colors.text.strong : colors.text.white,
-              border: isDoctor ? "1px solid " + colors.border.subtle : "none",
+                ? colors.brand.surface
+                : colors.brand.tintSolid,
+              boxShadow: elevation[1],
+              color: colors.brand.ink,
+              border: "1px solid " + colors.brand.hairline,
             }}
           >
             {isDoctor && (
@@ -163,7 +165,7 @@ class VisitCommentsList extends BaseList {
                 style={{
                   fontSize: "11px",
                   fontWeight: "700",
-                  color: colors.status.accent,
+                  color: colors.brand.cyanInk,
                   marginBottom: "4px",
                 }}
               >
@@ -187,7 +189,7 @@ class VisitCommentsList extends BaseList {
                 marginTop: "6px",
                 fontSize: "10px",
                 opacity: 0.8,
-                color: isDoctor ? colors.text.muted : colors.text.white,
+                color: colors.brand.inkDim,
               }}
             >
               <AccessTimeIcon
@@ -204,13 +206,13 @@ class VisitCommentsList extends BaseList {
             style={{
               width: 32,
               height: 32,
-              backgroundColor: colors.border.muted,
+              backgroundColor: colors.brand.tintSolidHover,
               marginLeft: 8,
               marginBottom: 4,
             }}
           >
             <PersonIcon
-              style={{ fontSize: 18, color: colors.text.secondary }}
+              style={{ fontSize: 18, color: colors.brand.inkMuted }}
             />
           </Avatar>
         )}
@@ -228,14 +230,14 @@ class VisitCommentsList extends BaseList {
       <div
         ref={(ref) => (this.BodyScroll = ref)}
         style={{
-          backgroundColor: colors.background.surfaceAlt,
+          backgroundColor: colors.brand.canvas,
           position: "relative",
           maxHeight: "600px",
           minHeight: "400px",
           overflow: "auto",
           padding: "20px",
-          borderRadius: "12px",
-          border: "1px solid " + colors.border.divider,
+          borderRadius: radius.md,
+          border: "1px solid " + colors.brand.hairline,
         }}
       >
         <div
@@ -244,7 +246,7 @@ class VisitCommentsList extends BaseList {
             top: "-20px",
             zIndex: 1,
             width: "100%",
-            backgroundColor: colors.background.surfaceAlt,
+            backgroundColor: colors.brand.canvas,
             padding: "10px 0",
             backdropFilter: "blur(4px)",
             textAlign: "center",
@@ -258,11 +260,7 @@ class VisitCommentsList extends BaseList {
               round
               color="info"
               size="sm"
-              style={{
-                backgroundColor: colors.background.primary,
-                textTransform: "none",
-                boxShadow: "0 2px 4px " + colors.shadow.light,
-              }}
+              style={{ backgroundColor: colors.brand.surface }}
               onClick={this.LoadOlder}
             >
               {t("Өмнөх яриануудыг харах")}

@@ -14,9 +14,10 @@ import {
   inputSize,
 } from "./fieldRowStyles";
 import SimpleSelect from "customComponents/SimpleSelect";
+import { FIELD } from "./fieldRowStyles";
 
 const labelHorizontalSx = {
-  color: "#75736c",
+  color: FIELD.labelInk,
   cursor: "pointer",
   display: "inline-flex",
   fontSize: "14px",
@@ -66,11 +67,11 @@ export default function BaseSelect(props) {
   };
 
   return (
-    <GridContainer sx={(theme) => fieldRowSx(theme, { borderColor: "#eee" })}>
+    <GridContainer sx={(theme) => fieldRowSx(theme, { borderColor: FIELD.rowBorder })}>
       <GridItem
         {...labelSize(effectiveMd)}
         sx={(theme) => ({
-          ...labelCellSx(theme, { borderColor: "#eee" }),
+          ...labelCellSx(theme, { borderColor: FIELD.rowBorder }),
           justifyContent: "flex-start",
           paddingLeft: "15px",
           paddingRight: "15px",

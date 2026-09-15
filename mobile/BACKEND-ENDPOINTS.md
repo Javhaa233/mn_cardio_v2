@@ -7,8 +7,9 @@
 болон туршилтын сервер `https://mncardio.itsystem.mn` (нэвтрэлтгүй хүсэлт: байршсан мобайл route
 `401`, байхгүй `404`).
 
-> **Яг одоо backend-д хийх код 2 л зүйл үлдсэн** — А2 хэсгийн `GET /api/doctor/options/:dico`
-> ба мэдэгдэлд `PatientId` нэмэх. Бусад нь тохиргоо (flag асаах), өгөгдөл, гадны шийдвэр.
+> **2026-09-15 орой: А2-ын хоёр кодын ажил хийгдэв** — `GET /api/doctor/options/:dico` ба
+> мэдэгдэлд `PatientId` / `AdviceId`. Мөн асуулт, хариултын цаг `00:00` болдог асуудлыг сервер
+> талд бүрэн засав (доор). Backend-д хийх код үлдээгүй; бусад нь flag, өгөгдөл, гадны шийдвэр.
 
 > ## 2026-09-14-нд хүссэн 15 зүйл бүгд хийгдэж, туршилтын сервер дээр байршсан
 >
@@ -52,10 +53,10 @@
 | | Endpoint | Яагаад |
 |---|---|---|
 | ✅ Шийдэгдсэн | Чатын мэдэгдэл | 2026-09-15: сервер чат бүрд `LinkObjectName: 'ChatRoom'` мөр бичдэг болсон. Апп холбов |
-| Байршуулах | `date_creation` цаггүй хадгалагдаж байсан — **зассан** | `helper/ModelHelper.js` шинэ мөрийн `date_creation`, `date_created`-ыг `getDateYMD()`-ээр буюу **зөвхөн өдрөөр** тэмдэглэдэг байсан тул асуулт, хариу, сэтгэгдэл бүр `00:00` болдог байв. `getDateYMDHMS()` болгов. **Хийх:** туршилтын сервер дээр байршуулах, мөн баганын төрөл `datetime` мөн эсэхийг шалгах: `SELECT DATA_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='VisitComments' AND COLUMN_NAME='date_creation'` — `date` гарвал багана өөрчлөх хэрэгтэй. Хуучин мөрүүд `00:00` хэвээр үлдэнэ (апп тэднийг цаггүй, зөвхөн огноогоор харуулна) |
-| Засвар | `Notification.LinkObjectId` — `VisitComments`, `AdviceComment` | Мэдэгдэл дээр дарахад **яг тэр бичлэг рүү үсрэх** боломжгүй. `VisitComments` мэдэгдэлд асуултын мөрийн дугаар л ирдэг, **аль үйлчлүүлэгчийнх** нь мэдэгддэггүй тул эмч хяналтын жагсаалтдаа буудаг. `AdviceComment`-д сэтгэгдлийн дугаар ирдэг ч түүгээр асуумжийг олох зам байхгүй. **Шийдэл:** мэдэгдэлд `PatientId` (эсвэл эцэг асуумжийн `AdviceId`) нэмэх, эсвэл байгаа `Notification.Url` талбарыг бөглөх |
+| ✅ Шийдэгдсэн | Асуулт, хариултын цаг `00:00` | Шалгав: `VisitComments.date_creation`, `AdviceComment.date_creation`, `Advice.date_creation` нь SQL **`date`** (92 баганаас 91 нь `date`). Тиймээс `ModelHelper`-ийн `getDateYMDHMS()` засвар ганцаараа цагийг хадгалж чадахгүй — сервер цагийг хасна. `date_modif` нь `datetime` бөгөөд мөр үүсэхэд цагтай тэмдэглэгддэг. Одоо эдгээр endpoint **ижил талбарын нэрээр** `date_modif`-ийн яг цагийг буцаана: `GET /api/patient/questions` (`date_creation`), `GET /api/doctor/monitoring/:patientId/questions` (`date_creation`), `GET /api/patient/advice` (`date`, `comments[].date`), `GET /api/doctor/advice/:id` (`comments[].date_creation`). **Хуучин мөрүүд ч зөв цагтай гарна.** Апп талд өөрчлөх зүйлгүй — цагийг харуулахад л болно. DDL шаардлагагүй (`helper/CreatedAt.js`) |
+| ✅ Шийдэгдсэн | Мэдэгдлийн `PatientId`, `AdviceId` | `GET /api/doctor/notifications`, `GET /api/patient/notifications`-ийн мөр бүрд **`PatientId`**, **`AdviceId`** нэмэгдэв (хамааралгүй бол `null`). `VisitComments` → `PatientId` (тэр асуултын үйлчлүүлэгч, `Patient.id_data` — `/api/doctor/monitoring/:patientId/questions`-д шууд тавина). `AdviceComment` → `AdviceId` (эцэг асуумж) + `PatientId`. `Advice` → `AdviceId` = `LinkObjectId` + `PatientId`. Уншихад тооцоологддог тул **хуучин мэдэгдлүүдэд ч** гарна. Push-ийн `data`-д мөн `patientId`, `adviceId` (string, байхгүй бол `''`) нэмэгдэв |
 | Тохиргоо | **Push түлхүүр** (FCM / APNs) | Чатын мессежийг backend аль хэдийн push-аар илгээхээр бичсэн (`ChatController.PushToMembers`, `Data.Type='chat'`) ч түлхүүр байхгүй тул `LogDriver`-т л бичигддэг. Апп одоо socket-оор ирсэн мессежид **өөрөө** мэдэгдэл харуулдаг болсон — гэхдээ энэ нь апп ажиллаж байх үед л боломжтой. Апп бүрэн хаалттай үед мэдэгдэл ирэхгүй: Firebase төсөл, APNs түлхүүр ⛔ ЗСҮТ |
-| Шинэ | `GET /api/doctor/options/:dico` | Эмч сэргээн засахын үнэлгээ бичихэд **эрсдэлийн түвшний жагсаалт** хэрэгтэй. `/api/patient/options/:dico` нь `requirePatient`-ийн ард тул эмч дуудаж чадахгүй. Одоогоор апп зөвхөн ачааллын үнэлгээ, зөвлөгөө бичиж байна. Allowlist: `rehab_risk`, `rehab_phase`, `rehab_category`, `remotevisit_status` |
+| ✅ Шийдэгдсэн | `GET /api/doctor/options/:dico` | `/api/patient/options/:dico`-той яг ижил хариу: `data` = `[{ label, value }]`, `total`, `dico`. Allowlist: `rehab_risk`, `rehab_phase`, `rehab_category`, `remotevisit_status`; бусад нь `404 DICO_NOT_ALLOWED`. Эрхийн (`FEATURE_PERMISSIONS`) шалгалтгүй — `/me` шиг толь бичиг. Хоосон массив = тухайн мэдээллийн санд толь бичиг оруулаагүй |
 
 ## Б. Өгөгдөл, серверийн ажил
 

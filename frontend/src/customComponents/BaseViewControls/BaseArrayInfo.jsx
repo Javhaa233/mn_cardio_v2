@@ -9,6 +9,7 @@ import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
 // helper
 import Helper from "helper";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function BaseArrayInfo(props) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ export default function BaseArrayInfo(props) {
     Label = "",
     md = 3,
     Left = false,
-    LabelColor = "#75736c",
+    LabelColor = FIELD.labelInk,
     Size = "14px",
     LabelWeight = "400",
     padding = "0 12px",
@@ -45,7 +46,8 @@ export default function BaseArrayInfo(props) {
     color: ValueColor,
     backgroundColor: "#ffffff",
     fontWeight: ValueWeight,
-    fontSize: "12px",
+    // 14px like the edit controls: a read-only value was 2px smaller than its own label.
+    fontSize: "14px",
     minHeight: `${height}px`,
     lineHeight: `${height}px`,
     boxSizing: "border-box",
@@ -57,7 +59,7 @@ export default function BaseArrayInfo(props) {
     margin: margin,
   };
 
-  const borderColor = "#e8e8e8";
+  const borderColor = FIELD.rowBorder;
 
   return (
     <GridContainer
@@ -86,7 +88,7 @@ export default function BaseArrayInfo(props) {
         sx={{
           display: "flex",
           alignItems: "center",
-          backgroundColor: "#f5f5f5",
+          backgroundColor: FIELD.labelBg,
           borderRight: `1px solid ${borderColor}`,
           px: "15px",
           minHeight: "32px",

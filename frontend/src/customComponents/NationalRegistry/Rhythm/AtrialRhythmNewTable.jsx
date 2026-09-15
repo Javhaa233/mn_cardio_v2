@@ -104,6 +104,7 @@ class AtrialRhythmNewTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title="Тосгуурын жирвэгнээ (Шинэ)"
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
         >

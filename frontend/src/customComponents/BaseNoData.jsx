@@ -1,39 +1,61 @@
 import React from "react";
 // translation
 import { useTranslation } from "react-i18next";
-import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
 
-import { hexToRgb } from "assets/jss/material-dashboard-pro-react.js";
+import { colors } from "@/theme/colors";
+import { radius, space } from "@/theme/tokens";
 
+/**
+ * "Nothing here" - 80 importers.
+ *
+ * It was a salmon (#faa698) bordered strip with an info icon: the same colour
+ * family as an error, for what is almost always a normal state (no visits yet,
+ * no questions yet). It now reads like BaseGrid's own empty overlay - a quiet
+ * inbox glyph and one line of muted text - so "no data" looks the same inside a
+ * grid and outside one.
+ *
+ * `BgColor` and `IconColor` stay in the signature and are ignored, like
+ * UniCard's `color`: one caller passed brand colours precisely to escape the
+ * salmon default. `Action` is an optional slot for the one thing to do next.
+ */
 export default function BaseNoData(props) {
   const { t } = useTranslation();
 
-  const {
-    BgColor = "#faa698",
-    IconColor = "#f58f7f",
-    Text = "No data found",
-  } = props;
+  const { BgColor, IconColor, Text = "No data found", Action = null } = props;
 
   return (
-    <div
-      style={{
+    <Box
+      role="status"
+      sx={{
         display: "flex",
+        flexDirection: "column",
         alignItems: "center",
-        padding: "0 10px",
-        border: "1px solid" + " " + BgColor,
-        borderRadius: "6px",
-        margin: "10px 0 10px",
-        backgroundColor: "rgba(" + hexToRgb(BgColor) + ", 0.1)",
+        justifyContent: "center",
+        gap: space[2],
+        padding: `${space[5]} ${space[4]}`,
+        margin: `${space[2]} 0`,
+        textAlign: "center",
+        backgroundColor: colors.brand.tintSolid,
+        borderRadius: radius.md,
       }}
     >
-      <InfoOutlinedIcon
-        style={{
-          fontSize: "18px",
-          marginRight: "4px",
-          color: IconColor,
-        }}
+      <InboxOutlinedIcon
+        aria-hidden
+        sx={{ fontSize: "28px", color: colors.brand.inkDim, opacity: 0.7 }}
       />
-      <h5 style={{ fontSize: "14px" }}>{t(Text + "")}</h5>
-    </div>
+      {/* component="div": BaseNoData used to emit a bare h5, which _misc.scss
+          restyles; a Typography heading element would inherit the same. */}
+      <Typography
+        variant="body2"
+        component="div"
+        sx={{ color: colors.brand.inkMuted, maxWidth: "520px" }}
+      >
+        {t(Text + "")}
+      </Typography>
+      {Action}
+    </Box>
   );
 }

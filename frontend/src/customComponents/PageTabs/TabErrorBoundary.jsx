@@ -1,9 +1,6 @@
 import React from "react";
 import { withTranslation } from "react-i18next";
-import Box from "@mui/material/Box";
-import Button from "@mui/material/Button";
-
-import { colors } from "@/theme/colors";
+import LoadError from "customComponents/LoadError";
 
 /**
  * One boundary per tab panel.
@@ -30,24 +27,14 @@ class TabErrorBoundary extends React.Component {
     const { t, onClose, children } = this.props;
     if (!this.state.failed) return children;
 
+    // The same error panel as a failed list load, so a crashed tab and a
+    // failed request look like one kind of problem.
     return (
-      <Box sx={{ p: 4, textAlign: "center" }}>
-        <Box sx={{ color: colors.label.error, mb: 2 }}>
-          {t("Хуудсыг ачаалахад алдаа гарлаа")}
-        </Box>
-        <Button
-          variant="outlined"
-          onClick={() => this.setState({ failed: false })}
-          sx={{ mr: 1 }}
-        >
-          {t("Дахин оролдох")}
-        </Button>
-        {onClose ? (
-          <Button variant="outlined" color="error" onClick={onClose}>
-            {t("Хаах")}
-          </Button>
-        ) : null}
-      </Box>
+      <LoadError
+        Title="Хуудсыг ачаалахад алдаа гарлаа"
+        Retry={() => this.setState({ failed: false })}
+        Close={onClose}
+      />
     );
   }
 }

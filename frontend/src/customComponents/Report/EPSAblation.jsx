@@ -1,4 +1,5 @@
 import React, { Component } from "react";
+import { withTranslation } from "react-i18next";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 
@@ -30,11 +31,12 @@ class EPSAblation extends Component {
   };
 
   render() {
+    const { t } = this.props;
     return (
       <div style={{ width: "100%" }}>
         <div>
           <Button simple size="sm" onClick={this.Print} color="primary">
-            PDF Download
+            {t("PDF Download")}
           </Button>
         </div>
         <MainInformation />
@@ -46,4 +48,4 @@ class EPSAblation extends Component {
   }
 }
 
-export default EPSAblation;
+export default withTranslation()(EPSAblation);

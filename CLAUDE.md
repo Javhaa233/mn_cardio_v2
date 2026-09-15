@@ -488,20 +488,51 @@ The sidebar, topbar and Creative Tim shell **used to be** off-limits. The custom
 that during the AdviceHome rebuild, so the shell is now in scope to restyle. Branding (the MN CARDIO
 name and the ЗСҮТ identity) is still not yours to change.
 
-The admin shell restyle is done: `sidebarStyle.js` is on the brand gradient, and the top bar was
-rebuilt as `components/Navbars/{AdminNavbar,TopBarIconButton,ProfileMenu,TopBarOverflowMenu}` on
-`topBarTokens.js` (48px). Still legacy: `PatientNavbar` (60px, Creative Tim), `AuthNavbar`, and the
-dropdowns that import `adminNavbarLinksStyle.js` (notification list, open-tabs menu).
+The shell restyle is done: sidebar on the brand gradient; one 48px top bar
+(`components/Navbars/{AdminNavbar,TopBarIconButton,ProfileMenu,TopBarOverflowMenu}` on
+`topBarTokens.js`) shared by the doctor and patient layouts; top-bar dropdowns on brand tokens; every
+sign-in screen inside the login page's frame (`view/Auth/AuthShell.jsx`).
 
-### The whole-system consistency program (started 2026-09-15)
+### The consistency program is built (2026-09-15, phases 0–11)
 
-About 6 of 65 screens were on the design system; the rest mixed template looks. The restyle runs in
-phases — shared components first (buttons, dialogs, alerts → states and tabs → form controls and
-sections → files and replies), then screens group by group — and the per-screen checklist, with every
-tab, popup, reply and file flow, is `frontend/docs/ui-consistency.md`. Standing decisions: popups
-**keep** their window behaviour (drag / minimize / maximize) and are only restyled; buttons use brand
-ranks (one filled `cyanInk` primary per bar, outlined neutral secondary, red only for destructive — no
-green Save); the program is visual only and does not include the long-form feature contract below.
+Every route, tab, popup, reply and file flow was walked (branches `ui/phase-0` … `ui/phase-11-lockin`,
+each built on the previous; the working notes and comparison pages were removed at the user's request).
+The rules it settled — follow them in anything you touch:
+
+- **Buttons by rank.** One filled `cyanInk` primary per bar (Save, Confirm, the page's one action);
+  secondary actions outlined neutral (Export, Print, Cancel, New beside a record's Save); red only for
+  destructive. `components/CustomButtons/Button` maps legacy colours through `legacyButtonRank`:
+  `primary`/`success` → primary, `danger`/`rose` → **danger** (so never use `rose` for a non-destructive
+  button), everything else neutral. MUI buttons use `gridToolbarButtonSx` / `dialogActionSx(rank)`.
+- **Popups keep window behaviour** (drag / minimize / maximize / resize) and always carry a `Title`.
+  `BaseDialogActions` is a dialog footer — never drop it into an inline row.
+- **Surfaces.** Page cards and dialogs `radius.lg` + `hairline` + `elevation[1]` (`UniCard`); nested
+  panels `sm`/`md`; controls `xs`/`pill`. No Creative Tim `Card`/`CardHeader` in live screens.
+- **States.** `BaseNoData`, `DivLoading`/`BrandSpinner`, `LoadError` — Mongolian text.
+- **Status and scales.** `customComponents/StatusChip` (tone ink on tint + dot) for any state word;
+  never white text on a saturated fill. The CVD risk bands keep their hues in `colors.risk` (pass as
+  `Dot`); changing those hues is a customer decision.
+- **Sections and read-only rows.** `GroupPanel` for sections; field rows use `FIELD` from
+  `BaseEditControls/fieldRowStyles.js`.
+- **Language.** `src/i18n.js` reads only a saved choice, then falls back to `mn` — do not add
+  `navigator` back (an en-US phone got a half-English portal). Server config titles and option labels
+  are i18n keys too: when one shows English, add it to both catalogs in one pass. Clinical labels stay
+  as the tender wrote them.
+- **Print is sacred.** Server PDFs (`BasePrintReport`, `TenderFormPrint`) are safe; the html2canvas
+  paths (`Report/*`, `CalculateRisk #tabler`, `CVDInspectionAndManagement`, `PatientSendPage`) are not —
+  never add a global `MuiTable*` override, and check what a report captures before restyling it.
+- **The template palette is repointed.** `primary/info/rose/success/danger/warningColor` in
+  `assets/jss/material-dashboard-pro-react.js` now resolve to brand/status tokens (index `[0]` stays hex
+  for `hexToRgb`). There is no live `#9c27b0`. Still do not import that file into new code.
+- **Dead files, kept on purpose** (the user chose not to delete, 2026-09-15; do not edit expecting an
+  effect): `components/customComponent/defaults/Popup/indexNew`, `baseComponents/BaseFormDialog`,
+  `components/CustomUpload/*`, `components/ErrorBoundary/*`, `Advice/{AdviceList,AdviceListSoum,
+  TobeTicketsList,AdviceTicket}`, `Navbars/PatientNavbarLinks`, `CardiovascularDisease/Tables/Columns/
+  RiskResult`, `baseComponents/Controls/FileUploadExample`, `customComponents/PatientShow/**` (the live
+  PatientInfo tables are `features/patient/components/PatientShow/**`) and the unrouted
+  `view/NationalRegistry/Rhythm/{IcdList,PmList}`, `view/NationalRegistry/TurulhiinGajigList`.
+
+The program was visual only; it does not include the long-form feature contract below.
 
 ### The design system — read before writing any UI
 

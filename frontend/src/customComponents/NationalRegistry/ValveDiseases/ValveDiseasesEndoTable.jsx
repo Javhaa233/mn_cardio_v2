@@ -107,7 +107,10 @@ class ValveDiseasesEndoTable extends BaseList {
   ShowData = (data) => {
     this.setState({
       DialogData: (
-        <BaseDialog Close={() => this.setState({ DialogData: null })}>
+        <BaseDialog
+          Title="Valve disease (Endocarditis)"
+          Close={() => this.setState({ DialogData: null })}
+        >
           <ValveDiseasesEndo DataId={data.Id} ObjectName="ValveDiseasesEndo" />
         </BaseDialog>
       ),

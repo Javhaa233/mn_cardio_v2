@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import React, { useState } from "react";
 
 import CustomInput from "components/CustomInput/CustomInput.jsx";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 export default function CustomTextField(props) {
   const { t } = useTranslation();
@@ -65,13 +66,13 @@ export default function CustomTextField(props) {
           disableUnderline: true,
           sx: {
             padding: "5px 8px",
-            border: "1px solid #eee",
+            border: `1px solid ${FIELD.rowBorder}`,
             borderRadius: "4px",
             "&:hover:not(.Mui-disabled)": {
-              border: "1px solid #ccc",
+              border: `1px solid ${FIELD.inputBorderHover}`,
             },
             "&.Mui-focused": {
-              border: "1px solid #aaa",
+              border: `1px solid ${FIELD.inputBorderFocus}`,
             },
           },
         }}

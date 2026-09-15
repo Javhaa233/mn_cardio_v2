@@ -43,7 +43,7 @@ export default function UniCard({
         overflow: "visible",
         backgroundColor: colors.brand.surface,
         border: `1px solid ${colors.brand.hairline}`,
-        borderRadius: radius.sm,
+        borderRadius: radius.lg,
         boxShadow: elevation[1],
         ...cardStyle,
       }}

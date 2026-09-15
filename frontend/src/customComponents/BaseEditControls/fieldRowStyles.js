@@ -32,6 +32,50 @@ import { CONTROL, TOUCH, COARSE } from "@/theme.js";
 import { colors } from "@/theme/colors";
 
 /**
+ * The colours of a field row, in one place.
+ *
+ * Every control used to restate them as literals - a warm grey label
+ * (#75736c, 25 copies), #eee borders, #ccc on hover, #aaa on focus, a #f5f5f5
+ * label cell on read-only rows and #eff9fe on edit rows - so the same form
+ * showed two label greys and two label tints depending on which control drew
+ * the row. These are the brand equivalents; controls import FIELD instead of
+ * repeating a hex.
+ *
+ * Contrast: inkMuted is 5.97:1 on tintSolid, so a label on the tinted cell
+ * passes AA (the old warm grey was ~4.5:1). Values use the full ink.
+ */
+export const FIELD = {
+  rowBorder: colors.brand.hairline,
+  labelBg: colors.brand.tintSolid,
+  labelInk: colors.brand.inkMuted,
+  valueInk: colors.brand.ink,
+  inputBg: colors.brand.surface,
+  inputBorder: colors.brand.hairline,
+  inputBorderHover: colors.brand.hairlineStrong,
+  inputBorderFocus: colors.brand.cyan,
+  placeholder: colors.brand.inkDim,
+  checked: colors.brand.cyanInk,
+  unchecked: colors.brand.inkDim,
+  disabledBg: colors.brand.tintSolid,
+};
+
+/**
+ * The inner input's border states, as an sx fragment. A focused field shows a
+ * cyan edge (not text, so the bright cyan is allowed) doubled with an inset
+ * shadow so it reads at a glance without shifting the layout.
+ */
+export const inputBorderSx = {
+  border: `1px solid ${FIELD.inputBorder}`,
+  transition: "border-color 120ms ease, box-shadow 120ms ease",
+  "&:hover:not(.Mui-disabled)": { borderColor: FIELD.inputBorderHover },
+  "&.Mui-focused, &:focus-within": {
+    borderColor: FIELD.inputBorderFocus,
+    boxShadow: `inset 0 0 0 1px ${FIELD.inputBorderFocus}`,
+  },
+  "&.Mui-disabled": { backgroundColor: FIELD.disabledBg },
+};
+
+/**
  * The breakpoint at which the label stops sitting ABOVE the input and moves
  * BESIDE it.
  *
@@ -68,6 +112,16 @@ export const inputSize = (effectiveMd, hasLabel = true) =>
     : { xs: 12, sm: 12, md: 12 };
 
 /**
+ * Callers pass `borderColor`, and nearly all of them pass the old default
+ * "#eee" (or nothing). Those become the brand hairline; a deliberate other
+ * colour is kept.
+ */
+const brandBorder = (borderColor) =>
+  !borderColor || /^#e{3}(e{3})?$/i.test(borderColor)
+    ? FIELD.rowBorder
+    : borderColor;
+
+/**
  * The row container.
  *
  * `fixedHeight` mirrors the existing `useFixedHeight` flag: single-line
@@ -84,8 +138,8 @@ export const fieldRowSx = (
   const base = {
     marginBottom: "5px",
     width: "100%",
-    border: `1px solid ${borderColor}`,
-    borderBottom: "1px solid #eee",
+    border: `1px solid ${brandBorder(borderColor)}`,
+    borderBottom: `1px solid ${FIELD.rowBorder}`,
     alignItems: "stretch",
     boxSizing: "border-box",
   };
@@ -131,7 +185,7 @@ export const labelCellSx = (
   theme,
   { borderColor, fullHeight = false } = {},
 ) => ({
-  backgroundColor: colors.background.infoTint,
+  backgroundColor: FIELD.labelBg,
   display: "flex",
   alignItems: "center",
   paddingLeft: "10px",
@@ -139,13 +193,13 @@ export const labelCellSx = (
   boxSizing: "border-box",
   [theme.breakpoints.down(ROW_FROM)]: {
     borderRight: "none",
-    borderBottom: `1px solid ${borderColor}`,
+    borderBottom: `1px solid ${brandBorder(borderColor)}`,
     minHeight: "28px",
     paddingTop: "4px",
     paddingBottom: "4px",
   },
   [theme.breakpoints.up(ROW_FROM)]: {
-    borderRight: `1px solid ${borderColor}`,
+    borderRight: `1px solid ${brandBorder(borderColor)}`,
   },
   ...(fullHeight ? { height: "100%" } : {}),
 });
@@ -217,13 +271,15 @@ export const nativeInputSx = {
 export const inputCellSx = ({ fullHeight = false } = {}) => ({
   display: "flex",
   alignItems: "center",
-  backgroundColor: "#fff",
+  backgroundColor: FIELD.inputBg,
   boxSizing: "border-box",
   minWidth: 0,
   ...(fullHeight ? { height: "100%" } : {}),
 });
 
 export default {
+  FIELD,
+  inputBorderSx,
   ROW_FROM,
   controlHeightSx,
   withCoarse,

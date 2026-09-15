@@ -33,9 +33,10 @@ import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
 import React, { useRef } from "react";
 // helper
 import Helper from "helper";
+import { FIELD } from "customComponents/BaseEditControls/fieldRowStyles";
 
 const labelHorizontalSx = {
-  color: "#75736c",
+  color: FIELD.labelInk,
   fontSize: "14px",
   fontWeight: "400",
   lineHeight: "1",
@@ -58,7 +59,7 @@ export default function BaseField(props) {
     boxMd = 12,
     ChangeValue,
     LabelWidth,
-    borderColor = "#eee",
+    borderColor = FIELD.rowBorder,
     isLast,
     ObjectName,
     Id,
@@ -122,7 +123,7 @@ export default function BaseField(props) {
       translatedLabel.includes("Регистерийн дугаар") ||
       translatedLabel.includes("РД");
     const bottomLineStyle = isRegistration
-      ? { borderBottom: "2px solid #75736c" }
+      ? { borderBottom: `2px solid ${FIELD.labelInk}` }
       : {};
 
     const optionTypeLastStyle =

@@ -121,6 +121,7 @@ class HfAmbulanceTable extends BaseList {
     this.setState({
       DialogData: (
         <BaseDialog
+          Title={this.props.Title}
           ref={(ref) => (this.DialogRef = ref)}
           Close={() => this.setState({ DialogData: null })}
           Print={() => {

@@ -8,20 +8,23 @@ import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import TextField from "@mui/material/TextField";
+import InputAdornment from "@mui/material/InputAdornment";
+import MenuItem from "@mui/material/MenuItem";
 import SendIcon from "@mui/icons-material/Send";
 import MicIcon from "@mui/icons-material/Mic";
+import SearchIcon from "@mui/icons-material/Search";
+import CloseIcon from "@mui/icons-material/Close";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import { useTranslation } from "react-i18next";
 import Helper from "helper";
-import BaseField from "baseComponents/BaseField";
-import SimpleSelect from "customComponents/SimpleSelect";
-import BaseTextArea from "customComponents/BaseEditControls/BaseTextArea";
 import BaseFileUpload from "baseComponents/Controls/BaseFileUpload";
 import AudioRecorder from "customComponents/Chat/AudioRecorder";
 import { recorderUnavailableReason } from "customComponents/Chat/useMediaRecorder";
 import { ADVICE_UPLOAD_EXT, ADVICE_MAX_FILE_MB } from "./mediaUtils";
 import { colors } from "@/theme/colors";
 import { radius, space, elevation } from "@/theme/tokens";
+import { CONTROL } from "@/theme.js";
 
 /**
  * "Шинэ асуумж" - the composer at the head of the feed.
@@ -36,7 +39,63 @@ import { radius, space, elevation } from "@/theme/tokens";
  * call, so a doctor never ends up with an invisible ticket that they believe
  * they posted. Saving a draft is deliberately the secondary path, and it says
  * plainly that a draft stays private.
+ *
+ * The patient is found BY REGISTER NUMBER, not through the config's
+ * `adv_id_patient` lookup. That lookup searched `p_registration` with
+ * `Contains`, and AddOrgFilter's Patient branch appends `Users.Id = <caller>`
+ * to every search except `p_registration` + `Equals` - so a non-admin doctor
+ * only ever saw patients they had registered themselves, listed by internal Id.
+ * Same rule as PatientMonitoring/AddPatientToMonitoring.jsx.
  */
+
+// Two letters (Cyrillic or Latin) + 8 digits - the rule the top-bar search and
+// the monitoring roster already use.
+const REGISTER_RE = /^[А-Яа-яA-Za-z]{2}[0-9]{8}$/;
+
+// The two fields in the composer's top row share one label and one control
+// spec, so they line up at the same height whichever is taller by content.
+const fieldLabelSx = {
+  display: "block",
+  mb: space[1],
+  color: colors.brand.ink,
+};
+
+const controlSx = {
+  // The theme's MuiFormControl adds 6px top/bottom margin; the label above
+  // already provides the spacing.
+  m: "0 !important",
+  "& .MuiOutlinedInput-root": {
+    backgroundColor: colors.brand.surface,
+    "& fieldset": { borderColor: colors.brand.hairlineStrong },
+    "&:hover fieldset": { borderColor: colors.brand.inkDim },
+    "&.Mui-focused fieldset": { borderColor: colors.brand.cyanInk },
+    "&.Mui-error fieldset": { borderColor: colors.input.error },
+  },
+  // MUI's size="small" input keeps 8.5px top/bottom padding ON TOP of the
+  // theme's 30px line-height, which rendered the register field 47px tall
+  // beside a 32px select. The select already zeroes its own.
+  "& input.MuiOutlinedInput-input": {
+    padding: `0 ${CONTROL.paddingX}`,
+    height: "30px",
+  },
+  "& .MuiOutlinedInput-root.MuiInputBase-multiline": {
+    padding: `${space[2]} ${CONTROL.paddingX}`,
+    fontSize: CONTROL.fontSize,
+  },
+  "& .MuiInputAdornment-root": { mr: "-6px" },
+};
+
+// Brand rank for a secondary action: outlined, neutral, same height as the
+// fields above it (ui-consistency program).
+const secondaryButtonStyle = {
+  margin: 0,
+  minHeight: CONTROL.height,
+  backgroundColor: colors.brand.surface,
+  color: colors.brand.ink,
+  border: `1px solid ${colors.brand.hairlineStrong}`,
+  boxShadow: "none",
+};
+
 export default function PostComposer({ onPublished }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
@@ -47,7 +106,17 @@ export default function PostComposer({ onPublished }) {
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
   const [recording, setRecording] = useState(false);
+  const [register, setRegister] = useState("");
+  const [patient, setPatient] = useState(null);
+  const [finding, setFinding] = useState(false);
+  const [patientNotice, setPatientNotice] = useState(null);
   const user = useRef(Helper.AuthHelper.GetLogedUserLocal());
+  // The register a response belongs to, so a slow answer for a number the
+  // doctor has since changed cannot attach the wrong citizen to the ticket.
+  const lookupFor = useRef("");
+
+  const formattedRegister = register.replace(/\s/g, "").toUpperCase();
+  const registerValid = REGISTER_RE.test(formattedRegister);
 
   // Once per mount: a browser that cannot record will not start being able to,
   // and a button that explains itself only once pressed should not be offered.
@@ -70,10 +139,69 @@ export default function PostComposer({ onPublished }) {
 
   const change = (name, value) => setValues((v) => ({ ...v, [name]: value }));
 
+  // Label text and options still come from the server config; only the
+  // control is local. SimpleSelect is the legacy 28px / 12px control and sat
+  // visibly shorter than the register input beside it.
+  const patientField = configField("adv_id_patient") || { Label: "" };
+  const typeField = configField("ticket_type") || { Label: "" };
+  const typeOptions = Array.isArray(typeField.Data) ? typeField.Data : [];
+  const typeIdField = (typeField.Config && typeField.Config.IdField) || "Value";
+  const typeTextField =
+    (typeField.Config && typeField.Config.TextField) || "Label";
+  const typeLabelOf = (v) => {
+    const o = typeOptions.find((s) => String(s[typeIdField]) === String(v));
+    return o ? String(o[typeTextField]) : String(v);
+  };
+
+  // Only complain once there is enough typed to be wrong.
+  const registerMalformed = formattedRegister.length >= 10 && !registerValid;
+
+  const clearPatient = () => {
+    lookupFor.current = "";
+    setPatient(null);
+    setPatientNotice(null);
+    setFinding(false);
+    setValues((v) => ({ ...v, adv_id_patient: null }));
+  };
+
+  const changeRegister = (text) => {
+    setRegister(text);
+    if (patient || patientNotice) clearPatient();
+  };
+
+  const findPatient = () => {
+    if (!registerValid || finding) return;
+    const target = formattedRegister;
+    lookupFor.current = target;
+    setFinding(true);
+    setPatientNotice(null);
+
+    const SearchOption = Helper.BaseCrudHelper.GetSearchOption();
+    SearchOption.SearchField = [
+      { Field: "p_registration", Value: target, Op: "Equals" },
+    ];
+    Helper.PatientShowHelper.SearchPatient(SearchOption, (res) => {
+      if (lookupFor.current !== target) return;
+      setFinding(false);
+      const found = res && res.Success ? res.Data : null;
+      // An empty array with Success:true is how "no such citizen" comes back.
+      if (!found || Array.isArray(found) || !found.id_data) {
+        setPatient(null);
+        setValues((v) => ({ ...v, adv_id_patient: null }));
+        setPatientNotice(t("Энэ регистрээр иргэн бүртгэгдээгүй байна"));
+        return;
+      }
+      setPatient(found);
+      setValues((v) => ({ ...v, adv_id_patient: found.id_data }));
+    });
+  };
+
   const reset = () => {
     setValues({});
     setFiles([]);
     setError(null);
+    setRegister("");
+    clearPatient();
   };
 
   const canSubmit =
@@ -257,27 +385,150 @@ export default function PostComposer({ onPublished }) {
                   gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" },
                 }}
               >
-                <BaseField
-                  ChangeValue={change}
-                  Value={values.adv_id_patient || null}
-                  Config={configField("adv_id_patient")}
-                />
-                <SimpleSelect
-                  labelId="composer-ticket-type"
-                  Config={configField("ticket_type")}
-                  ChangeValue={(v) => change("ticket_type", v)}
-                  Variant="outlined"
-                  FullWidth={true}
-                />
+                <Box>
+                  <Typography
+                    variant="subtitle2"
+                    component="label"
+                    htmlFor="composer-register"
+                    sx={fieldLabelSx}
+                  >
+                    {t(patientField.Label)}
+                  </Typography>
+                  <TextField
+                    id="composer-register"
+                    size="small"
+                    fullWidth
+                    sx={controlSx}
+                    value={register}
+                    onChange={(e) =>
+                      changeRegister(e.target.value.toUpperCase())
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        findPatient();
+                      }
+                    }}
+                    placeholder={t("АА00000000")}
+                    inputProps={{ maxLength: 12 }}
+                    error={registerMalformed}
+                    InputProps={{
+                      endAdornment: (
+                        <InputAdornment position="end">
+                          {finding ? (
+                            <CircularProgress size={16} />
+                          ) : patient ? (
+                            <IconButton
+                              size="small"
+                              aria-label={t("Clear selection")}
+                              onClick={() => changeRegister("")}
+                            >
+                              <CloseIcon fontSize="small" />
+                            </IconButton>
+                          ) : (
+                            <IconButton
+                              size="small"
+                              aria-label={t("Хайх")}
+                              disabled={!registerValid}
+                              onClick={findPatient}
+                            >
+                              <SearchIcon fontSize="small" />
+                            </IconButton>
+                          )}
+                        </InputAdornment>
+                      ),
+                    }}
+                  />
+                </Box>
+                <Box>
+                  <Typography
+                    variant="subtitle2"
+                    component="label"
+                    htmlFor="composer-ticket-type"
+                    sx={fieldLabelSx}
+                  >
+                    {t(typeField.Label)}
+                  </Typography>
+                  <TextField
+                    id="composer-ticket-type"
+                    select
+                    size="small"
+                    fullWidth
+                    sx={controlSx}
+                    value={
+                      values.ticket_type && values.ticket_type !== "-1"
+                        ? values.ticket_type
+                        : ""
+                    }
+                    onChange={(e) => change("ticket_type", e.target.value)}
+                    SelectProps={{
+                      displayEmpty: true,
+                      renderValue: (v) =>
+                        v === "" ? (
+                          <Box
+                            component="span"
+                            sx={{ color: colors.brand.inkDim }}
+                          >
+                            {t("-- Select --")}
+                          </Box>
+                        ) : (
+                          t(typeLabelOf(v))
+                        ),
+                    }}
+                  >
+                    {typeOptions.map((o) => (
+                      <MenuItem
+                        key={String(o[typeIdField])}
+                        value={String(o[typeIdField])}
+                      >
+                        {t(String(o[typeTextField]))}
+                      </MenuItem>
+                    ))}
+                  </TextField>
+                </Box>
               </Box>
 
+              {/* One status line under BOTH fields, so a message about the
+                  register never pushes that field out of line with Төрөл. */}
+              {registerMalformed || patientNotice || patient ? (
+                <Typography
+                  variant="body2"
+                  component="p"
+                  role="status"
+                  sx={{
+                    mt: space[2],
+                    pl: space[2],
+                    borderLeft: `3px solid ${
+                      patient ? colors.brand.cyanInk : colors.brand.hairline
+                    }`,
+                    color: registerMalformed
+                      ? colors.input.error
+                      : colors.brand.ink,
+                  }}
+                >
+                  {registerMalformed
+                    ? t("2 үсэг, 8 оронтой тоо байна")
+                    : patient
+                      ? [
+                          [patient.p_lastname, patient.p_firstname]
+                            .filter(Boolean)
+                            .join(" ") || t("Нэргүй"),
+                          patient.p_registration,
+                        ].join(" · ")
+                      : patientNotice}
+                </Typography>
+              ) : null}
+
               <Box sx={{ mt: space[3] }}>
-                <BaseTextArea
-                  Config={{ Name: "Body", Value: values.Body || "" }}
-                  Value={values.Body || ""}
-                  ChangeValue={(name, v) => change("Body", v)}
-                  Rows="4"
-                  HideLabel={true}
+                <TextField
+                  multiline
+                  minRows={4}
+                  fullWidth
+                  sx={controlSx}
+                  value={values.Body || ""}
+                  onChange={(e) => change("Body", e.target.value)}
+                  placeholder={t("Шинэ асуумж бичих…")}
+                  inputProps={{ "aria-label": t("Шинэ асуумж бичих…") }}
                 />
               </Box>
 
@@ -307,6 +558,8 @@ export default function PostComposer({ onPublished }) {
                         Value={files}
                         Config={{ Name: "Files" }}
                         ChangeValue={(v) => setFiles(v || [])}
+                        ButtonStyle={secondaryButtonStyle}
+                        ButtonAlign="flex-start"
                         allowedFileTypes={ADVICE_UPLOAD_EXT}
                         maxFileSize={ADVICE_MAX_FILE_MB}
                       />
@@ -326,7 +579,12 @@ export default function PostComposer({ onPublished }) {
                           aria-label={t("Дуу бичих")}
                           disabled={!!recorderBlocked}
                           onClick={() => setRecording(true)}
-                          sx={{ ml: space[2], color: colors.brand.cyanInk }}
+                          // 10px: level with the middle of the 52px drop zone beside it.
+                          sx={{
+                            ml: space[2],
+                            mt: "10px",
+                            color: colors.brand.cyanInk,
+                          }}
                         >
                           <MicIcon fontSize="small" />
                         </IconButton>
