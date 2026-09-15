@@ -1,9 +1,36 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../../core/network/envelope.dart';
 import '../../core/util/json_read.dart';
 import '../../core/util/mn_format.dart';
 import '../journal/journal_entry.dart';
+
+/// Нэг объект дээрх эрх — `GET /api/doctor/me`-ийн `permissions`.
+class DoctorPermission {
+  const DoctorPermission({
+    required this.object,
+    this.create = true,
+    this.read = true,
+    this.update = true,
+    this.delete = true,
+  });
+
+  final String object;
+  final bool create;
+  final bool read;
+  final bool update;
+  final bool delete;
+
+  factory DoctorPermission.fromJson(Map<String, dynamic> json) =>
+      DoctorPermission(
+        object: J.strOr(json, <String>['object', 'Object']),
+        create: J.boolOf(json, <String>['create']),
+        read: J.boolOf(json, <String>['read']),
+        update: J.boolOf(json, <String>['update']),
+        delete: J.boolOf(json, <String>['delete']),
+      );
+}
 
 /// Эмчийн өөрийн мэдээлэл — `GET /api/doctor/me`.
 class DoctorMe {
@@ -17,6 +44,8 @@ class DoctorMe {
     this.organizationName,
     this.provCityName,
     this.soumDistName,
+    this.permissions = const <DoctorPermission>[],
+    this.permissionMode = 'off',
   });
 
   final int userId;
@@ -28,6 +57,32 @@ class DoctorMe {
   final String? organizationName;
   final String? provCityName;
   final String? soumDistName;
+
+  /// Хэрэглэгч тус бүрийн эрх — Техникийн шаардлага §1.2.
+  final List<DoctorPermission> permissions;
+
+  /// `off` · `warn` · `enforce` — сервер дээрх горим.
+  final String permissionMode;
+
+  /// Тухайн үйлдэл зөвшөөрөгдсөн эсэх.
+  ///
+  /// **Хоосон жагсаалт нь "юу ч зөвшөөрөөгүй" биш, "тохируулаагүй"**
+  /// (API.md §9.8). Эмчийн эрхийн матриц одоогоор хоосон тул хоосон дээр
+  /// бүгдийг нуувал цэсгүй апп болно.
+  bool can(String object, {String action = 'read'}) {
+    if (permissions.isEmpty) return true;
+    for (final p in permissions) {
+      if (p.object.toLowerCase() != object.toLowerCase()) continue;
+      return switch (action) {
+        'create' => p.create,
+        'update' => p.update,
+        'delete' => p.delete,
+        _ => p.read,
+      };
+    }
+    // Энэ объектод дүрэм алга — хаахгүй.
+    return true;
+  }
 
   String get roleLabel {
     if (isAdmin) return 'Администратор';
@@ -75,6 +130,11 @@ class DoctorMe {
           J.str(org, <String>['addr_prov_city']),
       soumDistName: J.str(profile, <String>['SoumDistName']) ??
           J.str(org, <String>['addr_soum_dist']),
+      permissionMode:
+          J.strOr(json, <String>['permissionMode'], fallback: 'off'),
+      permissions: Envelope.asList(json['permissions'])
+          .map(DoctorPermission.fromJson)
+          .toList(growable: false),
     );
   }
 }
