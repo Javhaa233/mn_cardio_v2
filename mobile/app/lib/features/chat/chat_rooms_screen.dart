@@ -6,6 +6,7 @@ import '../../core/util/mn_format.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'chat_controller.dart';
+import 'doctor_search_hero.dart';
 import 'chat_models.dart';
 import 'chat_room_screen.dart';
 import 'chat_socket.dart';
@@ -79,7 +80,21 @@ class _ChatRoomsScreenState extends State<ChatRoomsScreen> {
           label: Text(isDoctor ? 'Шинэ яриа' : 'Эмч хайх'),
         ),
       ),
-      body: _buildBody(controller, isDoctor, direct, groups),
+      body: isDoctor
+          ? Column(
+              children: <Widget>[
+                // Эмч хайх — урьд нь нүүр хуудсан дээр байсан. Хайлтын үр дүн
+                // нь яриа эхлүүлэх тул чатын дээд талд байх нь зөв.
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: DoctorSearchHero(),
+                ),
+                Expanded(
+                  child: _buildBody(controller, isDoctor, direct, groups),
+                ),
+              ],
+            )
+          : _buildBody(controller, isDoctor, direct, groups),
     );
 
     return isDoctor
