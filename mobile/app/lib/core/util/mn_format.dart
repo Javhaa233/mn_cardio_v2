@@ -44,8 +44,12 @@ class MnFormat {
       value == null ? '—' : _date.format(value.toLocal());
 
   /// `2026.09.10 14:30`
-  static String dateTime(DateTime? value) =>
-      value == null ? '—' : _dateTime.format(value.toLocal());
+  /// Цаггүй хадгалагдсан хуучин бичлэгт `00:00` нэмж бичихгүй — [_hasClock].
+  static String dateTime(DateTime? value) {
+    if (value == null) return '—';
+    final local = value.toLocal();
+    return _hasClock(local) ? _dateTime.format(local) : _date.format(local);
+  }
 
   /// `14:30`
   static String time(DateTime? value) =>
@@ -78,11 +82,22 @@ class MnFormat {
     return date(local);
   }
 
+  /// Цаг нь **үнэхээр хадгалагдсан** эсэх.
+  ///
+  /// 2026-09-15-ээс өмнө сервер асуулт, хариу, сэтгэгдлийн үүсгэсэн огноог
+  /// **зөвхөн өдрөөр** тэмдэглэдэг байсан (`ModelHelper`-ийн `getDateYMD`).
+  /// Тийм мөрүүд `00:00` болж, өглөөний асуулт оройны хариунаас ялгарахгүй
+  /// байв. Засвар хийгдсэн ч **хуучин мөрүүд хэвээрээ** тул худал цаг
+  /// харуулахын оронд огноог нь л харуулна.
+  static bool _hasClock(DateTime value) =>
+      value.hour != 0 || value.minute != 0 || value.second != 0;
+
   /// Жагсаалтын мөрөнд тохирсон "хэзээ" — өнөөдөр бол цаг, эс бөгөөс огноо.
   static String friendlyDateTime(DateTime? value) {
     if (value == null) return '—';
     final local = value.toLocal();
     final days = _dayDiff(DateTime.now(), local);
+    if (!_hasClock(local)) return friendlyDate(local);
     if (days == 0) return time(local);
     if (days == 1) return 'Өчигдөр ${time(local)}';
     if (days > 0 && days < 7) return '$days хоногийн өмнө';

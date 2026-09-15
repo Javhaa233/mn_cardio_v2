@@ -253,13 +253,20 @@ ModelHelper.prototype.SetDefaultValue = async function (Fields, Data, IsNew) {
       case 'id_group':
         if (IsNew === true && !Data['id_group']) Data['id_group'] = '1';
         break;
+      // Time matters here. These columns are DATETIME and are what every
+      // conversation surface orders and DISPLAYS by - a patient question, a
+      // doctor's reply, an advice comment. Stamping the date alone gave every
+      // message of the day the same 00:00, so the mobile app showed 00:00 on
+      // all of them and could not tell the morning question from the evening
+      // reply. UpdateDate below already stamps the time; these two were the
+      // odd ones out.
       case 'date_creation':
         if (IsNew === true && !Data['date_creation'])
-          Data['date_creation'] = ObjectHelper.getDateYMD();
+          Data['date_creation'] = ObjectHelper.getDateYMDHMS();
         break;
       case 'date_created':
         if (IsNew === true && !Data['date_created'])
-          Data['date_created'] = ObjectHelper.getDateYMD();
+          Data['date_created'] = ObjectHelper.getDateYMDHMS();
         break;
       case 'user_mod':
         if (IsNew === true && !Data['user_mod'])
