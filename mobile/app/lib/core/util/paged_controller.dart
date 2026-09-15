@@ -85,6 +85,13 @@ abstract class PagedController<T> extends ChangeNotifier {
     _emit(AsyncState<List<T>>.ready(<T>[item, ...current]));
   }
 
+  /// Мөр шинэчлэгдсэн үед (жишээ нь "уншсан" болгох) бүх хуудсыг дахин
+  /// татахгүйгээр локал жагсаалтыг солино.
+  void replaceItems(List<T> next) {
+    if (!_state.isReady) return;
+    _emit(AsyncState<List<T>>.ready(next));
+  }
+
   /// Бичлэг устгасны дараа локал жагсаалтаас хасна.
   void removeWhere(bool Function(T item) test) {
     if (!_state.isReady) return;

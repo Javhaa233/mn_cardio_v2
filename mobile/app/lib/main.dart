@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import 'app.dart';
 import 'core/auth/auth_controller.dart';
 import 'core/notifications/local_notifications.dart';
+import 'core/push/push_registrar.dart';
 import 'core/notifications/reminder_controller.dart';
 import 'core/storage/prefs.dart';
 import 'core/network/envelope_interceptor.dart';
@@ -26,7 +27,10 @@ Future<void> main() async {
   final prefs = await Prefs.load();
   final store = SecureStore();
 
-  final auth = AuthController(store: store, prefs: prefs);
+  final auth = AuthController(store: store, prefs: prefs)
+    // Push токен өгөх эх сурвалж Firebase түлхүүр ирэхэд солигдоно —
+    // бүртгэх, салгах урсгал нь одоо ч ажиллана (core/push/push_registrar.dart).
+    ..pushRegistrar = PushRegistrar();
   final reminders = ReminderController(prefs);
 
   // Техникийн шаардлага §2.1 — хувилбарын шалгалт. Билдийн дугаарыг дуудлага

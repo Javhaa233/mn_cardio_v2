@@ -12,6 +12,7 @@ import 'features/chat/chat_controller.dart';
 import 'features/chat/chat_repository.dart';
 import 'features/chat/chat_socket.dart';
 import 'features/consents/consents_controller.dart';
+import 'features/notifications/notifications_controller.dart';
 import 'features/doctor/doctor_controllers.dart';
 import 'features/doctor/doctor_repository.dart';
 import 'features/doctor/doctor_shell.dart';
@@ -189,6 +190,13 @@ class DoctorScope extends StatelessWidget {
           create: (_) => DoctorReportController(doctorRepo),
         ),
 
+        // Мэдэгдэл (§2.1) — эмч, үйлчлүүлэгчид ижил гадаргуу.
+        ChangeNotifierProvider<NotificationsController>(
+          create: (_) => NotificationsController(
+            NotificationsRepository(api, isDoctor: true),
+          ),
+        ),
+
         // Нүүр хуудасны тасалбарын урсгал — вебийн AdviceHome.
         ChangeNotifierProvider<DoctorFeedController>(
           create: (_) => DoctorFeedController(doctorRepo),
@@ -259,6 +267,13 @@ class PatientScope extends StatelessWidget {
         // --- 2.4 Эмчийн зөвлөгөө ---
         ChangeNotifierProvider<AdviceController>(
           create: (_) => AdviceController(AdviceRepository(api)),
+        ),
+
+        // --- Мэдэгдэл (§2.1) ---
+        ChangeNotifierProvider<NotificationsController>(
+          create: (_) => NotificationsController(
+            NotificationsRepository(api, isDoctor: false),
+          ),
         ),
 
         // --- Зөвшөөрөл (Техникийн шаардлага §1.2) ---

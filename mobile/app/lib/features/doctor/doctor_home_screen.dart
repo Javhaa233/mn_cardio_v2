@@ -9,6 +9,7 @@ import '../chat/chat_controller.dart';
 import '../chat/chat_models.dart';
 import '../chat/chat_repository.dart';
 import '../chat/doctor_search_screen.dart';
+import '../notifications/notification_bell.dart';
 import 'doctor_controllers.dart';
 import 'doctor_models.dart';
 import 'doctor_report_screen.dart';
@@ -175,6 +176,7 @@ class _DoctorGreeting extends StatelessWidget {
             ],
           ),
         ),
+        const NotificationBell(isDoctor: true),
       ],
     );
   }

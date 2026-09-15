@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../config/app_config.dart';
 import '../network/api_client.dart';
+import '../push/push_registrar.dart';
 import '../network/api_exception.dart';
 import '../storage/prefs.dart';
 import '../storage/secure_store.dart';
@@ -62,6 +64,12 @@ class AuthController extends ChangeNotifier {
   final SecureStore _store;
   final Prefs _prefs;
   final BiometricService biometrics;
+
+  /// Push төхөөрөмжийн бүртгэл. Firebase/APNs түлхүүр ирэх хүртэл токен
+  /// байхгүй тул бүртгэл хийгдэхгүй — урсгал нь бэлэн.
+  PushRegistrar? _push;
+
+  set pushRegistrar(PushRegistrar value) => _push = value;
 
   late final ApiClient api;
   late final AuthRepository _repo;
@@ -212,6 +220,8 @@ class AuthController extends ChangeNotifier {
       await _bootstrapRefreshToken(tokens.accessToken);
       await _resetFailedAttempts();
       _set(AuthStatus.authenticated);
+      // Токен эргэлддэг тул нэвтрэх бүрт дахин бүртгэнэ (API.md §2.9).
+      unawaited(_push?.register(api, isDoctor: isDoctorSession) ?? Future<void>.value());
       return true;
     } on ApiException catch (e) {
       // Сүлжээний алдааг буруу нууц үг гэж тоолохгүй.
@@ -287,9 +297,13 @@ class AuthController extends ChangeNotifier {
 
   /// Гарах.
   ///
-  /// Сервер талд токеныг хүчингүй болгодоггүй (`LogOut` нь stub — API.md §2),
-  /// тул гарах гэдэг нь бүхэлдээ хадгалалтыг цэвэрлэх үйлдэл.
+  /// Сервер дээрх сессийг хаагаад дараа нь локал хадгалалтыг цэвэрлэнэ.
   Future<void> logout({bool forgetUserName = false}) async {
+    // Push мэдэгдэл өөр хүн рүү очихоос сэргийлж төхөөрөмжийн бүртгэлийг
+    // эхлээд салгана, дараа нь токеныг хүчингүй болгоно.
+    await _push?.unregister(api, isDoctor: isDoctorSession);
+    await _repo.logout();
+
     if (forgetUserName) {
       await _store.clearAll();
       await _prefs.setLastUserName(null);

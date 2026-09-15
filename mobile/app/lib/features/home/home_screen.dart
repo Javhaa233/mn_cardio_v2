@@ -17,6 +17,7 @@ import '../profile/profile_screen.dart';
 import '../questions/questions_controller.dart';
 import '../questions/questions_screen.dart';
 import '../rehab/rehab_screen.dart';
+import '../notifications/notification_bell.dart';
 import '../reminders/reminders_screen.dart';
 import '../risk/risk_screen.dart';
 
@@ -339,8 +340,9 @@ class _Greeting extends StatelessWidget {
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const RemindersScreen()),
           ),
-          icon: const Icon(Icons.notifications_none_rounded),
+          icon: const Icon(Icons.alarm_outlined),
         ),
+        const NotificationBell(),
       ],
     );
   }
