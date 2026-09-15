@@ -81,6 +81,14 @@ class AuthController extends ChangeNotifier {
   int _failedAttempts = 0;
   bool _biometricAvailable = false;
 
+  /// Төхөөрөмж дээр сэргээх боломжтой сесс хадгалагдсан эсэх.
+  ///
+  /// Биометр нь **хадгалсан сессийг нээх** хэрэгсэл болохоос нэвтрэлт биш:
+  /// токен байхгүй үед хурууны хээ таньсан ч сэргээх юм алга. Гарсны дараа
+  /// товчийг харуулсаар байвал хэрэглэгч таниулаад "хугацаа дууссан" гэсэн
+  /// ойлгомжгүй алдаа авна.
+  bool _hasStoredSession = false;
+
   AuthStatus get status => _status;
   LogedUser? get user => _user;
   String? get lastError => _lastError;
@@ -88,6 +96,10 @@ class AuthController extends ChangeNotifier {
   bool get isAuthenticated => _status == AuthStatus.authenticated;
   bool get biometricEnabled => _prefs.biometricEnabled;
   bool get biometricAvailable => _biometricAvailable;
+
+  /// Биометрээр нээх боломжтой эсэх — тохиргоо, төхөөрөмж, хадгалсан сесс гурав.
+  bool get canUnlockWithBiometrics =>
+      _prefs.biometricEnabled && _biometricAvailable && _hasStoredSession;
   String? get lastUserName => _prefs.lastUserName;
 
   /// Нэвтрэх дэлгэц дээр урьдчилан сонгогдох хэсэг.
@@ -111,6 +123,7 @@ class AuthController extends ChangeNotifier {
   Future<void> bootstrap() async {
     _failedAttempts = _prefs.failedLoginCount;
     _biometricAvailable = await biometrics.isAvailable();
+    await _refreshStoredSessionFlag();
 
     if (AppConfig.canOverrideBaseUrl) {
       final override = _prefs.baseUrlOverride;
@@ -155,24 +168,36 @@ class AuthController extends ChangeNotifier {
   }
 
   /// Хадгалсан токеноор сесс сэргээх оролдлого.
+  ///
+  /// Алхам бүрийг логлоно: "нэвтрэх хугацаа дууссан" гэж хэлэхээсээ өмнө
+  /// ЯАГААД гэдгийг мэдэж байх ёстой. Хурууны хээгээр нээх бүрт энэ урсгал
+  /// дахин ажилладаг тул нэг алдаа бүх биометр нэвтрэлтийг унагадаг.
   Future<bool> _restoreSession() async {
     final access = await _store.readAccessToken();
     final expiry = await _store.readAccessTokenExpiry();
     final refresh = await _store.readRefreshToken();
+
+    debugPrint('[auth] сэргээх: access=${access != null}'
+        ' refresh=${refresh != null} expiry=$expiry');
 
     final stillFresh = access != null &&
         access.isNotEmpty &&
         expiry != null &&
         DateTime.now().isBefore(expiry.subtract(AppConfig.refreshLeeway));
 
-    if (stillFresh) return true;
+    if (stillFresh) {
+      debugPrint('[auth] токен хүчинтэй хэвээр');
+      return true;
+    }
 
     if (refresh != null && refresh.isNotEmpty) {
       try {
         final tokens = await _repo.refresh(refresh);
         await _persist(tokens);
+        debugPrint('[auth] refresh токеноор сэргээлээ');
         return true;
-      } on ApiException {
+      } on ApiException catch (e) {
+        debugPrint('[auth] refresh амжилтгүй: ${e.code} ${e.message}');
         await _store.clearSession();
         return false;
       }
@@ -181,6 +206,7 @@ class AuthController extends ChangeNotifier {
     // Refresh токен байхгүй ч access токен хүчинтэй байж болно.
     if (access != null && access.isNotEmpty) {
       final valid = await _repo.isSessionValid(access);
+      debugPrint('[auth] /auth/session хариу: $valid');
       if (valid) {
         // Энэ мөчид эхний refresh токеноо авна — API.md §2, алхам 2.
         await _bootstrapRefreshToken(access);
@@ -188,6 +214,7 @@ class AuthController extends ChangeNotifier {
       }
     }
 
+    debugPrint('[auth] сэргээх боломжгүй — хадгалалтыг цэвэрлэв');
     await _store.clearSession();
     return false;
   }
@@ -219,6 +246,7 @@ class AuthController extends ChangeNotifier {
       await _store.writeUserName(userName.trim());
       await _bootstrapRefreshToken(tokens.accessToken);
       await _resetFailedAttempts();
+      await _refreshStoredSessionFlag();
       _set(AuthStatus.authenticated);
       // Токен эргэлддэг тул нэвтрэх бүрт дахин бүртгэнэ (API.md §2.9).
       unawaited(_push?.register(api, isDoctor: isDoctorSession) ?? Future<void>.value());
@@ -247,8 +275,25 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// Хадгалсан сесс байгаа эсэхийг дахин тооцоолно.
+  Future<void> _refreshStoredSessionFlag() async {
+    final access = await _store.readAccessToken();
+    final refresh = await _store.readRefreshToken();
+    _hasStoredSession = (access != null && access.isNotEmpty) ||
+        (refresh != null && refresh.isNotEmpty);
+  }
+
   /// Биометрээр түгжээг нээх.
   Future<bool> unlockWithBiometrics() async {
+    // Гарсны дараа токен үлддэггүй. Энэ тохиолдолд хурууны хээ асуух нь
+    // утгагүй: асуугаад л "хугацаа дууссан" гэж хэлэх болно.
+    await _refreshStoredSessionFlag();
+    if (!_hasStoredSession) {
+      _lastError = 'Хадгалсан нэвтрэлт олдсонгүй. Нууц үгээ оруулна уу.';
+      _set(AuthStatus.unauthenticated);
+      return false;
+    }
+
     _setBusy(true);
     try {
       final ok = await biometrics.authenticate();
@@ -313,6 +358,7 @@ class AuthController extends ChangeNotifier {
     }
     _user = null;
     _lastError = null;
+    _hasStoredSession = false;
     _set(AuthStatus.unauthenticated);
   }
 
@@ -334,6 +380,7 @@ class AuthController extends ChangeNotifier {
 
   Future<void> _handleSessionExpired() async {
     await _store.clearSession();
+    _hasStoredSession = false;
     _user = null;
     _lastError = 'Нэвтрэх хугацаа дууссан байна. Дахин нэвтэрнэ үү.';
     _set(AuthStatus.unauthenticated);

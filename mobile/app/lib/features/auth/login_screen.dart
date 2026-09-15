@@ -153,7 +153,9 @@ class _LoginScreenState extends State<LoginScreen> {
                             )
                           : const Text('Нэвтрэх'),
                     ),
-                    if (auth.biometricEnabled && auth.biometricAvailable) ...<Widget>[
+                    // Товчийг зөвхөн сэргээх сесс байгаа үед харуулна —
+                    // гарсны дараа хурууны хээ нээх юмгүй.
+                    if (auth.canUnlockWithBiometrics) ...<Widget>[
                       const SizedBox(height: 12),
                       OutlinedButton.icon(
                         onPressed: auth.busy ? null : _unlockWithBiometrics,
