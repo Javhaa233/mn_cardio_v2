@@ -8,6 +8,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material
+import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import FormLabel from "@mui/material/FormLabel";
 import MenuItem from "@mui/material/MenuItem";
@@ -69,6 +70,7 @@ const UserRequestInfo = forwardRef(function UserRequestInfo({ Id }, ref) {
   const [RoleId, setRoleId] = useState("2");
   const [License, setLicense] = useState("");
   const [Reason, setReason] = useState("");
+  const [Review, setReview] = useState(null);
   const [Errors, setErrors] = useState({});
   const ReasonRef = useRef(null);
   const LicenseRef = useRef(null);
@@ -101,6 +103,17 @@ const UserRequestInfo = forwardRef(function UserRequestInfo({ Id }, ref) {
     Helper.BaseCrudHelper.GetConfigData("Users", (resData) => {
       if (Alive && resData && resData.Data) setRoles(RoleOptions(resData.Data));
     });
+    // What the administrator needs to know before deciding: whether this
+    // request carries a password of its own, and whether the person already
+    // has an account.
+    Helper.BaseCrudHelper.CallService(
+      "/UserRequest/Review",
+      { Id },
+      (resData) => {
+        if (Alive && resData && resData.Success)
+          setReview(resData.Data || null);
+      },
+    );
     return () => {
       Alive = false;
     };
@@ -190,6 +203,34 @@ const UserRequestInfo = forwardRef(function UserRequestInfo({ Id }, ref) {
           <Row Label="Татгалзсан шалтгаан" Value={Data.DeclineReason} />
         ) : null}
       </div>
+
+      {Pending &&
+      Review &&
+      Review.Duplicates &&
+      Review.Duplicates.length > 0 ? (
+        <Alert severity="warning">
+          {t("Энэ хүн аль хэдийн бүртгэлтэй байж магадгүй")}:
+          {Review.Duplicates.map((Row) => (
+            <Box key={Row.DoctorId} component="span" sx={{ display: "block" }}>
+              {[Row.LastName, Row.FirstName].filter(Boolean).join(" ")}
+              {Row.UserName ? ` (${Row.UserName})` : ""}
+              {Row.OrganizationName ? ` · ${Row.OrganizationName}` : ""}
+              {" · "}
+              {Row.MatchField === "Registration"
+                ? t("Регистрийн дугаар таарч байна")
+                : t("И-мэйл хаяг таарч байна")}
+            </Box>
+          ))}
+        </Alert>
+      ) : null}
+
+      {Pending && Review && Review.HasPassword === false ? (
+        <Alert severity="info">
+          {t(
+            "Энэ хүсэлт нууц үггүй (хуучин). Баталгаажуулбал нууц үг үүсгэх холбоосыг и-мэйлээр илгээнэ.",
+          )}
+        </Alert>
+      ) : null}
 
       {Pending ? (
         <>

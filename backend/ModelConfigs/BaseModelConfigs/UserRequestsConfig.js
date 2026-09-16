@@ -5,12 +5,14 @@ function UserRequestsConfig() {
   this.Fields = [
     [
       {
+        // Off the grid: every request comes from the web app, so the column
+        // was a constant 1 taking a slot from something a decision needs.
         Name: 'AppId',
         Label: 'App',
         Type: 'SingleSelect',
         Config: { Model: Models.Apps, TextField: 'Name', IdField: 'Id' },
         EditField: false,
-        GridField: true,
+        GridField: false,
       },
       {
         Name: 'Id',
@@ -25,10 +27,11 @@ function UserRequestsConfig() {
         Type: 'Text',
       },
       {
+        // On the grid: an administrator judges a request by who the person is,
+        // and the registration number is the one identifier that is theirs.
         Name: 'Registration',
-        Label: 'Personal number',
+        Label: 'Регистрийн дугаар',
         Type: 'Text',
-        GridField: false,
       },
       {
         Name: 'LastName',
@@ -40,7 +43,6 @@ function UserRequestsConfig() {
         Name: 'Profession',
         Label: 'Profession',
         Type: 'Text',
-        GridField: false,
       },
       {
         Name: 'License',

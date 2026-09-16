@@ -88,6 +88,21 @@ function MayDelete(ObjectName, LogedUser) {
   return !ACCOUNT_OBJECTS.includes(ObjectName) || IsAdmin(LogedUser);
 }
 
+/*
+ * Reading is a separate question from writing, and only one object is closed.
+ *
+ * A sign-up request holds a person's registration number, email, phone and
+ * licence before anyone has decided they belong in the system, and the whole
+ * queue was readable by any staff token through /BaseObject. Users and
+ * DoctorsProfile stay readable: lookups, pickers and grids across the app
+ * depend on them, and restricting those is a different piece of work.
+ */
+const READ_ADMIN_ONLY = ['UserRequests'];
+
+function MayRead(ObjectName, LogedUser) {
+  return !READ_ADMIN_ONLY.includes(ObjectName) || IsAdmin(LogedUser);
+}
+
 /**
  * Call at the top of BaseUpdate. Mutates Data: a non-admin's write loses the
  * protected keys and must target their own record.
@@ -112,4 +127,4 @@ function CheckUpdate(ObjectName, Data, LogedUser) {
   }
 }
 
-module.exports = { IsAdmin, CheckCreate, CheckUpdate, MayDelete };
+module.exports = { IsAdmin, CheckCreate, CheckUpdate, MayDelete, MayRead };

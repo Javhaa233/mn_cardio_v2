@@ -6,6 +6,8 @@ import {
   useGridSelector,
   gridVisibleColumnDefinitionsSelector,
   gridSortModelSelector,
+  GridHeaderCheckbox,
+  GRID_CHECKBOX_SELECTION_FIELD,
 } from "@mui/x-data-grid";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -146,6 +148,32 @@ const CustomColumnHeaders = React.forwardRef(function CustomColumnHeaders(
           {columns.map((col) => {
             const sortItem = sortModel.find((s) => s.field === col.field);
             const sortable = col.sortable !== false;
+
+            /*
+             * The selection column carries its control in `renderHeader`, and
+             * this header row renders `headerName` only - so a grid with
+             * checkboxes had a 50px blank where "select this page" belongs, and
+             * the only way to pick rows was one at a time. With server-side
+             * pagination MUI binds this to the current page, which is the
+             * bounded behaviour we want anyway.
+             */
+            if (col.field === GRID_CHECKBOX_SELECTION_FIELD) {
+              return (
+                <Box
+                  key={col.field}
+                  className="MuiDataGrid-columnHeader"
+                  sx={{
+                    ...columnStyle(col),
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <GridHeaderCheckbox field={col.field} colDef={col} />
+                </Box>
+              );
+            }
 
             return (
               <Box

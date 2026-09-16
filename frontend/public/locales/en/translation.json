@@ -1953,5 +1953,21 @@
   "Usernames should not be duplicated": "This user name is already taken",
   "Not admin user": "Administrators only",
   "The user name is a duplicate": "The user name is already taken",
-  "Refusal to establish consumer rights": "The request was declined"
+  "Refusal to establish consumer rights": "The request was declined",
+  "Сонгосныг татгалзах": "Decline selected",
+  "Сонгосон хүсэлтийг татгалзах": "Decline the selected requests",
+  "хүсэлтийг татгалзах гэж байна. Буцаах боломжгүй.": "requests are about to be declined. This cannot be undone.",
+  "хүсэлтэд и-мэйл хаяг байхгүй тул мэдэгдэл хүрэхгүй.": "requests have no email address, so no notice reaches them.",
+  "Хүсэлт гаргагч бүрт и-мэйлээр илгээнэ": "Emailed to every applicant",
+  "и-мэйлгүй": "no email",
+  "хүсэлтийг татгалзлаа": "requests declined",
+  "хүсэлтийг өмнө нь шийдвэрлэсэн тул алгаслаа": "requests were already decided and were skipped",
+  "Хүлээгдэж буй хүсэлт алга": "No requests are waiting",
+  "Энэ хүн аль хэдийн бүртгэлтэй байж магадгүй": "This person may already have an account",
+  "Регистрийн дугаар таарч байна": "registration number matches",
+  "И-мэйл хаяг таарч байна": "email address matches",
+  "Энэ хүсэлт нууц үггүй (хуучин). Баталгаажуулбал нууц үг үүсгэх холбоосыг и-мэйлээр илгээнэ.": "This request has no password (an old one). Approving it emails a link to create one.",
+  "Энэ мэдээллийг харах эрхгүй байна": "You may not view this information",
+  "Хүсэлт сонгогдоогүй байна": "No request selected",
+  "хоног": "days"
 }

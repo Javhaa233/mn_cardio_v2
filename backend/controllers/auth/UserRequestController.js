@@ -3,7 +3,7 @@ const router = express.Router();
 
 const bcrypt = require('bcryptjs');
 const Sequelize = require('sequelize');
-const { Models, Op } = require('../../config/DB');
+const { Models, Op, sequelize } = require('../../config/DB');
 
 const Auths = require('../../helper/Auth');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
@@ -134,8 +134,11 @@ router.post('/CheckUserName', CheckUserName);
 router.post('/GetProvinceData', GetProvinceData);
 router.post('/GetOrganizations', GetOrganizations);
 router.post('/Register', Register);
+router.post('/Review', Auths.verifyToken, Review);
 router.post('/Confirm', Auths.verifyToken, Confirm);
 router.post('/Decline', Auths.verifyToken, Decline);
+router.post('/DeclineMany', Auths.verifyToken, DeclineMany);
+router.post('/PendingCount', Auths.verifyToken, PendingCount);
 
 async function CheckUserName(req, res) {
   try {
@@ -309,6 +312,71 @@ async function Register(req, res) {
     if (RequestId) {
       await Models.UserRequests.destroy({ where: { Id: RequestId } }).catch(() => {});
     }
+    return Fail(res);
+  }
+}
+
+/**
+ * What an administrator should know BEFORE approving one request.
+ *
+ *   HasPassword  false for a request filed before applicants chose their own
+ *                password. Approving one creates the account with no password
+ *                and emails a set-password link - the admin used to learn that
+ *                only from the result message, after the fact.
+ *   Duplicates   accounts that already exist for this person, matched on
+ *                registration number or email. Without this the same doctor can
+ *                be given a second account, and nothing downstream notices.
+ *
+ * The password HASH itself is never returned - only whether one exists.
+ */
+async function Review(req, res) {
+  try {
+    if (!AccountWriteGuard.IsAdmin(req.LogedUser)) return Fail(res, 'Not admin user');
+
+    const Id = parseInt(req.body.Id, 10);
+    const Request = Id ? await Models.UserRequests.findByPk(Id, { raw: true }) : null;
+    if (!Request) return Fail(res, 'No data found');
+
+    const Registration = Request.Registration ? String(Request.Registration).trim().toUpperCase() : '';
+    const Email = Request.Email ? String(Request.Email).trim().toLowerCase() : '';
+
+    // personal_number is uppercased on write (helper/ModelHelper), so an
+    // equality match is safe. The email side checks both the account address
+    // and the profile copy, which are not always the same.
+    let Duplicates = [];
+    if (Registration || Email) {
+      const [Rows] = await sequelize.query(
+        `SELECT TOP 10
+                d.id_data        AS DoctorId,
+                d.id             AS UserId,
+                d.lastname       AS LastName,
+                d.firstname      AS FirstName,
+                d.personal_number AS Registration,
+                u.UserName       AS UserName,
+                o.Name           AS OrganizationName,
+                CASE WHEN :Registration <> '' AND UPPER(LTRIM(RTRIM(d.personal_number))) = :Registration
+                     THEN 'Registration' ELSE 'Email' END AS MatchField
+           FROM DoctorsProfile d
+           LEFT JOIN Users u ON u.Id = d.id
+           LEFT JOIN Organization o ON o.Id = d.OrganizationId
+          WHERE ISNULL(d.rec_status, 0) <> 2
+            AND ( (:Registration <> '' AND UPPER(LTRIM(RTRIM(d.personal_number))) = :Registration)
+               OR (:Email <> '' AND LOWER(LTRIM(RTRIM(u.Email))) = :Email)
+               OR (:Email <> '' AND LOWER(LTRIM(RTRIM(d.email))) = :Email) )
+          ORDER BY d.id_data DESC`,
+        { replacements: { Registration, Email } }
+      );
+      Duplicates = Rows || [];
+    }
+
+    const PasswordHash = await RegistrationRequest.GetPasswordHash(Id);
+    return res.send({
+      Success: true,
+      Message: '',
+      Data: { HasPassword: !!PasswordHash, Duplicates },
+    });
+  } catch (ex) {
+    console.log(ex);
     return Fail(res);
   }
 }
@@ -496,6 +564,134 @@ async function Decline(req, res) {
       Data: { DataId: Id },
       Message: 'Refusal to establish consumer rights',
     });
+  } catch (ex) {
+    console.log(ex);
+    return Fail(res);
+  }
+}
+
+/**
+ * Decline many pending requests at once, with one shared reason.
+ *
+ * The queue holds over a thousand requests going back years, none of which
+ * could be cleared except one dialog at a time. Approving stays single: each
+ * account needs its own organization and role. Declining is the bulk case.
+ *
+ * Capped per call so one click can never try to send a thousand emails in one
+ * request. The status is written first, in a single UPDATE that only touches
+ * rows still pending, and the mails go out afterwards - a slow SMTP host must
+ * never hold the write or leave the queue half-decided.
+ */
+// One visible grid page is the most MUI will show at once, so one page is one
+// call and the admin can never aim a single click at the whole backlog.
+const DECLINE_MANY_CAP = 100;
+
+// Between messages. MailHelper builds a fresh transport per email, so sending
+// a hundred without a gap opens a hundred connections and invites a throttle.
+const MAIL_GAP_MS = 250;
+
+async function DeclineMany(req, res) {
+  try {
+    const LogedUser = req.LogedUser;
+    if (!AccountWriteGuard.IsAdmin(LogedUser)) return Fail(res, 'Not admin user');
+
+    const Reason = Clean(req.body.Reason);
+    if (!Reason) return Fail(res, 'Татгалзсан шалтгаанаа бичнэ үү');
+    if (Reason.length > 500) return Fail(res, 'Шалтгаан 500 тэмдэгтээс хэтрэхгүй');
+
+    const Ids = Array.isArray(req.body.Ids)
+      ? [...new Set(req.body.Ids.map((i) => parseInt(i, 10)).filter(Boolean))]
+      : [];
+    if (Ids.length === 0) return Fail(res, 'Хүсэлт сонгогдоогүй байна');
+    if (Ids.length > DECLINE_MANY_CAP) {
+      return Fail(res, `Нэг удаад ${DECLINE_MANY_CAP} хүртэл хүсэлтийг татгалзана`);
+    }
+
+    /*
+     * One conditional UPDATE, and OUTPUT tells us exactly which rows it changed.
+     *
+     * Reading the pending rows first and updating them afterwards leaves a
+     * window: an administrator in another tab can approve one in between, and
+     * that freshly created account would then be retro-declined. `AND IsActive
+     * = 0` in the statement itself closes the window, and OUTPUT INSERTED
+     * returns the addresses for the mail without a second read.
+     *
+     * IsActive is a TINYINT in the table even though the model calls it STRING
+     * (see scripts/add_userrequest_approval_columns.sql), so the pending value
+     * is bound as a number to keep the predicate sargable.
+     */
+    const [Changed] = await sequelize.query(
+      `UPDATE [UserRequests]
+          SET [IsActive] = :Declined,
+              [DeclineUserId] = :UserId,
+              [DecisionDate] = :Now,
+              [DeclineReason] = :Reason
+        OUTPUT INSERTED.[Id], INSERTED.[Email], INSERTED.[UserName]
+        WHERE [Id] IN (:Ids) AND [IsActive] = :Pending`,
+      {
+        replacements: {
+          Declined: parseInt(STATUS.Declined, 10),
+          Pending: parseInt(STATUS.Pending, 10),
+          UserId: parseInt(LogedUser.Id, 10),
+          Now: new Date(),
+          Reason,
+          Ids,
+        },
+      }
+    );
+
+    const Declined = Changed || [];
+    const DeclinedIds = Declined.map((Row) => Row.Id);
+    const SkippedIds = Ids.filter((Id) => !DeclinedIds.includes(Id));
+
+    // Mail AFTER the answer: the decision is committed, and a slow SMTP host
+    // must not hold the request open or make the admin think it failed.
+    const Recipients = Declined.filter((Row) => Row.Email && EMAIL_REGEX.test(String(Row.Email).trim()));
+    setImmediate(async () => {
+      for (const Row of Recipients) {
+        try {
+          await Notify(
+            Row.Email,
+            'MnCardio - бүртгэлийн хүсэлт',
+            `Таны <b>${EscapeHtml(Row.UserName)}</b> нэртэй бүртгэлийн хүсэлтийг татгалзлаа.<br />
+             Шалтгаан: ${EscapeHtml(Reason)}`
+          );
+        } catch (ex) {
+          console.error('[UserRequestController/DeclineMany] mail failed:', ex.message);
+        }
+        await new Promise((Resolve) => setTimeout(Resolve, MAIL_GAP_MS));
+      }
+    });
+
+    return res.send({
+      Success: true,
+      Message:
+        `${DeclinedIds.length} хүсэлтийг татгалзлаа.` +
+        (SkippedIds.length ? ` ${SkippedIds.length} хүсэлтийг өмнө нь шийдвэрлэсэн тул алгаслаа.` : '') +
+        (Recipients.length < DeclinedIds.length
+          ? ` ${DeclinedIds.length - Recipients.length} хүсэлтэд и-мэйл хаяг байхгүй.`
+          : ''),
+      Data: {
+        Requested: Ids.length,
+        Declined: DeclinedIds.length,
+        DeclinedIds,
+        Skipped: SkippedIds.length,
+        SkippedIds,
+        MailQueued: Recipients.length,
+      },
+    });
+  } catch (ex) {
+    console.log(ex);
+    return Fail(res);
+  }
+}
+
+/** How many requests are waiting - for the sidebar badge. Admin only. */
+async function PendingCount(req, res) {
+  try {
+    if (!AccountWriteGuard.IsAdmin(req.LogedUser)) return Fail(res, 'Not admin user');
+    const Pending = await Models.UserRequests.count({ where: { IsActive: STATUS.Pending } });
+    return res.send({ Success: true, Message: '', Data: { Pending } });
   } catch (ex) {
     console.log(ex);
     return Fail(res);

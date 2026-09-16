@@ -183,6 +183,9 @@ const adminRoutes = [
     roles: [1],
     component: UserRequests,
     layout: "/admin",
+    // Draws the waiting-request count on the sidebar icon. The only route with
+    // one today; the sidebar treats it generically (helper/PendingRequests).
+    Badge: "UserRequestsPending",
   },
 ];
 

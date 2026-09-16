@@ -18,12 +18,23 @@ const MediaTranscode = require('../../helper/MediaTranscode');
 // Flags, ChatIdentity, ChatHelper, PatientScope and AdviceScopeHelper moved to
 // helper/FileAccessHelper.js with the two functions that used them.
 const { CheckContact } = require('../../helper/ContactValidation');
+const AccountWriteGuard = require('../../helper/AccountWriteGuard');
 
 // Email/phone rules for the account objects that pass through this generic
 // controller. Create is strict (a new Users row needs an email); update only
 // judges keys that were sent, so an edit that leaves them alone is never refused.
 // UserRequest/Confirm creates accounts via BaseControllerHelper directly, not
 // through here, so approving an old sign-up request is unaffected.
+// Sign-up requests are admin-only to READ as well as to decide - see
+// helper/AccountWriteGuard. Answered here rather than inside the helpers so the
+// refusal reaches the client as a message instead of an empty list.
+function ReadRefusal(ObjectName, LogedUser) {
+  if (AccountWriteGuard.MayRead(ObjectName, LogedUser)) return null;
+  return JSON.stringify(
+    BaseControllerHelper.GetDefaultErrorResult('Энэ мэдээллийг харах эрхгүй байна')
+  );
+}
+
 function AccountContactError(ObjectName, Data, IsCreate) {
   if (ObjectName === 'Users') {
     return CheckContact(Data, { EmailKey: 'Email', PhoneKey: null, Required: IsCreate });
@@ -58,6 +69,8 @@ async function getDetail(req, res) {
     const AppId = req.body.AppId;
 
     if (ObjectName && LogedUser) {
+      const Refused = ReadRefusal(ObjectName, LogedUser);
+      if (Refused) return res.send(Refused);
       var Option = BaseControllerHelper.GetCrudRequestData(req);
       var DetailData = await BaseControllerHelper.BaseDetail({
         ObjectName,
@@ -83,6 +96,8 @@ async function getDetailInfo(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && LogedUser) {
+      const Refused = ReadRefusal(ObjectName, LogedUser);
+      if (Refused) return res.send(Refused);
       var Option = BaseControllerHelper.GetCrudRequestData(req);
       var DetailData = await BaseControllerHelper.BaseDetailInfo({
         ObjectName,
@@ -112,6 +127,8 @@ async function getList(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && LogedUser) {
+      const Refused = ReadRefusal(ObjectName, LogedUser);
+      if (Refused) return res.send(Refused);
       const Option = BaseControllerHelper.GetCrudRequestData(req);
       const ListData = await BaseControllerHelper.BaseGetList({
         ObjectName,
@@ -142,6 +159,8 @@ async function getListInfo(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && LogedUser) {
+      const Refused = ReadRefusal(ObjectName, LogedUser);
+      if (Refused) return res.send(Refused);
       var Option = BaseControllerHelper.GetCrudRequestData(req);
       var ListData = await BaseControllerHelper.BaseGetListInfo({
         ObjectName,
@@ -763,6 +782,8 @@ async function ExportExcel(req, res) {
     const LogedUser = req.LogedUser;
 
     if (ObjectName && LogedUser) {
+      const Refused = ReadRefusal(ObjectName, LogedUser);
+      if (Refused) return res.send(Refused);
       // SearchOption
       var { SearchText, WhereType, FindType, SearchField, OrderByType, OrderByField } = req.body;
 

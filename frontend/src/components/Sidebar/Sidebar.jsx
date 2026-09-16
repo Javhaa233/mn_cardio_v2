@@ -13,6 +13,7 @@ import ListItemText from "@mui/material/ListItemText";
 import Collapse from "@mui/material/Collapse";
 import Icon from "@mui/material/Icon"
 import Box from "@mui/material/Box";
+import Badge from "@mui/material/Badge";
 
 // material-ui icons
 import MenuIcon from "@mui/icons-material/Menu";
@@ -25,8 +26,10 @@ import CustomTooltip from "customComponents/CustomTooltip";
 import { sidebarSx } from "assets/jss/material-dashboard-pro-react/components/sidebarStyle.js";
 import { drawerMiniWidth, drawerWidth } from "assets/jss/material-dashboard-pro-react.js";
 import { layout } from "@/theme/tokens";
+import { colors } from "@/theme/colors";
 import appTheme from "@/theme.js";
 import Helper from "helper";
+import { usePendingRequests } from "helper/PendingRequests";
 
 class SidebarWrapper extends Component {
   render() {
@@ -277,13 +280,19 @@ class Sidebar extends Component {
         ...(isMini ? sidebarSx.collapseItemTextMini : null)
       };
 
+      // Opt-in per route: everything without a `Badge` key is unchanged.
+      const BadgeCounts = this.props.badgeCounts || {};
+      const BadgeCount = prop.Badge ? BadgeCounts[prop.Badge] || 0 : 0;
+
       return (
         <ListItem
           key={key}
           sx={prop.icon ? sidebarSx.item : sidebarSx.collapseItem}
         >
           <CustomTooltip
-            title={t(prop.name + "")}
+            title={
+              BadgeCount ? `${t(prop.name + "")} (${BadgeCount})` : t(prop.name + "")
+            }
             placement="right"
             Disabled={!this.props.miniActive}
           >
@@ -296,18 +305,41 @@ class Sidebar extends Component {
                 onTouchStart={this.blurOnPointerDown}
               >
                 {prop.icon ? (
-                  typeof prop.icon === "string" ? (
-                    <Icon sx={sidebarSx.itemIcon}>{prop.icon}</Icon>
-                  ) : (
-                    <Box component={prop.icon} sx={sidebarSx.itemIcon} />
-                  )
+                  /* The badge rides the ICON, not the label: the label is
+                     display:none in the mini rail, where the count matters
+                     most. Cyan, not red - red is reserved for clinically
+                     urgent things (CLAUDE.md §6). */
+                  <Badge
+                    badgeContent={BadgeCount}
+                    max={99}
+                    invisible={!BadgeCount}
+                    sx={{
+                      flex: "0 0 26px",
+                      display: "inline-flex",
+                      "& .MuiBadge-badge": {
+                        backgroundColor: colors.brand.cyanInk,
+                        color: "#fff",
+                        fontSize: "10px",
+                        height: "16px",
+                        minWidth: "16px",
+                      },
+                    }}
+                  >
+                    {typeof prop.icon === "string" ? (
+                      <Icon sx={sidebarSx.itemIcon}>{prop.icon}</Icon>
+                    ) : (
+                      <Box component={prop.icon} sx={sidebarSx.itemIcon} />
+                    )}
+                  </Badge>
                 ) : (
                   <Box component="span" sx={sidebarSx.collapseItemMini}>
                     {prop.mini}
                   </Box>
                 )}
                 <ListItemText
-                  primary={t(prop.name + "")}
+                  primary={
+                    BadgeCount ? `${t(prop.name + "")} (${BadgeCount})` : t(prop.name + "")
+                  }
                   disableTypography={true}
                   sx={prop.icon ? itemTextSx : collapseItemTextSx}
                 />
@@ -555,9 +587,20 @@ SidebarWrapper.propTypes = {
   sidebarMinimize: PropTypes.func,
 };
 
+/**
+ * The hook seam for a class component: counts that a menu item wants to show
+ * are read here and handed down as plain props.
+ */
 const SidebarWithLocation = (props) => {
   const location = useLocation();
-  return <Sidebar {...props} location={location} />;
+  const pendingRequests = usePendingRequests();
+  return (
+    <Sidebar
+      {...props}
+      location={location}
+      badgeCounts={{ UserRequestsPending: pendingRequests }}
+    />
+  );
 };
 
 export default withTranslation(undefined, { withRef: true })(SidebarWithLocation);
