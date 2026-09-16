@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import Typography from "@mui/material/Typography";
@@ -21,6 +22,19 @@ import { fileName } from "./mediaUtils";
  * megabytes; this is where the reader gets the real image. Auth is
  * header-based, so a bare <img src> to the download endpoint cannot work - the
  * bytes are fetched with the bearer token and turned into an object URL.
+ *
+ * IT RENDERS THROUGH A PORTAL, and that is load-bearing rather than tidiness.
+ * The viewer is mounted deep inside whatever it was opened from - on the feed
+ * that is PostMedia inside a reply inside FeedCard - and FeedCard carries
+ * `overflow: hidden` plus `&:hover { transform: translateY(-1px) }`. A non-none
+ * transform makes that card the CONTAINING BLOCK for every position:fixed
+ * descendant, and the card's overflow then clips it. The result oscillated: the
+ * pointer is on the card so the transform is on, the viewer is clipped away to
+ * card size, nothing is under the pointer any more so :hover drops, the
+ * transform goes, the viewer snaps back to the viewport under the pointer, the
+ * card is hovered again - open, close, open, close at the transition's rate.
+ * document.body has no transformed ancestor, so this cannot come back, here or
+ * in any of the other three screens that mount this viewer.
  */
 export default function Lightbox({
   Files,
@@ -29,18 +43,36 @@ export default function Lightbox({
   DownloadSource,
 }) {
   const { t } = useTranslation();
-  const [index, setIndex] = useState(StartIndex);
-  const [fullSrc, setFullSrc] = useState(null);
+  const [rawIndex, setIndex] = useState(StartIndex);
   const [loadingFull, setLoadingFull] = useState(false);
-  const [failure, setFailure] = useState("");
+
+  /*
+   * The fetched original, TAGGED with the photo it belongs to.
+   *
+   * It used to be a bare `fullSrc` cleared by hand on every path that changed
+   * the photo. The effect's cleanup revokes the object URL, and one path never
+   * cleared it: a refetch under an open viewer - liking a reply calls
+   * ChangeLike -> GetComments, which hands back brand new file objects - left
+   * the <img> pointing at a revoked blob, a blank frame for the whole of the
+   * next download. Tagging makes a stale URL unrepresentable: it is only used
+   * while it still matches the photo on screen. It also keeps the clearing out
+   * of the effect BODY, which has to stay free of state writes.
+   */
+  const [full, setFull] = useState({ File: null, Src: null, Failure: "" });
 
   const count = Files.length;
+  // Files is re-derived by the caller on every render, and a refetch can
+  // shorten it - an attachment removed, or its bytes gone from the server so
+  // the caller routes it to the chip row instead. Clamp rather than index past
+  // the end: Files[index] would be undefined and this would render nothing at
+  // all, while the caller still believes the viewer is open.
+  const index = count ? Math.min(rawIndex, count - 1) : 0;
   const file = Files[index];
+  const fullSrc = full.File === file ? full.Src : null;
+  const failure = full.File === file ? full.Failure : "";
 
   const go = useCallback(
     (delta) => {
-      setFullSrc(null);
-      setFailure("");
       setIndex((i) => (i + delta + count) % count);
     },
     [count],
@@ -76,13 +108,13 @@ export default function Lightbox({
         if (cancelled || !blob) {
           // Say why. Without this the reader stares at a permanently blurred
           // thumbnail with no idea the original is missing from the server.
-          if (!cancelled) setFailure(message || "");
+          if (!cancelled)
+            setFull({ File: file, Src: null, Failure: message || "" });
           setLoadingFull(false);
           return;
         }
-        setFailure("");
         revoked = URL.createObjectURL(blob);
-        setFullSrc(revoked);
+        setFull({ File: file, Src: revoked, Failure: "" });
         setLoadingFull(false);
       },
       // Chat passes a membership-checked endpoint here; the feed passes nothing
@@ -103,7 +135,10 @@ export default function Lightbox({
 
   if (!file) return null;
 
-  return (
+  // data-stop and stopPropagation stay even though the overlay is portalled
+  // out: React events bubble through the REACT tree, not the DOM tree, so a
+  // click in here still reaches FeedCard's card-wide onClick without them.
+  return createPortal(
     <Box
       data-stop
       onClick={(e) => {
@@ -199,6 +234,7 @@ export default function Lightbox({
         {count > 1 ? `  ·  ${index + 1} / ${count}` : ""}
         {failure ? `  ·  ${failure}` : ""}
       </Typography>
-    </Box>
+    </Box>,
+    document.body,
   );
 }

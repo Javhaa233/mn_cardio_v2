@@ -736,9 +736,21 @@ async function GetComments(req, res) {
       for (let i = 0; i < AdviceComments.length; i++) {
         let comment = AdviceComments[i];
         await ModHelper.GetInfoData(comment, AdviceCommentConfigData);
+        // THUMBNAILED, like every other image this controller sends.
+        //
+        // This was the one path that was not, so a reply photo arrived as a
+        // full-size base64 data URI inside the JSON - +33% on top of the raw
+        // bytes, for an image rendered at 420px. One thread with a phone photo
+        // of an ECG in it shipped megabytes and then decoded them into the DOM,
+        // and the lightbox went on to download the same original again on
+        // click. The percentage is the detail page's, not the feed's: these
+        // render at roughly twice a card's width.
         comment = await BaseControllerHelper.BaseSetFiles({
           ConfigData: AdviceCommentConfigData,
           Data: comment,
+          Thumbnail: true,
+          Percentage: DETAIL_PHOTO_PERCENTAGE,
+          Cached: true,
         });
 
         if (AdviceComments[i].DoctorsProfile) {
@@ -757,7 +769,9 @@ async function GetComments(req, res) {
       result.Data = AdviceComments;
     }
 
-    console.log('[AdviceController/GetComments] SUCCESS Response:', JSON.stringify(result));
+    // The count, not the payload: every reply's photos are base64 in here, so
+    // stringifying the whole envelope logged megabytes per call.
+    console.log('[AdviceController/GetComments] SUCCESS Comments:', result.Data.length);
     return res.send(JSON.stringify(result));
   } catch (ex) {
     console.log(ex);

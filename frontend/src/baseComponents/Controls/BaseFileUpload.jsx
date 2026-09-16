@@ -570,7 +570,18 @@ export default function BaseFileUpload(props) {
     );
   };
 
-  const PreviewDialog = () => (
+  /*
+   * PLAIN JSX, not a component.
+   *
+   * This was `const PreviewDialog = () => (...)` rendered as <PreviewDialog />.
+   * Declared inside the body, its type identity is new on every render, so
+   * React unmounted and remounted the whole MUI Dialog - portal, transition,
+   * focus trap, scroll lock - each time this control re-rendered. With the
+   * preview open, every keystroke in the reply box behind it replayed the enter
+   * transition: the dialog visibly popped. A value closes over the same state
+   * and cannot remount.
+   */
+  const previewDialog = (
     <Dialog
       open={previewOpen}
       onClose={closePreview}
@@ -654,7 +665,7 @@ export default function BaseFileUpload(props) {
   if (Config) {
     return (
       <div style={{ width: "100%" }}>
-        <PreviewDialog />
+        {previewDialog}
         {WithLabel ? (
           <GridContainer
             style={{

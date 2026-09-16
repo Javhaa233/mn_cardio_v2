@@ -138,6 +138,17 @@ export default function PostMedia({
 
   if (!photos.length && !chips.length) return null;
 
+  /*
+   * `openAt` is an index into `photos`, and `photos` is re-derived from the
+   * incoming Files on every render. A thread that refetches under an open
+   * viewer can hand back a shorter list - a reply's attachment removed, or its
+   * bytes gone from the server so isMissing() moves it to the chip row - and
+   * the index would then point past the end. Clamping keeps an open viewer on
+   * a photo that exists, and closes it outright once there are none left,
+   * rather than leaving openAt >= 0 with nothing on screen.
+   */
+  const openIndex = openAt < 0 ? -1 : Math.min(openAt, photos.length - 1);
+
   const open = (i) => setOpenAt(i);
 
   let grid = null;
@@ -306,10 +317,10 @@ export default function PostMedia({
         </Box>
       ) : null}
 
-      {openAt >= 0 ? (
+      {openIndex >= 0 ? (
         <Lightbox
           Files={photos}
-          StartIndex={openAt}
+          StartIndex={openIndex}
           onClose={() => setOpenAt(-1)}
           DownloadSource={DownloadSource}
         />

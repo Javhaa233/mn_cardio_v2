@@ -850,7 +850,16 @@ class BaseControllerHelper {
     }
   };
 
-  BaseSetFiles = async function ({ ConfigData, Data, Thumbnail, Percentage }) {
+  /**
+   * Attach a record's File rows to it, one array per File/SingleImage field.
+   *
+   * `Thumbnail` resizes instead of sending the original bytes. `Cached` is
+   * opt-in on top of that and routes the work to GetFileSrcThumbnailCached, so
+   * a resize is done once and read from disk on every later request; without it
+   * sharp runs for every image on every call. Defaulted off so every existing
+   * caller is byte-for-byte unchanged.
+   */
+  BaseSetFiles = async function ({ ConfigData, Data, Thumbnail, Percentage, Cached }) {
     var Files = [];
     if (ConfigData.Model.GetFiles) {
       Files = await ConfigData.Model.GetFiles(Data[ConfigData.PK]);
@@ -867,7 +876,9 @@ class BaseControllerHelper {
           FieldFiles = Files.filter((s) => s.FieldName === ConfigData.Fields[i][j].Name);
           if (FieldFiles.length > 0) {
             if (Thumbnail) {
-              FieldFiles = await this.GetFileSrcThumbnail(FieldFiles, Percentage);
+              FieldFiles = Cached
+                ? await this.GetFileSrcThumbnailCached(FieldFiles, Percentage)
+                : await this.GetFileSrcThumbnail(FieldFiles, Percentage);
             } else {
               FieldFiles = await this.GetFileSrc(FieldFiles);
             }
