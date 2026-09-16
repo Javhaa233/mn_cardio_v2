@@ -3,17 +3,21 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 // scene
 import LoginScene from "./LoginScene";
-// assets
-import logo from "assets/img/new_logo.png";
-// history
-import customHistory from "customHistory";
 // helper
 import Helper from "helper";
+// shared sign-in pieces
+import {
+  AuthBrand,
+  AuthField,
+  AuthLink,
+  AuthSubmit,
+  PasswordToggle,
+  SUPPORT_PHONE,
+} from "./AuthShell";
 
 // After this many failures we stop repeating the server's message and point the
 // user at IT support instead, which is what they actually need by then.
 const SUPPORT_AFTER_ATTEMPTS = 3;
-const SUPPORT_PHONE = "99243182";
 
 // How long after the last keystroke the backdrop stays calmed.
 const TYPING_IDLE_MS = 1500;
@@ -131,13 +135,7 @@ export default function LoginPage() {
 
       <main className="shell">
         <form className="panel" onSubmit={onSubmit} noValidate>
-          <div className="mark">
-            <img src={logo} alt="" />
-            <b>
-              {t("Зүрх судасны үндэсний систем")}
-              <span>{t("Эмнэлзүйн бүртгэл ба зайн оношилгоо")}</span>
-            </b>
-          </div>
+          <AuthBrand />
 
           <h1>{t("Login")}</h1>
           <p className="sub">{t("Байгууллагаас олгосон эрхээ ашиглана уу.")}</p>
@@ -147,27 +145,43 @@ export default function LoginPage() {
             {Error ? <p className="err">{Error}</p> : null}
           </div>
 
-          <label htmlFor="login-username">{t("User name")}</label>
-          <input
-            id="login-username"
-            name="username"
-            type="text"
-            autoComplete="username"
-            autoFocus
-            className={UserNameError ? "bad" : undefined}
-            aria-invalid={UserNameError || undefined}
-            value={UserName}
-            disabled={Loading}
-            onBlur={StopTyping}
-            onChange={(e) => {
-              MarkTyping();
-              setUserName(e.target.value);
-              if (e.target.value) setUserNameError(false);
-            }}
-          />
+          <AuthField
+            Id="login-username"
+            Label={t("User name")}
+            Icon="user"
+            Bad={UserNameError}
+          >
+            <input
+              id="login-username"
+              name="username"
+              type="text"
+              autoComplete="username"
+              autoFocus
+              className={UserNameError ? "bad" : undefined}
+              aria-invalid={UserNameError || undefined}
+              value={UserName}
+              disabled={Loading}
+              onBlur={StopTyping}
+              onChange={(e) => {
+                MarkTyping();
+                setUserName(e.target.value);
+                if (e.target.value) setUserNameError(false);
+              }}
+            />
+          </AuthField>
 
-          <label htmlFor="login-password">{t("Password")}</label>
-          <div className="pw">
+          <AuthField
+            Id="login-password"
+            Label={t("Password")}
+            Icon="lock"
+            Bad={PasswordError}
+            Trailing={
+              <PasswordToggle
+                Shown={ShowPassword}
+                onToggle={() => setShowPassword((v) => !v)}
+              />
+            }
+          >
             <input
               id="login-password"
               name="password"
@@ -184,50 +198,20 @@ export default function LoginPage() {
                 if (e.target.value) setPasswordError(false);
               }}
             />
-            <button
-              type="button"
-              onClick={() => setShowPassword((v) => !v)}
-              aria-label={
-                ShowPassword ? t("Hide password") : t("Show password")
-              }
-            >
-              {ShowPassword ? t("Нуух") : t("Харах")}
-            </button>
-          </div>
+          </AuthField>
 
-          <button className="btn" type="submit" disabled={Loading}>
-            {Loading ? t("Logging in...") : t("Login")}
-          </button>
+          <AuthSubmit
+            Loading={Loading}
+            Label={t("Login")}
+            LoadingLabel={t("Logging in...")}
+          />
 
           <div className="row">
-            <a
-              href="/auth/forget-password"
-              onClick={(e) => {
-                e.preventDefault();
-                customHistory.push("/auth/forget-password");
-              }}
-            >
+            <AuthLink To="/auth/forget-password">
               {t("Forgot password?")}
-            </a>
-            <a
-              href="/auth/register"
-              onClick={(e) => {
-                e.preventDefault();
-                customHistory.push("/auth/register");
-              }}
-            >
-              {t("Create account")}
-            </a>
-          </div>
-
-          <div className="foot">
-            smr.telemedicine.mn
-            <br />
-            {t("ЭМЯ-ны Мэдээллийн технологийн зөвлөлөөр батлагдсан")} ·
-            2022.04.15
-            <br />
-            {t("Мэдээллийн технологийн ажилтантай холбогдох")}:{" "}
-            <a href={"tel:+976" + SUPPORT_PHONE}>{SUPPORT_PHONE}</a>
+            </AuthLink>
+            {/* Registration is for doctors only - citizens use ХУР / ДАН. */}
+            <AuthLink To="/auth/register">{t("Эмчээр бүртгүүлэх")}</AuthLink>
           </div>
         </form>
       </main>

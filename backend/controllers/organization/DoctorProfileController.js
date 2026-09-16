@@ -9,6 +9,7 @@ const ObjectHelper = require('../../helper/ObjectHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const { PasswordRegex } = require('../../helper/PasswordPolicy');
 const { CheckContact } = require('../../helper/ContactValidation');
+const AccountWriteGuard = require('../../helper/AccountWriteGuard');
 
 // routes
 router.post('/GetByUserId', GetByUserId);
@@ -240,6 +241,17 @@ async function ChangePassword(req, res) {
   const { OldPassword, NewPassword, UserId, DoctorId } = req.body;
 
   try {
+    // Sets SOMEONE ELSE's password without the old one, and can create the
+    // Users row behind a profile - an administrator action (the /admin/doctor
+    // screen, roles [1]). A user changing their own goes through
+    // /User/ChangePassword, which asks for the current password.
+    if (!AccountWriteGuard.IsAdmin(LogedUser)) {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult('Нууц үгийг зөвхөн админ солих эрхтэй')
+        )
+      );
+    }
     if (LogedUser && NewPassword && (UserId || DoctorId)) {
       let targetUserId = UserId;
       let doctorProfile = null;

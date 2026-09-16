@@ -29,6 +29,13 @@ UserRequests.init(
     ConfirmUserId: { type: Sequelize.INTEGER },
     IsActive: { type: Sequelize.STRING },
     AppId: { type: Sequelize.INTEGER },
+
+    // scripts/add_userrequest_approval_columns.sql. PasswordHash is in that
+    // table too and is left off this model on purpose - see
+    // helper/RegistrationRequest.js.
+    OrganizationId: { type: Sequelize.INTEGER },
+    DecisionDate: { type: Sequelize.DATE },
+    DeclineReason: { type: Sequelize.STRING },
   },
   {
     sequelize,
@@ -60,6 +67,11 @@ UserRequests.SetAssocations = (Models) => {
   UserRequests.belongsTo(Models.Apps, {
     as: 'Apps',
     foreignKey: 'AppId',
+  });
+  UserRequests.belongsTo(Models.Organization, {
+    as: 'Organization',
+    foreignKey: 'OrganizationId',
+    targetKey: 'Id',
   });
 };
 

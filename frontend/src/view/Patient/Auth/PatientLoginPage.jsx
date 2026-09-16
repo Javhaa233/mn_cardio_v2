@@ -5,7 +5,10 @@ import { useTranslation } from "react-i18next";
 import Helper from "helper";
 
 import AuthShell, {
+  AuthField,
   AuthLink,
+  AuthSubmit,
+  PasswordToggle,
   SUPPORT_PHONE,
   useLanguageCatchUp,
 } from "view/Auth/AuthShell";
@@ -114,27 +117,43 @@ export default function PatientLoginPage() {
         {Error ? <p className="err">{Error}</p> : null}
       </div>
 
-      <label htmlFor="patient-login-username">{t("User name")}</label>
-      <input
-        id="patient-login-username"
-        name="username"
-        type="text"
-        autoComplete="username"
-        autoFocus
-        className={UserNameError ? "bad" : undefined}
-        aria-invalid={UserNameError || undefined}
-        value={UserName}
-        disabled={Loading}
-        onBlur={StopTyping}
-        onChange={(e) => {
-          MarkTyping();
-          setUserName(e.target.value);
-          if (e.target.value) setUserNameError(false);
-        }}
-      />
+      <AuthField
+        Id="patient-login-username"
+        Label={t("User name")}
+        Icon="user"
+        Bad={UserNameError}
+      >
+        <input
+          id="patient-login-username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          autoFocus
+          className={UserNameError ? "bad" : undefined}
+          aria-invalid={UserNameError || undefined}
+          value={UserName}
+          disabled={Loading}
+          onBlur={StopTyping}
+          onChange={(e) => {
+            MarkTyping();
+            setUserName(e.target.value);
+            if (e.target.value) setUserNameError(false);
+          }}
+        />
+      </AuthField>
 
-      <label htmlFor="patient-login-password">{t("Password")}</label>
-      <div className="pw">
+      <AuthField
+        Id="patient-login-password"
+        Label={t("Password")}
+        Icon="lock"
+        Bad={PasswordError}
+        Trailing={
+          <PasswordToggle
+            Shown={ShowPassword}
+            onToggle={() => setShowPassword((v) => !v)}
+          />
+        }
+      >
         <input
           id="patient-login-password"
           name="password"
@@ -151,23 +170,22 @@ export default function PatientLoginPage() {
             if (e.target.value) setPasswordError(false);
           }}
         />
-        <button
-          type="button"
-          onClick={() => setShowPassword((v) => !v)}
-          aria-label={ShowPassword ? t("Hide password") : t("Show password")}
-        >
-          {ShowPassword ? t("Нуух") : t("Харах")}
-        </button>
-      </div>
+      </AuthField>
 
-      <button className="btn" type="submit" disabled={Loading}>
-        {Loading ? t("Logging in...") : t("Login")}
-      </button>
+      <AuthSubmit
+        Loading={Loading}
+        Label={t("Login")}
+        LoadingLabel={t("Logging in...")}
+      />
 
       <div className="row">
         <AuthLink To="/auth/forget-password">{t("Forgot password?")}</AuthLink>
-        <AuthLink To="/auth/register">{t("Create account")}</AuthLink>
       </div>
+      {/* Self-registration is for doctors only. It used to link here to the
+          doctor request form. Patients get access from their doctor. */}
+      <p className="sub" style={{ margin: "12px 0 0" }}>
+        {t("Нэвтрэх эрхээ эмчээсээ авна уу.")}
+      </p>
     </AuthShell>
   );
 }

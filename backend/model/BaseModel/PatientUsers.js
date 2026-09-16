@@ -1,5 +1,6 @@
 const Sequelize = require('sequelize');
 const bcrypt = require('bcryptjs');
+const { IsBcryptHash } = require('../../helper/PasswordPolicy');
 
 const sequelize = require('../../config/DbConnection');
 
@@ -109,7 +110,9 @@ PatientUsers.SetFunctions = (Models) => {
   };
 
   PatientUsers.createNew = async function (Data, ReturnIdField) {
-    if (Data.Password) {
+    // Already hashed by ModelHelper.SaveRoot when it arrives through BaseCreate;
+    // see the same note in Users.createNew.
+    if (Data.Password && !IsBcryptHash(Data.Password)) {
       Data.Password = await bcrypt.hash(Data.Password, 8);
     }
 

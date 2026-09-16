@@ -14,6 +14,12 @@
   --panel: rgba(255, 255, 255, 0.96);
   --panel-line: rgba(13, 58, 92, 0.13);
   --field: rgba(13, 58, 92, 0.04);
+  /* Words in brand colour use cyanInk: --cyan is ~2.5:1 on white. */
+  --cyan-ink: #0a6c96;
+  --ring-focus: rgba(10, 108, 150, 0.16);
+  /* --field flattened onto the panel, for Chrome's autofill repaint. */
+  --field-solid: #f6f8fa;
+  --field-line-hover: rgba(13, 58, 92, 0.28);
 }
 .login-v2[data-theme="dark"] {
   --bg-0: #071522;
@@ -29,6 +35,10 @@
   --panel: rgba(8, 22, 35, 0.94);
   --panel-line: rgba(150, 205, 240, 0.15);
   --field: rgba(255, 255, 255, 0.05);
+  --cyan-ink: #5cc3ef;
+  --ring-focus: rgba(92, 195, 239, 0.2);
+  --field-solid: #141f2a;
+  --field-line-hover: rgba(150, 205, 240, 0.3);
 }
 
 .login-v2 * {
@@ -416,129 +426,312 @@
   padding: clamp(16px, 3.5vw, 80px);
 }
 .login-v2 .panel {
-  width: min(360px, 100%);
-  padding: 32px 30px 26px;
-  border-radius: 4px;
+  position: relative;
+  width: min(384px, 100%);
+  padding: 34px 32px 30px;
+  border-radius: 14px;
   background: var(--panel);
   border: 1px solid var(--panel-line);
+  /* Settles while the coastline and the ECG trace are drawing behind it. The
+     start state lives only in the keyframe (fill-mode both), so with
+     animations off the panel is simply visible. */
+  animation: lg-panelin 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s both;
   /* No backdrop-filter here. A backdrop blur is cheap only when its backdrop
      is static so the compositor can cache one texture; this panel sits directly
      on top of ~80 SVG elements animating stroke-dashoffset forever, so a 16px
      blur + saturate had to be recomputed over the panel's whole area EVERY
      frame, for as long as the page was open. --panel was raised from 0.8/0.72
      to 0.96/0.94 alpha instead, which keeps the frosted look without the cost. */
-  box-shadow: 0 20px 50px rgba(9, 40, 64, 0.1);
+  box-shadow:
+    0 1px 2px rgba(13, 58, 92, 0.06),
+    0 24px 60px -12px rgba(9, 40, 64, 0.18);
 }
 .login-v2[data-theme="dark"] .panel {
   box-shadow: 0 24px 60px rgba(0, 0, 0, 0.36);
 }
+/* The scene's two pulse colours, drawn along the top edge as the pink half of
+   the ECG trace lands (~0.8s). */
+.login-v2 .panel::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: 18px;
+  right: 18px;
+  height: 3px;
+  border-radius: 0 0 3px 3px;
+  background: linear-gradient(90deg, var(--cyan), var(--pink));
+  transform-origin: left center;
+  animation: lg-edge 0.6s cubic-bezier(0.35, 0, 0.2, 1) 0.8s both;
+}
+@keyframes lg-panelin {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+@keyframes lg-edge {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+/* Brand (AuthBrand): the National Cardiovascular Centre logo. It rises in just
+   after the panel, as the backdrop's heart is drawing. */
+/* The header (logo, title, sub) is centred: the logo is wide and heavy on its
+   heart side, and left-aligned it left a ragged right edge above full-width
+   fields. Fields, errors and the links row stay on the column edges. */
 .login-v2 .mark {
   display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-bottom: 24px;
+  justify-content: center;
+  margin-bottom: 22px;
 }
-.login-v2 .mark img {
-  width: 38px;
-  height: 38px;
-}
-.login-v2 .mark b {
-  font-weight: 600;
-  font-size: 14.5px;
-  line-height: 1.25;
-}
-.login-v2 .mark span {
+.login-v2 .mark-logo {
   display: block;
-  font-weight: 400;
-  font-size: 11.5px;
-  color: var(--ink-dim);
-  margin-top: 2px;
+  height: auto;
+  width: min(265px, 100%);
+  object-fit: contain;
+  animation: lg-logoin 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.55s both;
+}
+@keyframes lg-logoin {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
 }
 .login-v2 .panel h1 {
-  font-size: 20px;
-  font-weight: 600;
-  margin: 0 0 4px;
+  font-size: 21px;
+  font-weight: 700;
+  line-height: 1.3;
+  margin: 0 0 6px;
+  text-align: center;
+  /* If a title must wrap, never leave one short word alone on line two. */
+  text-wrap: balance;
 }
 .login-v2 .panel .sub {
-  margin: 0 0 22px;
-  font-size: 13px;
+  margin: 0 0 26px;
+  font-size: 13.5px;
   line-height: 1.5;
+  text-align: center;
+  text-wrap: balance;
   color: var(--ink-dim);
+}
+.login-v2 .panel h1:not(:has(+ .sub)) {
+  margin-bottom: 26px;
 }
 .login-v2 label {
   display: block;
-  font-size: 12.5px;
-  color: var(--ink-dim);
-  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink);
+  margin: 0 0 7px;
 }
 .login-v2 input {
   width: 100%;
-  padding: 11px 12px;
-  margin-bottom: 15px;
+  height: 44px;
+  padding: 0 14px;
+  margin-bottom: 16px;
   font: inherit;
   font-size: 14px;
   color: var(--ink);
   background: var(--field);
   border: 1px solid var(--panel-line);
-  border-radius: 3px;
+  border-radius: 10px;
   transition:
     border-color 0.15s,
-    box-shadow 0.15s;
+    box-shadow 0.15s,
+    background-color 0.15s;
+}
+.login-v2 input:hover:not(:disabled):not(:focus):not(.bad) {
+  border-color: var(--field-line-hover);
 }
 .login-v2 input:focus {
   outline: none;
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(24, 168, 232, 0.18);
+  border-color: var(--cyan-ink);
+  background: var(--bg-0);
+  box-shadow: 0 0 0 3px var(--ring-focus);
 }
-.login-v2 .btn {
-  width: 100%;
-  padding: 12px;
-  margin-top: 4px;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: #fff;
-  background: var(--cyan);
+.login-v2 input::placeholder {
+  color: var(--ink-dim);
+  opacity: 0.7;
+}
+/* Chrome paints autofilled fields pale blue and ignores `background`; an inset
+   shadow in the field colour covers it. */
+.login-v2 input:-webkit-autofill,
+.login-v2 input:-webkit-autofill:hover {
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+  box-shadow: 0 0 0 1000px var(--field-solid) inset;
+}
+.login-v2 input:-webkit-autofill:focus {
+  box-shadow:
+    0 0 0 1000px var(--bg-0) inset,
+    0 0 0 3px var(--ring-focus);
+}
+
+/* A field with a leading icon (AuthField). */
+.login-v2 .field {
+  position: relative;
+  margin-bottom: 16px;
+}
+.login-v2 .field input {
+  margin-bottom: 0;
+  padding-left: 42px;
+}
+.login-v2 .field.has-trailing input {
+  padding-right: 48px;
+}
+.login-v2 .field-ic {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  margin-top: -9px;
+  color: var(--ink-dim);
+  pointer-events: none;
+  transition: color 0.15s;
+}
+.login-v2 .field:focus-within .field-ic {
+  color: var(--cyan-ink);
+}
+.login-v2 .field.bad .field-ic {
+  color: var(--pink);
+}
+.login-v2 .field-btn {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  color: var(--ink-dim);
+  background: none;
   border: 0;
-  border-radius: 3px;
+  border-radius: 8px;
   cursor: pointer;
   transition:
-    background 0.15s,
-    transform 0.05s;
+    color 0.15s,
+    background-color 0.15s;
 }
-.login-v2 .btn:hover {
-  background: #0f93ce;
+.login-v2 .field-btn svg {
+  width: 18px;
+  height: 18px;
 }
-.login-v2 .btn:active {
-  transform: translateY(1px);
+.login-v2 .field-btn:hover {
+  color: var(--cyan-ink);
+  background: var(--field);
 }
-.login-v2 .btn:focus-visible,
+.login-v2 .field-btn:focus-visible {
+  outline: 2px solid var(--cyan-ink);
+  outline-offset: -2px;
+}
+
+.login-v2 .btn {
+  width: 100%;
+  height: 46px;
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 14.5px;
+  font-weight: 600;
+  color: #fff;
+  /* cyanInk into a lighter ink; white stays above 4.5:1 across the gradient. */
+  background: linear-gradient(135deg, #0a6c96, #0a7aab);
+  border: 0;
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(13, 58, 92, 0.12);
+  cursor: pointer;
+  transition:
+    box-shadow 0.18s,
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    filter 0.18s;
+}
+.login-v2 .btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  filter: brightness(0.94);
+  box-shadow: 0 8px 20px -6px rgba(10, 108, 150, 0.45);
+}
+.login-v2 .btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(13, 58, 92, 0.12);
+}
+.login-v2 .btn-arrow {
+  width: 18px;
+  height: 18px;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.login-v2 .btn:hover:not(:disabled) .btn-arrow {
+  transform: translateX(3px);
+}
+/* The loading state: the backdrop's ECG, drawn over and over. */
+.login-v2 .btn-ecg {
+  width: 28px;
+  height: 16px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: lg-btnecg 1.1s cubic-bezier(0.4, 0, 0.3, 1) infinite;
+}
+@keyframes lg-btnecg {
+  60% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+.login-v2 .btn:focus-visible {
+  outline: 2px solid var(--pink);
+  outline-offset: 2px;
+}
 .login-v2 a:focus-visible {
   outline: 2px solid var(--pink);
   outline-offset: 2px;
+  border-radius: 2px;
 }
 .login-v2 .row {
   display: flex;
   justify-content: space-between;
-  margin-top: 15px;
-  font-size: 12.5px;
+  gap: 12px;
+  margin-top: 16px;
+  font-size: 13px;
+}
+/* A lone link ("back to login") sits under the centred header, not in a corner. */
+.login-v2 .row:has(> :only-child) {
+  justify-content: center;
+}
+/* Phone width: keep the welcome title on one line. */
+@media (max-width: 420px) {
+  .login-v2 .panel {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+  .login-v2 .panel h1 {
+    font-size: 19px;
+  }
 }
 .login-v2 .row a {
   color: var(--ink-dim);
   text-decoration: none;
   border-bottom: 1px solid transparent;
+  transition:
+    color 0.15s,
+    border-color 0.15s;
 }
 .login-v2 .row a:hover {
-  color: var(--cyan);
-  border-bottom-color: var(--cyan);
-}
-.login-v2 .foot {
-  margin-top: 20px;
-  padding-top: 15px;
-  border-top: 1px solid var(--panel-line);
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--ink-dim);
+  color: var(--cyan-ink);
+  border-bottom-color: var(--cyan-ink);
 }
 
 @media (max-width: 860px) {
@@ -1988,20 +2181,20 @@
 }
 .login-v2 .pw button {
   position: absolute;
-  right: 5px;
-  top: 5px;
+  right: 6px;
+  top: 8px;
   height: 28px;
   padding: 0 9px;
   font: inherit;
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--ink-dim);
   background: none;
   border: 0;
-  border-radius: 3px;
+  border-radius: 6px;
   cursor: pointer;
 }
 .login-v2 .pw button:hover {
-  color: var(--cyan);
+  color: var(--cyan-ink);
 }
 .login-v2 .pw button:focus-visible {
   outline: 2px solid var(--pink);
@@ -2011,14 +2204,26 @@
 /* Inline error, in place of the blocking modal the rest of the app uses. A
    login failure is expected traffic, not an exception worth a dialog. */
 .login-v2 .err {
-  margin: 0 0 15px;
-  padding: 9px 11px;
-  font-size: 12.5px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  font-size: 13px;
   line-height: 1.45;
   color: #b4184f;
-  background: rgba(238, 20, 125, 0.09);
-  border: 1px solid rgba(238, 20, 125, 0.28);
-  border-radius: 3px;
+  background: rgba(238, 20, 125, 0.08);
+  border: 1px solid rgba(238, 20, 125, 0.24);
+  border-left: 3px solid var(--pink);
+  border-radius: 8px;
+  animation: lg-shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97);
+}
+@keyframes lg-shake {
+  20%,
+  60% {
+    transform: translateX(-4px);
+  }
+  40%,
+  80% {
+    transform: translateX(4px);
+  }
 }
 .login-v2[data-theme="dark"] .err {
   color: #ff9cc4;
@@ -2033,11 +2238,8 @@
 }
 
 .login-v2 .btn[disabled] {
-  opacity: 0.62;
+  opacity: 0.85;
   cursor: default;
-}
-.login-v2 .btn[disabled]:hover {
-  background: var(--cyan);
 }
 
 /* Keep the panel usable on short viewports; the mock assumed a tall window. */
@@ -2086,12 +2288,54 @@
    separate background. Only additions here: nothing above changes the doctor
    login. */
 
-/* Registration has nine fields; a two-column panel keeps it on one screen. */
+/* Registration is a long form; a two-column panel keeps it compact. */
 .login-v2 .panel.wide {
   width: min(600px, 100%);
   /* Tall enough to reach the top of the window: clear the language switch
      (AuthNavbar, fixed top-right) instead of sliding under it. */
   margin-top: 56px;
+}
+/* A panel taller than the window must scroll from its top. With height:100%
+   and centring, the overflow split above and below and the first fields sat
+   out of reach; min-height lets .login-v2 (overflow:auto) scroll instead. */
+.login-v2 .shell:has(> .panel.wide) {
+  height: auto;
+  min-height: 100%;
+}
+.login-v2 .section {
+  margin: 8px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--panel-line);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.login-v2 select.bad {
+  border-color: #b4184f;
+}
+/* Live password checklist: dim until met, green when met, red after a
+   failed submit. */
+.login-v2 .rules {
+  list-style: none;
+  margin: -6px 0 15px;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 12px;
+  color: var(--ink-dim);
+}
+.login-v2 .rules li::before {
+  content: "○ ";
+}
+.login-v2 .rules li.met {
+  color: #1e7b34;
+}
+.login-v2 .rules li.met::before {
+  content: "✓ ";
+}
+.login-v2 .rules li.bad {
+  color: #b4184f;
 }
 .login-v2 .grid2 {
   display: grid;
@@ -2107,8 +2351,9 @@
 /* A select that looks like the inputs beside it. */
 .login-v2 select {
   width: 100%;
-  padding: 11px 34px 11px 12px;
-  margin-bottom: 15px;
+  height: 44px;
+  padding: 0 34px 0 14px;
+  margin-bottom: 16px;
   font: inherit;
   font-size: 14px;
   color: var(--ink);
@@ -2121,14 +2366,14 @@
   background-size: 5px 5px;
   background-repeat: no-repeat;
   border: 1px solid var(--panel-line);
-  border-radius: 3px;
+  border-radius: 10px;
   appearance: none;
   cursor: pointer;
 }
 .login-v2 select:focus {
   outline: none;
-  border-color: var(--cyan);
-  box-shadow: 0 0 0 3px rgba(24, 168, 232, 0.18);
+  border-color: var(--cyan-ink);
+  box-shadow: 0 0 0 3px var(--ring-focus);
 }
 .login-v2 select:disabled {
   cursor: default;
@@ -2137,14 +2382,15 @@
 
 /* A success message, the counterpart of .err. */
 .login-v2 .ok {
-  margin: 0 0 15px;
-  padding: 9px 11px;
-  font-size: 12.5px;
+  margin: 0 0 16px;
+  padding: 10px 12px;
+  font-size: 13px;
   line-height: 1.45;
   color: #1e7b34;
-  background: rgba(40, 167, 69, 0.09);
-  border: 1px solid rgba(40, 167, 69, 0.28);
-  border-radius: 3px;
+  background: rgba(40, 167, 69, 0.08);
+  border: 1px solid rgba(40, 167, 69, 0.24);
+  border-left: 3px solid #28a745;
+  border-radius: 8px;
 }
 
 /* One line under a field: a hint, or the result of a live check. */

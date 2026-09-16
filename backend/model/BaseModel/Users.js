@@ -1,6 +1,7 @@
 const Sequelize = require('sequelize');
 const sequelize = require('../../config/DbConnection');
 const bcrypt = require('bcryptjs');
+const { IsBcryptHash } = require('../../helper/PasswordPolicy');
 
 Sequelize.DATE.prototype._stringify = function _stringify(date, options) {
   return this._applyTimezone(date, options).format('YYYY-MM-DD HH:mm:ss.SSS');
@@ -101,7 +102,10 @@ Users.SetFunctions = (Models) => {
       if (emailCount > 0) throw { Success: false, Message: 'The email address is a duplicate' };
     }
 
-    if (Data.Password) {
+    // ModelHelper.SaveRoot has already hashed every Type:'Password' field by the
+    // time it calls createNew. Hashing again stored bcrypt(bcrypt(pw)), so no
+    // account created through BaseCreate could ever log in.
+    if (Data.Password && !IsBcryptHash(Data.Password)) {
       Data.Password = await bcrypt.hash(Data.Password, 8);
     }
 

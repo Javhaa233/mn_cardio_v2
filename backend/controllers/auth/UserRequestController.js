@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
+const bcrypt = require('bcryptjs');
 const Sequelize = require('sequelize');
 const { Models, Op } = require('../../config/DB');
 
@@ -8,6 +9,50 @@ const Auths = require('../../helper/Auth');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const MailHelper = require('../../helper/MailHelper');
 const { EMAIL_REGEX, CheckContact } = require('../../helper/ContactValidation');
+const { PasswordRegex, RequirementMessageMn } = require('../../helper/PasswordPolicy');
+const AccountWriteGuard = require('../../helper/AccountWriteGuard');
+const RegistrationRequest = require('../../helper/RegistrationRequest');
+const PasswordResetLink = require('../../helper/PasswordResetLink');
+
+/**
+ * Doctor self-registration ("Бүртгүүлэх").
+ *
+ *   Register   (public)  a doctor applies and chooses their own password. Only a
+ *                        UserRequests row is written - there is no account yet,
+ *                        so nothing can log in on an unapproved request.
+ *   Confirm    (role 1)  creates Users + DoctorsProfile from the request, reusing
+ *                        the applicant's password hash unchanged.
+ *   Decline    (role 1)  closes the request with a reason the applicant is shown.
+ *
+ * Doctors only. Citizens sign in through ХУР / ДАН, not here.
+ */
+
+const { STATUS } = RegistrationRequest;
+const DOCTOR_ROLES = [2, 3];
+const DICT_MODELS = {
+  DictProvinceCity: ['name'],
+  DictSoumDistrict: ['id_province'],
+  DictBagKhoroo: ['id_soum'],
+};
+// Регистрийн дугаар: two Cyrillic letters and eight digits.
+const REGISTRATION_REGEX = /^[А-ЯЁӨҮ]{2}\d{8}$/i;
+
+function Fail(res, Message) {
+  return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Message)));
+}
+
+function Clean(Value) {
+  if (Value === undefined || Value === null) return null;
+  const Text = String(Value).trim();
+  return Text === '' ? null : Text;
+}
+
+function EscapeHtml(Value) {
+  return String(Value || '').replace(
+    /[&<>"']/g,
+    (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]
+  );
+}
 
 // Case-insensitive match on Email, so the check does not depend on the
 // database collation.
@@ -27,8 +72,8 @@ async function FindDuplicateEmail(Email, { IgnoreRequestId } = {}) {
   const RequestWhere = {
     [Op.and]: [
       EmailWhere(Trimmed),
-      // ignore declined requests (IsActive = 2), they no longer hold the email
-      { IsActive: { [Op.not]: '2' } },
+      // ignore declined requests, they no longer hold the email
+      { IsActive: { [Op.not]: STATUS.Declined } },
     ],
   };
   if (IgnoreRequestId) {
@@ -41,9 +86,53 @@ async function FindDuplicateEmail(Email, { IgnoreRequestId } = {}) {
   return null;
 }
 
+// A user name is taken by an account, or by a request that is not declined.
+async function IsUserNameTaken(UserName) {
+  const UserCount = await Models.Users.count({ where: { UserName } });
+  if (UserCount > 0) return true;
+  const RequestCount = await Models.UserRequests.count({
+    where: { UserName, IsActive: { [Op.not]: STATUS.Declined } },
+  });
+  return RequestCount > 0;
+}
+
+// An organization a doctor can belong to: exists, and not merged away.
+async function FindOrganization(Id) {
+  const OrgId = parseInt(Id, 10);
+  if (!OrgId) return null;
+  return Models.Organization.findOne({
+    where: { Id: OrgId, IsActive: true, MergedIntoId: null },
+    attributes: ['Id', 'Name'],
+    raw: true,
+  });
+}
+
+// Mail is best-effort everywhere here: the request or decision is already
+// saved, and a broken SMTP host must not undo it or turn it into an error.
+async function Notify(To, Subject, Body) {
+  const Email = To ? String(To).trim() : '';
+  if (!Email || !EMAIL_REGEX.test(Email)) return false;
+  const Sent = await MailHelper.SendMail({
+    to: Email,
+    subject: Subject,
+    html: `Сайн байна уу<br /><br />${Body}<br /><br />MnCardio системийг ашиглаж байгаа танд баярлалаа.`,
+  });
+  if (Sent === null) {
+    console.error('[UserRequestController] Mail send failed:', MailHelper.LastError);
+    return false;
+  }
+  return true;
+}
+
+function LoginLink() {
+  const Link = (process.env.CLIENT_APP_URL || '') + 'auth/login';
+  return `<a target="_blank" href="${Link}">${Link}</a>`;
+}
+
 // routes
 router.post('/CheckUserName', CheckUserName);
 router.post('/GetProvinceData', GetProvinceData);
+router.post('/GetOrganizations', GetOrganizations);
 router.post('/Register', Register);
 router.post('/Confirm', Auths.verifyToken, Confirm);
 router.post('/Decline', Auths.verifyToken, Decline);
@@ -53,288 +142,344 @@ async function CheckUserName(req, res) {
     var result = { Success: true, Message: '', Data: [], Option: {} };
     const { UserName, Email } = req.body;
     if (UserName) {
-      const UsersData = await Models.Users.findOne({ where: { UserName } });
-      const UserRequestData = await Models.UserRequests.findOne({
-        where: { UserName },
-        raw: true,
-      });
-      if (UsersData || UserRequestData) {
-        return res.send(
-          JSON.stringify(
-            BaseControllerHelper.GetDefaultErrorResult('Usernames should not be duplicated')
-          )
-        );
+      if (await IsUserNameTaken(String(UserName).trim())) {
+        return Fail(res, 'Usernames should not be duplicated');
       }
     }
     if (Email) {
       if (!EMAIL_REGEX.test(String(Email).trim())) {
-        return res.send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('The email address is invalid'))
-        );
+        return Fail(res, 'The email address is invalid');
       }
       const DuplicateEmail = await FindDuplicateEmail(Email);
-      if (DuplicateEmail) {
-        return res.send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(DuplicateEmail))
-        );
-      }
+      if (DuplicateEmail) return Fail(res, DuplicateEmail);
     }
     return res.send(result);
   } catch (ex) {
     console.log(ex);
-    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    return Fail(res);
   }
 }
 
+// Public, so it reads only the three address dictionaries, filtered only on
+// the column the cascade needs. It used to read any model on any column.
 async function GetProvinceData(req, res) {
   try {
     var result = { Success: true, Data: [], Option: {} };
     const { ObjectName, Option } = req.body;
+    const AllowedFields = DICT_MODELS[ObjectName];
+    if (!AllowedFields) return Fail(res, 'Model not found');
 
     const where = {};
     if (Option && Option.Field) {
-      var Field = Option.Field;
-      if (Option.Type === 'NotEquals') where[Op.not] = { [Field]: Option.Value };
-      if (Option.Type === 'Equals') where[Field] = Option.Value;
+      if (!AllowedFields.includes(Option.Field)) return Fail(res, 'Model not found');
+      if (Option.Type === 'NotEquals') where[Op.not] = { [Option.Field]: Option.Value };
+      if (Option.Type === 'Equals') where[Option.Field] = Option.Value;
     }
 
-    const Model = Models[ObjectName];
-    if (Model) {
-      const Data = await Model.findAll({
-        where: where,
-        attributes: ['id_data', 'name'],
-      });
-      result.Data = Data;
-      return res.send(JSON.stringify(result));
-    } else {
-      return res.send(
-        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Model not found'))
-      );
-    }
+    result.Data = await Models[ObjectName].findAll({
+      where,
+      attributes: ['id_data', 'name'],
+      order: [['name', 'ASC']],
+      raw: true,
+    });
+    return res.send(JSON.stringify(result));
   } catch (ex) {
     console.log(ex);
-    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    return Fail(res);
+  }
+}
+
+// Public organization picker for the sign-up form: names only.
+async function GetOrganizations(req, res) {
+  try {
+    const where = { IsActive: true, MergedIntoId: null };
+    const Province = parseInt(req.body.ProvinceId, 10);
+    if (Province) where.addr_prov_city = Province;
+    const Data = await Models.Organization.findAll({
+      where,
+      attributes: ['Id', 'Name'],
+      order: [['Name', 'ASC']],
+      raw: true,
+    });
+    return res.send(JSON.stringify({ Success: true, Message: '', Data }));
+  } catch (ex) {
+    console.log(ex);
+    return Fail(res);
   }
 }
 
 async function Register(req, res) {
+  let RequestId = null;
   try {
-    var result = { Data: null, Message: '', Success: true };
-    const Data = JSON.parse(req.body.Data);
-    if (Data && Object.keys(Data).length > 0) {
-      const UserName = Data.UserName;
-      const UsersData = await Models.Users.findOne({
-        where: { UserName },
-      });
-      const UserRequestData = await Models.UserRequests.findOne({
-        where: { UserName, IsActive: { [Op.not]: 2 } },
-        raw: true,
-      });
-      if (!UsersData && !UserRequestData) {
-        // Email and phone are required on every new request - accounts created
-        // without them could not reset a password or be contacted.
-        const ContactError = CheckContact(Data, {
-          EmailKey: 'Email',
-          PhoneKey: 'Telephone',
-          Required: true,
-        });
-        if (ContactError) {
-          return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ContactError)));
-        }
-        const DuplicateEmail = await FindDuplicateEmail(Data.Email);
-        if (DuplicateEmail) {
-          return res.send(
-            JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(DuplicateEmail))
-          );
-        }
-        const Result = await BaseControllerHelper.BaseCreate({
-          ObjectName: 'UserRequests',
-          Data: { ...Data, IsActive: 0, AppId: 1 },
-          LogedUser: {},
-          SaveLog: true,
-        });
-        result.Data = { DataId: Result };
-        return res.send(result);
-      } else {
-        return res.send(
-          JSON.stringify(
-            BaseControllerHelper.GetDefaultErrorResult('Usernames should not be duplicated')
-          )
-        );
-      }
-    } else {
-      return res.send(
-        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
-      );
+    const Body = req.body.Data ? JSON.parse(req.body.Data) : null;
+    if (!Body || typeof Body !== 'object') return Fail(res, 'Information is missing');
+
+    // Built field by field. The whole body used to go to BaseCreate, which
+    // UPSERTS on a sent Id - so anyone could rewrite anybody's request, or
+    // reset a declined one to pending.
+    const Row = {
+      UserName: Clean(Body.UserName),
+      LastName: Clean(Body.LastName),
+      FirstName: Clean(Body.FirstName),
+      Registration: Clean(Body.Registration),
+      License: Clean(Body.License),
+      Profession: Clean(Body.Profession),
+      Email: Clean(Body.Email),
+      Telephone: Clean(Body.Telephone),
+      OrganizationId: parseInt(Body.OrganizationId, 10) || null,
+      addr_prov_city: parseInt(Body.addr_prov_city, 10) || null,
+      addr_soum_dist: parseInt(Body.addr_soum_dist, 10) || null,
+      addr_bag_khoroo: parseInt(Body.addr_bag_khoroo, 10) || null,
+    };
+    const Password = typeof Body.Password === 'string' ? Body.Password : '';
+
+    if (!Row.UserName || /\s/.test(Row.UserName) || Row.UserName.length < 4) {
+      return Fail(res, 'The username must be at least 4 characters long');
     }
+    if (!Row.LastName || !Row.FirstName) return Fail(res, 'Овог, нэрээ оруулна уу');
+    if (!Row.Registration || !REGISTRATION_REGEX.test(Row.Registration)) {
+      return Fail(res, 'Регистрийн дугаар буруу байна');
+    }
+    Row.Registration = Row.Registration.toUpperCase();
+    if (!Row.License) return Fail(res, 'Мэргэжлийн үйл ажиллагааны зөвшөөрлийн дугаараа оруулна уу');
+    if (Row.License.length > 50) return Fail(res, 'Зөвшөөрлийн дугаар хэт урт байна');
+
+    // Email and phone are required on every new request - accounts created
+    // without them could not reset a password or be contacted.
+    const ContactError = CheckContact(Row, { EmailKey: 'Email', PhoneKey: 'Telephone', Required: true });
+    if (ContactError) return Fail(res, ContactError);
+
+    if (!PasswordRegex.test(Password)) return Fail(res, RequirementMessageMn);
+
+    const Organization = await FindOrganization(Row.OrganizationId);
+    if (!Organization) return Fail(res, 'Ажилладаг байгууллагаа сонгоно уу');
+    Row.OrgName = Organization.Name;
+
+    if (await IsUserNameTaken(Row.UserName)) return Fail(res, 'Usernames should not be duplicated');
+    const DuplicateEmail = await FindDuplicateEmail(Row.Email);
+    if (DuplicateEmail) return Fail(res, DuplicateEmail);
+
+    const LicenceTaken =
+      (await Models.DoctorsProfile.count({ where: { LicenseCode: Row.License } })) > 0 ||
+      (await Models.UserRequests.count({
+        where: { License: Row.License, IsActive: STATUS.Pending },
+      })) > 0;
+    if (LicenceTaken) {
+      return Fail(res, 'Энэ зөвшөөрлийн дугаараар бүртгэл эсвэл хүсэлт аль хэдийн байна');
+    }
+
+    const Created = await Models.UserRequests.create({
+      ...Row,
+      IsActive: STATUS.Pending,
+      AppId: 1,
+      CreateDate: new Date(),
+    });
+    RequestId = Created.Id;
+    await RegistrationRequest.SetPasswordHash(RequestId, await bcrypt.hash(Password, 8));
+
+    await Notify(
+      Row.Email,
+      'MnCardio - бүртгэлийн хүсэлт хүлээн авлаа',
+      `Таны <b>${EscapeHtml(Row.UserName)}</b> нэртэй бүртгэлийн хүсэлтийг хүлээн авлаа.<br />
+       Админ хянаж баталгаажуулсны дараа энэ хаяг руу мэдэгдэнэ.`
+    );
+
+    return res.send({
+      Success: true,
+      Data: { DataId: RequestId },
+      Message:
+        'Бүртгэлийн хүсэлт илгээгдлээ. Админ хянаж баталгаажуулсны дараа и-мэйлээр мэдэгдэнэ.',
+    });
   } catch (ex) {
     console.log(ex);
-    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    // A request with no password hash could never be approved as intended.
+    if (RequestId) {
+      await Models.UserRequests.destroy({ where: { Id: RequestId } }).catch(() => {});
+    }
+    return Fail(res);
   }
 }
 
 async function Confirm(req, res) {
   try {
-    var result = {
-      Success: true,
-      Data: {},
-      Message: 'Successfully created a user login',
-    };
-    const DataId = req.body.Id;
     const LogedUser = req.LogedUser;
-    if (LogedUser && DataId) {
-      const role = LogedUser.RoleId;
-      if (parseInt(role) === 1) {
-        const UserRequestData = await Models.UserRequests.findByPk(DataId);
-        if (UserRequestData) {
-          let doctorId = null;
-          const UsersData = await Models.Users.findOne({
-            where: { UserName: UserRequestData.UserName },
-            raw: true,
-          });
-          if (!UsersData) {
-            // Reject before any row is written: once the user and profile exist
-            // the confirmation cannot be rolled back.
-            const DuplicateEmail = await FindDuplicateEmail(UserRequestData.Email, {
-              IgnoreRequestId: DataId,
-            });
-            if (DuplicateEmail) {
-              return res.send(
-                JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(DuplicateEmail))
-              );
-            }
-            //   Password Random String Create
-            const RandomPassword = Math.random().toString(36).substr(2, 8);
-            const UsersInsertData = {
-              UserName: UserRequestData.UserName,
-              LastName: UserRequestData.LastName,
-              FirstName: UserRequestData.FirstName,
-              Password: RandomPassword,
-              Email: UserRequestData.Email,
-              CreateUserId: LogedUser.Id,
-              RoleId: 2,
-              Language: 'mn',
-            };
-            const UsersInsertResult = await BaseControllerHelper.BaseCreate({
-              ObjectName: 'Users',
-              Data: UsersInsertData,
-              LogedUser,
-              SaveLog: true,
-            });
-            if (UsersInsertResult) {
-              const DoctorsProfileInsertData = {
-                id: UsersInsertResult,
-                professional_degrees: UserRequestData.Profession,
-                addr_prov_city: UserRequestData.addr_prov_city,
-                addr_soum_dist: UserRequestData.addr_soum_dist,
-                addr_bag_khoroo: UserRequestData.addr_bag_khoroo,
-                telephone: UserRequestData.Telephone,
-                email: UserRequestData.Email,
-                firstname: UserRequestData.FirstName,
-                lastname: UserRequestData.LastName,
-                OrganizationId: '-1',
-              };
-              doctorId = await BaseControllerHelper.BaseCreate({
-                ObjectName: 'DoctorsProfile',
-                Data: DoctorsProfileInsertData,
-                LogedUser,
-                SaveLog: true,
-              });
-            }
-            const ConfirmResult = await Models.UserRequests.update(
-              { IsActive: 1, ConfirmUserId: parseInt(LogedUser.Id) },
-              { where: { Id: DataId } }
-            );
-            //   Email send. A request without an email address is still a valid
-            //   account, it just cannot be notified, so never fail on that.
-            const email = UserRequestData.Email ? String(UserRequestData.Email).trim() : '';
-            let MailSent = false;
-            let MailSkipReason = '';
-            if (email && EMAIL_REGEX.test(email)) {
-              const link = process.env.CLIENT_APP_URL + 'auth/login';
-              const EmailTemplate = {
-                to: email,
-                subject: 'MnCardio хэрэглэгчийн эрх үүсгэсэн.',
-                html: `Сайн байна уу<br />Та манай системд дараах хэрэглэгчийн нэр, нууц үгээр нэвтэрнэ үү.<br />
-          <br /><a target="_blank" href="${link}">${link}</a><br /><br />Хэрэглэгчийн нэр: ${UserRequestData.UserName}<br />Нууц үг: ${RandomPassword}<br /><br />MnCardio системийг ашиглаж байгаа танд баярлалаа.`,
-              };
-              const EmailRes = await MailHelper.SendMail(EmailTemplate);
-              MailSent = EmailRes !== null;
-              if (!MailSent) {
-                MailSkipReason = 'и-мэйл илгээхэд алдаа гарсан';
-                console.error(
-                  '[UserRequestController/Confirm] Mail send failed:',
-                  MailHelper.LastError
-                );
-              }
-            } else {
-              MailSkipReason = email ? 'и-мэйл хаяг буруу' : 'и-мэйл хаяг бүртгэгдээгүй';
-            }
+    if (!AccountWriteGuard.IsAdmin(LogedUser)) return Fail(res, 'Not admin user');
 
-            // Users & DoctorsProfile create result. The user, profile and
-            // confirmation are committed by now, so this always reports success.
-            // When no mail went out, hand the credentials to the administrator
-            // instead of discarding them — otherwise the account is unusable.
-            result.Message = MailSent
-              ? `Хэрэглэгч амжилттай үүслээ. Нэвтрэх мэдээллийг ${email} хаяг руу илгээлээ.`
-              : `Хэрэглэгч амжилттай үүслээ. Гэвч ${MailSkipReason} тул нэвтрэх мэдээллийг доорх байдлаар өөрөө дамжуулна уу. Хэрэглэгчийн нэр: ${UserRequestData.UserName}, Нууц үг: ${RandomPassword}`;
-            result.Data = {
-              DataId: ConfirmResult,
-              UsersId: UsersInsertResult,
-              DoctorsProfileId: doctorId,
-              MailSent,
-              UserName: UserRequestData.UserName,
-            };
-            if (!MailSent) result.Data.Password = RandomPassword;
-            return res.send(result);
-          } else {
-            return res.send(
-              JSON.stringify(
-                BaseControllerHelper.GetDefaultErrorResult('The user name is a duplicate')
-              )
-            );
-          }
-        } else {
-          return res.send(
-            JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('No data found'))
-          );
-        }
-      } else {
-        return res.send(
-          JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Not admin user'))
-        );
-      }
-    } else {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    const Id = parseInt(req.body.Id, 10);
+    const Request = Id ? await Models.UserRequests.findByPk(Id, { raw: true }) : null;
+    if (!Request) return Fail(res, 'No data found');
+    if (String(Request.IsActive) !== STATUS.Pending) {
+      return Fail(res, 'Энэ хүсэлтийг аль хэдийн шийдвэрлэсэн байна');
     }
+
+    // The administrator may correct organization, role and licence on approval.
+    const RoleId = req.body.RoleId ? parseInt(req.body.RoleId, 10) : 2;
+    if (!DOCTOR_ROLES.includes(RoleId)) return Fail(res, 'Эрхийн төрөл буруу байна');
+
+    const Organization = await FindOrganization(req.body.OrganizationId || Request.OrganizationId);
+    if (!Organization) return Fail(res, 'Байгууллагыг сонгоно уу');
+
+    const LicenseCode = Clean(req.body.License !== undefined ? req.body.License : Request.License);
+    if (!LicenseCode) return Fail(res, 'Зөвшөөрлийн дугаар шаардлагатай');
+
+    const UserNameCount = await Models.Users.count({ where: { UserName: Request.UserName } });
+    if (UserNameCount > 0) return Fail(res, 'The user name is a duplicate');
+    const DuplicateEmail = await FindDuplicateEmail(Request.Email, { IgnoreRequestId: Id });
+    if (DuplicateEmail) return Fail(res, DuplicateEmail);
+
+    const PasswordHash = await RegistrationRequest.GetPasswordHash(Id);
+
+    // Written directly, not through BaseCreate: SaveRoot would hash the
+    // already-hashed password again. The id comes from the created instance,
+    // not a SELECT TOP 1 that a concurrent insert could win.
+    const NewUser = await Models.Users.create({
+      UserName: Request.UserName,
+      LastName: Request.LastName,
+      FirstName: Request.FirstName,
+      Email: Request.Email,
+      Password: PasswordHash || null,
+      RoleId,
+      IsActive: '1',
+      AppId: Request.AppId || 1,
+      Language: 'mn',
+      CreateDate: new Date(),
+      CreateUserId: LogedUser.Id,
+    });
+
+    let DoctorId = null;
+    try {
+      DoctorId = await BaseControllerHelper.BaseCreate({
+        ObjectName: 'DoctorsProfile',
+        Data: {
+          id: NewUser.Id,
+          lastname: Request.LastName,
+          firstname: Request.FirstName,
+          email: Request.Email,
+          telephone: Request.Telephone,
+          personal_number: Request.Registration,
+          profession: Request.Profession,
+          addr_prov_city: Request.addr_prov_city,
+          addr_soum_dist: Request.addr_soum_dist,
+          addr_bag_khoroo: Request.addr_bag_khoroo,
+          OrganizationId: Organization.Id,
+          AppId: Request.AppId || 1,
+          LicenseCode,
+          LicenseSource: 'registration',
+          // The approving administrator is the one vouching for the code.
+          LicenseVerifiedDate: new Date(),
+          LicenseVerifiedUserId: LogedUser.Id,
+        },
+        LogedUser,
+        SaveLog: true,
+      });
+    } catch (ex) {
+      console.error('[UserRequestController/Confirm] profile create failed:', ex);
+    }
+
+    if (!DoctorId) {
+      // Without a profile the account cannot log in, and leaving the Users row
+      // would block every retry as a duplicate user name. Undo it; the request
+      // stays pending.
+      await Models.Users.destroy({ where: { Id: NewUser.Id } });
+      return Fail(res, 'Эмчийн мэдээлэл үүсгэж чадсангүй. Хүсэлт хүлээгдэж буй хэвээр байна.');
+    }
+
+    await Models.UserRequests.update(
+      {
+        IsActive: STATUS.Approved,
+        ConfirmUserId: parseInt(LogedUser.Id, 10),
+        DecisionDate: new Date(),
+        OrganizationId: Organization.Id,
+        OrgName: Organization.Name,
+        License: LicenseCode,
+      },
+      { where: { Id } }
+    );
+
+    let MailSent;
+    let Message;
+    if (PasswordHash) {
+      MailSent = await Notify(
+        Request.Email,
+        'MnCardio - бүртгэл баталгаажлаа',
+        `Таны бүртгэлийн хүсэлтийг баталгаажууллаа.<br />
+         Бүртгүүлэхдээ сонгосон нэр (<b>${EscapeHtml(Request.UserName)}</b>), нууц үгээрээ нэвтэрнэ үү:<br />${LoginLink()}`
+      );
+      Message = MailSent
+        ? `Хэрэглэгч үүслээ. ${Request.Email} хаяг руу мэдэгдэл илгээлээ.`
+        : 'Хэрэглэгч үүслээ. И-мэйл илгээгдээгүй тул эмчид баталгаажсаныг мэдэгдэнэ үү - өөрийн сонгосон нууц үгээр нэвтэрнэ.';
+    } else {
+      // Filed before applicants chose a password: the account has none, and
+      // this link is how its owner sets one.
+      const Link = await PasswordResetLink.Issue({
+        UserId: NewUser.Id,
+        UserName: Request.UserName,
+        ValidMinutes: 72 * 60,
+      });
+      MailSent = await Notify(
+        Request.Email,
+        'MnCardio - бүртгэл баталгаажлаа',
+        `Таны бүртгэлийн хүсэлтийг баталгаажууллаа.<br />
+         Доорх холбоосоор нууц үгээ үүсгэнэ үү (72 цагийн хүчинтэй):<br />
+         <a target="_blank" href="${Link}">${Link}</a><br />Хэрэглэгчийн нэр: <b>${EscapeHtml(Request.UserName)}</b>`
+      );
+      Message = MailSent
+        ? `Хэрэглэгч үүслээ. Нууц үг үүсгэх холбоосыг ${Request.Email} хаяг руу илгээлээ.`
+        : 'Хэрэглэгч үүслээ, гэвч и-мэйл илгээгдээгүй. Эмч "Нууц үг сэргээх" хэсгээс нууц үгээ үүсгэнэ.';
+    }
+
+    return res.send({
+      Success: true,
+      Message,
+      Data: { DataId: Id, UsersId: NewUser.Id, DoctorsProfileId: DoctorId, MailSent },
+    });
   } catch (ex) {
     console.log(ex);
-    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    return Fail(res, ex.Message || null);
   }
 }
 
 async function Decline(req, res) {
   try {
-    var result = {
-      Success: true,
-      Data: {},
-      Message: 'Refusal to establish consumer rights',
-    };
-    var DataId = req.body.Id;
     const LogedUser = req.LogedUser;
-    if (LogedUser && DataId) {
-      await Models.UserRequests.update(
-        { IsActive: 2, DeclineUserId: parseInt(LogedUser.Id) },
-        { where: { Id: DataId } }
-      );
-      result.Data = { DataId };
-      return res.send(result);
-    } else {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    if (!AccountWriteGuard.IsAdmin(LogedUser)) return Fail(res, 'Not admin user');
+
+    const Id = parseInt(req.body.Id, 10);
+    const Reason = Clean(req.body.Reason);
+    if (!Reason) return Fail(res, 'Татгалзсан шалтгаанаа бичнэ үү');
+    if (Reason.length > 500) return Fail(res, 'Шалтгаан 500 тэмдэгтээс хэтрэхгүй');
+
+    const Request = Id ? await Models.UserRequests.findByPk(Id, { raw: true }) : null;
+    if (!Request) return Fail(res, 'No data found');
+    if (String(Request.IsActive) !== STATUS.Pending) {
+      return Fail(res, 'Энэ хүсэлтийг аль хэдийн шийдвэрлэсэн байна');
     }
+
+    await Models.UserRequests.update(
+      {
+        IsActive: STATUS.Declined,
+        DeclineUserId: parseInt(LogedUser.Id, 10),
+        DecisionDate: new Date(),
+        DeclineReason: Reason,
+      },
+      { where: { Id } }
+    );
+
+    await Notify(
+      Request.Email,
+      'MnCardio - бүртгэлийн хүсэлт',
+      `Таны <b>${EscapeHtml(Request.UserName)}</b> нэртэй бүртгэлийн хүсэлтийг татгалзлаа.<br />
+       Шалтгаан: ${EscapeHtml(Reason)}`
+    );
+
+    return res.send({
+      Success: true,
+      Data: { DataId: Id },
+      Message: 'Refusal to establish consumer rights',
+    });
   } catch (ex) {
     console.log(ex);
-    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+    return Fail(res);
   }
 }
 

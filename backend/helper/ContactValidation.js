@@ -7,8 +7,9 @@
  * collected from existing users by the post-login prompt.
  *
  * Deliberately NOT called from `Users.createNew`, `BaseCreate` or
- * `ensureUserForDoctor`: `UserRequest/Confirm` creates accounts through those,
- * and approving an old sign-up request that has no phone must keep working.
+ * `ensureUserForDoctor`: `UserRequest/Confirm` creates the doctor profile through
+ * `BaseCreate`, and approving an old sign-up request that has no phone must keep
+ * working.
  * The checks sit at the entry points instead (see CheckContact callers).
  *
  * Messages are English source strings that double as i18n keys.

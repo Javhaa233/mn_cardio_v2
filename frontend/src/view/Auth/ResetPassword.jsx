@@ -6,7 +6,13 @@ import Helper from "helper";
 // history
 import customHistory from "customHistory";
 
-import AuthShell, { AuthLink, useLanguageCatchUp } from "./AuthShell";
+import AuthShell, {
+  AuthField,
+  AuthLink,
+  AuthSubmit,
+  PasswordToggle,
+  useLanguageCatchUp,
+} from "./AuthShell";
 
 /**
  * Set a new password from the emailed link (?UserName=…&Token=…).
@@ -59,18 +65,28 @@ export default function ResetPassword() {
         {Error ? <p className="err">{Error}</p> : null}
       </div>
 
-      <label htmlFor="reset-username">{t("User name")}</label>
-      <input
-        id="reset-username"
-        name="username"
-        type="text"
-        autoComplete="username"
-        value={UserName}
-        onChange={(e) => setUserName(e.target.value)}
-      />
+      <AuthField Id="reset-username" Label={t("User name")} Icon="user">
+        <input
+          id="reset-username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          value={UserName}
+          onChange={(e) => setUserName(e.target.value)}
+        />
+      </AuthField>
 
-      <label htmlFor="reset-password">{t("Password")}</label>
-      <div className="pw">
+      <AuthField
+        Id="reset-password"
+        Label={t("Password")}
+        Icon="lock"
+        Trailing={
+          <PasswordToggle
+            Shown={ShowPassword}
+            onToggle={() => setShowPassword((v) => !v)}
+          />
+        }
+      >
         <input
           id="reset-password"
           name="new-password"
@@ -79,32 +95,29 @@ export default function ResetPassword() {
           value={Password}
           onChange={(e) => setPassword(e.target.value)}
         />
-        <button
-          type="button"
-          onClick={() => setShowPassword((v) => !v)}
-          aria-label={ShowPassword ? t("Hide password") : t("Show password")}
-        >
-          {ShowPassword ? t("Нуух") : t("Харах")}
-        </button>
-      </div>
+      </AuthField>
 
-      <label htmlFor="reset-confirm">{t("Confirm password")}</label>
-      <input
-        id="reset-confirm"
-        name="confirm-password"
-        type={ShowPassword ? "text" : "password"}
-        autoComplete="new-password"
-        className={Error ? "bad" : undefined}
-        value={ConfirmPassword}
-        onChange={(e) => {
-          setConfirmPassword(e.target.value);
-          if (Error) setError("");
-        }}
-      />
+      <AuthField
+        Id="reset-confirm"
+        Label={t("Confirm password")}
+        Icon="lock"
+        Bad={Boolean(Error)}
+      >
+        <input
+          id="reset-confirm"
+          name="confirm-password"
+          type={ShowPassword ? "text" : "password"}
+          autoComplete="new-password"
+          className={Error ? "bad" : undefined}
+          value={ConfirmPassword}
+          onChange={(e) => {
+            setConfirmPassword(e.target.value);
+            if (Error) setError("");
+          }}
+        />
+      </AuthField>
 
-      <button className="btn" type="submit">
-        {t("Save")}
-      </button>
+      <AuthSubmit Label={t("Save")} />
 
       <div className="row">
         <AuthLink To="/auth/login">{t("Login")}</AuthLink>

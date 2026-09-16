@@ -51,9 +51,32 @@ function UserRequestsConfig() {
       { Name: 'Email', Label: 'Email', Type: 'Text', Required: true },
       { Name: 'Telephone', Label: 'Telephone', Type: 'Text', Required: true },
       {
+        // Filled from OrganizationId by Register and Confirm, so the grid shows
+        // the organization without hydrating ~680 of them per page.
         Name: 'OrgName',
         Label: 'Organization name',
         Type: 'Text',
+      },
+      {
+        Name: 'OrganizationId',
+        Label: 'Organization',
+        Type: 'Text',
+        GridField: false,
+        EditField: false,
+      },
+      {
+        Name: 'DecisionDate',
+        Label: 'Шийдвэрлэсэн огноо',
+        Type: 'Date',
+        GridField: false,
+        EditField: false,
+      },
+      {
+        Name: 'DeclineReason',
+        Label: 'Татгалзсан шалтгаан',
+        Type: 'Text',
+        GridField: false,
+        EditField: false,
       },
       {
         Name: 'OrgAddress',

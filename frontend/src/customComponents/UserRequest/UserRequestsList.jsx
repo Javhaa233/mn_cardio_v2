@@ -1,7 +1,9 @@
-import { useTranslation } from "react-i18next";
-import React, { createRef } from "react";
+import React from "react";
 // translation
 import { withTranslation } from "react-i18next";
+// @mui/material
+import MenuItem from "@mui/material/MenuItem";
+import TextField from "@mui/material/TextField";
 // default components
 import Button from "components/CustomButtons/Button";
 // custom components
@@ -16,16 +18,53 @@ import UserRequestInfo from "customComponents/UserRequest/UserRequestInfo";
 // helper
 import Helper from "helper";
 
+// UserRequests.IsActive codes; "" shows every request.
+const STATUS_FILTERS = [
+  { Value: "0", Label: "Хүлээгдэж буй" },
+  { Value: "1", Label: "Зөвшөөрсөн" },
+  { Value: "2", Label: "Татгалзсан" },
+  { Value: "", Label: "Бүгд" },
+];
+
 class UserRequestsList extends BaseList {
   constructor(props) {
     super(props);
-    this.state = { ...this.state, ReadMoreDialog: null };
+    // Opens on the queue that needs a decision.
+    this.state = { ...this.state, ReadMoreDialog: null, StatusFilter: "0" };
     this.SearchOption = Helper.BaseCrudHelper.GetSearchOption();
     this.SearchOption.OrderBy = { Field: "Id", Type: "desc" };
-    //   Refs
-    this.DialogRef = createRef();
-    this.InfoRef = createRef();
+    this.SearchOption.SearchField = [
+      { Field: "IsActive", Value: "0", Op: "Equals" },
+    ];
+    this.InfoRef = null;
   }
+
+  ChangeStatusFilter = (Value) => {
+    this.setState({ StatusFilter: Value });
+    this.SearchOption.SearchField = Helper.BaseCrudHelper.SetSearchField(
+      "IsActive",
+      Value,
+      this.SearchOption.SearchField,
+      "Equals",
+    );
+    this.GetData();
+  };
+
+  // The dialog's reply: close and reload on success, alert either way. A null
+  // reply means the dialog marked a field itself and there is nothing to say.
+  AfterDecision = (resData) => {
+    if (!resData) return;
+    if (resData.Success) {
+      this.setState({ ReadMoreDialog: null });
+      this.GetData();
+    }
+    const alert = Helper.BaseCrudHelper.ShowAlert(
+      resData.Message,
+      resData.Success,
+      () => this.setState({ Alert: null }),
+    );
+    this.setState({ Alert: alert });
+  };
 
   GetData = async () => {
     this.setState({ isLoading: true });
@@ -45,57 +84,31 @@ class UserRequestsList extends BaseList {
   };
 
   ReadMore = (data) => {
+    // Only a pending request can be decided; the server refuses the rest too.
+    const Pending = data.IsActive + "" === "0";
     const DialogData = (
       <BaseDialog
-        ref={(ref) => (this.DialogRef = ref)}
         Close={() => this.setState({ ReadMoreDialog: null })}
         Title="Хэрэглэгчийн хүсэлт"
-        Width="600px"
-        Height="460px"
-        SaveButtonText="Confirm"
-        // ShowSave={true}
-        // ShowDecline={true}
-        ShowSave={data.ConfirmUserId ? false : true}
-        ShowDecline={data.ConfirmUserId || data.DeclineUserId ? false : true}
+        Width="720px"
+        Height={Pending ? "720px" : "520px"}
+        SaveButtonText="Баталгаажуулах"
+        ShowSave={Pending}
+        ShowDecline={Pending}
         Save={(setLoading) => {
-          this.InfoRef.Confirm &&
-            this.InfoRef.Confirm((resData) => {
-              setLoading && setLoading(false);
-              if (resData) {
-                if (resData.Success) {
-                  this.setState({ ReadMoreDialog: null });
-                  this.GetData();
-                }
-                const alert = Helper.BaseCrudHelper.ShowAlert(
-                  resData.Message,
-                  resData.Success,
-                  () => {
-                    this.setState({ Alert: null });
-                  },
-                );
-                this.setState({ Alert: alert });
-              }
-            });
+          if (!this.InfoRef) return setLoading && setLoading(false);
+          this.InfoRef.Confirm((resData) => {
+            setLoading && setLoading(false);
+            this.AfterDecision(resData);
+          });
         }}
         Decline={(setDeclineLoading) => {
-          this.InfoRef.Decline &&
-            this.InfoRef.Decline((resData) => {
-              setDeclineLoading && setDeclineLoading(false);
-              if (resData) {
-                if (resData.Success) {
-                  this.setState({ ReadMoreDialog: null });
-                  this.GetData();
-                }
-                const alert = Helper.BaseCrudHelper.ShowAlert(
-                  resData.Message,
-                  resData.Success,
-                  () => {
-                    this.setState({ Alert: null });
-                  },
-                );
-                this.setState({ Alert: alert });
-              }
-            });
+          if (!this.InfoRef)
+            return setDeclineLoading && setDeclineLoading(false);
+          this.InfoRef.Decline((resData) => {
+            setDeclineLoading && setDeclineLoading(false);
+            this.AfterDecision(resData);
+          });
         }}
       >
         <UserRequestInfo Id={data.Id} ref={(ref) => (this.InfoRef = ref)} />
@@ -105,8 +118,15 @@ class UserRequestsList extends BaseList {
   };
 
   CustomRender = () => {
-    const { Alert, Data, GridOption, Config, ReadMoreDialog, isLoading } =
-      this.state;
+    const {
+      Alert,
+      Data,
+      GridOption,
+      Config,
+      ReadMoreDialog,
+      isLoading,
+      StatusFilter,
+    } = this.state;
     const { t } = this.props;
 
     if (!Config) {
@@ -149,8 +169,32 @@ class UserRequestsList extends BaseList {
                   marginTop: "0px",
                   width: "100%",
                   maxWidth: "100%",
+                  display: "flex",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                  gap: "8px",
                 }}
               >
+                {/* Plain label beside the field, like RangeDate's "Хугацаа":
+                    a floating MUI label collides with the legacy styles here. */}
+                <label htmlFor="user-request-status" style={{ fontSize: 14 }}>
+                  {t("Status")}
+                </label>
+                <TextField
+                  select
+                  size="small"
+                  id="user-request-status"
+                  value={StatusFilter}
+                  onChange={(e) => this.ChangeStatusFilter(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                  slotProps={{ select: { displayEmpty: true } }}
+                >
+                  {STATUS_FILTERS.map((Option) => (
+                    <MenuItem key={Option.Label} value={Option.Value}>
+                      {t(Option.Label)}
+                    </MenuItem>
+                  ))}
+                </TextField>
                 <RangeDate
                   ChangeValue={(StartDate, EndDate) => {
                     this.SearchOption.SearchField =

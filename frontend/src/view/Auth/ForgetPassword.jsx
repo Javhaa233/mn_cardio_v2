@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 // helper
 import Helper from "helper";
 
-import AuthShell, { AuthLink, useLanguageCatchUp } from "./AuthShell";
+import AuthShell, {
+  AuthField,
+  AuthLink,
+  AuthSubmit,
+  useLanguageCatchUp,
+} from "./AuthShell";
 
 /**
  * Request a password reset link.
@@ -55,25 +60,33 @@ export default function ForgetPassword() {
         {Done ? <p className="ok">{Done}</p> : null}
       </div>
 
-      <label htmlFor="forget-username">{t("User name")}</label>
-      <input
-        id="forget-username"
-        name="username"
-        type="text"
-        autoComplete="username"
-        autoFocus
-        className={Error && !UserName ? "bad" : undefined}
-        value={UserName}
-        disabled={Loading}
-        onChange={(e) => {
-          setUserName(e.target.value);
-          if (e.target.value) setError("");
-        }}
-      />
+      <AuthField
+        Id="forget-username"
+        Label={t("User name")}
+        Icon="user"
+        Bad={Boolean(Error && !UserName)}
+      >
+        <input
+          id="forget-username"
+          name="username"
+          type="text"
+          autoComplete="username"
+          autoFocus
+          className={Error && !UserName ? "bad" : undefined}
+          value={UserName}
+          disabled={Loading}
+          onChange={(e) => {
+            setUserName(e.target.value);
+            if (e.target.value) setError("");
+          }}
+        />
+      </AuthField>
 
-      <button className="btn" type="submit" disabled={Loading}>
-        {Loading ? t("Sending...") : t("Reset Password")}
-      </button>
+      <AuthSubmit
+        Loading={Loading}
+        Label={t("Reset Password")}
+        LoadingLabel={t("Sending...")}
+      />
 
       <div className="row">
         <AuthLink To="/auth/login">{t("Back to Login")}</AuthLink>

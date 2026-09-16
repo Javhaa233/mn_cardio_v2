@@ -33,13 +33,13 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 
 | Бүлэг | Тайлбар | Угтвар | Endpoint |
 |---|---|---|---|
-| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 25 |
+| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 26 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
 | protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 258 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 102 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **387** |
+| **Нийт** |  |  | **388** |
 
 api-layer задаргаа: `/api/patient` 39 · `/api/doctor` 42 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
@@ -87,25 +87,26 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
 
-Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 22 endpoint.
+Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 23 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/User/Login` | public | `UserController.js:20` |  |
-| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:21` | Logout that actually logs out. |
-| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:22` |  |
-| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:23` |  |
-| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:24` |  |
-| `POST` | `/api/User/ResetPassword` | public | `UserController.js:25` | Martsan password sergeeh |
-| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:26` | Password shinechleh |
-| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:27` |  |
-| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:28` |  |
-| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:29` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
-| `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:45` |  |
-| `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:46` |  |
-| `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:47` |  |
-| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:48` |  |
-| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:49` |  |
+| `POST` | `/api/User/Login` | public | `UserController.js:23` |  |
+| `POST` | `/api/User/LogOut` | token (route-level) | `UserController.js:24` | Logout that actually logs out. |
+| `POST` | `/api/User/CheckLogin` | token (route-level) | `UserController.js:25` |  |
+| `POST` | `/api/User/Save` | token (route-level) | `UserController.js:26` |  |
+| `POST` | `/api/User/ForgetPassword` | public | `UserController.js:27` |  |
+| `POST` | `/api/User/ResetPassword` | public | `UserController.js:28` | Martsan password sergeeh |
+| `POST` | `/api/User/ChangePassword` | token (route-level) | `UserController.js:29` | Password shinechleh |
+| `POST` | `/api/User/getUserData` | token (route-level) | `UserController.js:30` |  |
+| `POST` | `/api/User/GetMyContact` | token (route-level) | `UserController.js:31` |  |
+| `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:32` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
+| `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:133` |  |
+| `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:134` | Public, so it reads only the three address dictionaries, filtered only on the column the cascade… |
+| `POST` | `/api/UserRequest/GetOrganizations` | public | `UserRequestController.js:135` | Public organization picker for the sign-up form: names only. |
+| `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:136` |  |
+| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:137` |  |
+| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:138` |  |
 | `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:17` |  |
 | `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:18` |  |
 | `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:19` |  |
@@ -146,15 +147,15 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/Advice/GetStats` | token | `AdviceController.js:29` |  |
 | `POST` | `/api/Advice/CustomSaveAndPublish` | token | `AdviceController.js:30` | Create a ticket and publish it in one action. |
 | `POST` | `/api/Advice/GetAttachmentLink` | token | `AdviceController.js:31` | A short-lived URL a browser <audio> can actually fetch. |
-| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:14` |  |
-| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:15` |  |
-| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:16` |  |
-| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:17` |  |
-| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:18` |  |
-| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:19` | Password shinechleh |
-| `POST` | `/api/DoctorProfile/SetLicense` | token | `DoctorProfileController.js:23` | Practice licence codes (tracker 13). |
-| `POST` | `/api/DoctorProfile/GetLicenseStatus` | token | `DoctorProfileController.js:24` | Who has a code and who does not. |
-| `POST` | `/api/DoctorProfile/ClearLicense` | token | `DoctorProfileController.js:25` | Remove a code - a licence withdrawn or entered in error. |
+| `POST` | `/api/DoctorProfile/GetByUserId` | token | `DoctorProfileController.js:15` |  |
+| `POST` | `/api/DoctorProfile/GetCustomFormData` | token | `DoctorProfileController.js:16` |  |
+| `POST` | `/api/DoctorProfile/GetDoctorsProfileInfo` | token | `DoctorProfileController.js:17` |  |
+| `POST` | `/api/DoctorProfile/CustomCreate` | token | `DoctorProfileController.js:18` |  |
+| `POST` | `/api/DoctorProfile/CustomUpdate` | token | `DoctorProfileController.js:19` |  |
+| `POST` | `/api/DoctorProfile/ChangePassword` | token | `DoctorProfileController.js:20` | Password shinechleh |
+| `POST` | `/api/DoctorProfile/SetLicense` | token | `DoctorProfileController.js:24` | Practice licence codes (tracker 13). |
+| `POST` | `/api/DoctorProfile/GetLicenseStatus` | token | `DoctorProfileController.js:25` | Who has a code and who does not. |
+| `POST` | `/api/DoctorProfile/ClearLicense` | token | `DoctorProfileController.js:26` | Remove a code - a licence withdrawn or entered in error. |
 | `POST` | `/api/Organization/CustomSave` | token | `OrganizationController.js:10` |  |
 | `GET` | `/api/Organization/GetOne/:id` | token | `OrganizationController.js:11` |  |
 | `POST` | `/api/Organization/MergePreview` | token | `OrganizationController.js:12` |  |
@@ -632,4 +633,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-15. Нийт endpoint: 387._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-16. Нийт endpoint: 388._

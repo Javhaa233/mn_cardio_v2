@@ -15,6 +15,9 @@ const Flags = require('../../helper/FeatureFlags');
 const LoginGuard = require('../../helper/LoginGuard');
 const SessionStore = require('../../helper/SessionStore');
 const LicenceGate = require('../../helper/LicenceGate');
+const AccountWriteGuard = require('../../helper/AccountWriteGuard');
+const RegistrationRequest = require('../../helper/RegistrationRequest');
+const PasswordResetLink = require('../../helper/PasswordResetLink');
 
 // routes
 router.post('/Login', Login);
@@ -169,8 +172,18 @@ async function LogOut(req, res) {
 }
 
 async function Save(req, res) {
-  const Data = JSON.parse(req.body.Data);
   try {
+    // Writes Users straight from the body - RoleId, Password, any Id - so it is
+    // an administrator tool or nothing. No screen calls it today; before this
+    // check any token, a patient's included, could make itself role 1.
+    if (!AccountWriteGuard.IsAdmin(req.LogedUser)) {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult('Хэрэглэгчийн эрх зөвхөн админ үүсгэнэ')
+        )
+      );
+    }
+    const Data = JSON.parse(req.body.Data);
     // Check if username already exists (for both insert and update)
     const existingUser = await Models.Users.findOne({
       where: { UserName: Data.UserName },
@@ -313,6 +326,17 @@ async function Login(req, res) {
       userDatas = JSON.parse(JSON.stringify(userDatas));
 
       if (userDatas.length === 0) {
+        // A doctor whose sign-up request is still open, or was declined, has
+        // no Users row yet. Tell them why - but only when their password
+        // matches the request's, so this reveals nothing to anyone else.
+        const RequestMessage = await RegistrationRequest.LoginStatusMessage(UserName, Password);
+        if (RequestMessage) {
+          return res.send({
+            Success: false,
+            Message: RequestMessage,
+            Data: { token: null, LogedUser: null },
+          });
+        }
         await LoginGuard.RecordFailure({
           UserType: 'staff',
           UserName,
@@ -656,29 +680,16 @@ async function Login(req, res) {
 async function ForgetPassword(req, res) {
   var result = { Data: null, Message: '', Success: true };
   const UserName = req.body.UserName;
-  const user = await Models.Users.findOne({ where: { UserName } });
-  var resetToken = '';
   try {
+    const user = UserName ? await Models.Users.findOne({ where: { UserName }, raw: true }) : null;
     if (user) {
       const email = user.Email;
       if (email) {
-        resetToken = crypto.randomBytes(20).toString('hex');
-        const ForgotPassToken = crypto.createHash('sha256').update(resetToken).digest('hex');
-
-        const ForgotPassExpireDate = Date.now() + 10 * 60 * 1000;
-        await user.update({
-          ForgotPassToken,
-          ForgotPassExpireDate: ObjectHelper.getDateYMDHMS({
-            Date: new Date(ForgotPassExpireDate),
-          }),
+        const link = await PasswordResetLink.Issue({
+          UserId: user.Id,
+          UserName: user.UserName,
+          ValidMinutes: 10,
         });
-
-        const link =
-          process.env.CLIENT_APP_URL +
-          'auth/ResetPassword?UserName=' +
-          UserName +
-          '&Token=' +
-          resetToken;
         const MailContent = {
           to: email,
           subject: 'MnCardio - Нууц үг шинэчлэх',
@@ -688,7 +699,7 @@ async function ForgetPassword(req, res) {
         var MailRes = await MailHelper.SendMail(MailContent);
         if (MailRes !== null) {
           result.Success = true;
-          result.Message = email + 'Successfully sent to email. Please check your email';
+          result.Message = email + ' Successfully sent to email. Please check your email';
         } else {
           const errorResult = BaseControllerHelper.GetDefaultErrorResult(
             'An error occurred while sending email'
@@ -723,18 +734,25 @@ async function ResetPassword(req, res) {
   var result = { Data: null, Message: '', Success: true };
   const { UserName, Token, Password } = req.body;
 
-  if (UserName && Token && Password) {
+  if (!(UserName && Token && Password)) {
+    const errorResult = BaseControllerHelper.GetDefaultErrorResult('Information is missing');
+    console.log('[UserController/ResetPassword] ERROR Response:', JSON.stringify(errorResult));
+    return res.send(JSON.stringify(errorResult));
+  }
+
+  try {
     const user = await Models.Users.findOne({ where: { UserName }, raw: true });
     if (user) {
-      const hashToken = crypto.createHash('sha256').update(Token).digest('hex');
-      if (user.ForgotPassToken === hashToken) {
+      // Checks the expiry too, which the old comparison never did.
+      if (PasswordResetLink.IsValid(user, Token)) {
         if (PasswordRegex.test(Password)) {
           const NewPass = await bcrypt.hash(Password, 8);
-          await user.update({
-            Password: NewPass,
-            ForgotPassToken: null,
-            ForgotPassExpireDate: null,
-          });
+          // `user` is a raw row - it has no .update(). Calling it threw, outside
+          // any try, so every reset ended in a hung request.
+          await Models.Users.update(
+            { Password: NewPass, ForgotPassToken: null, ForgotPassExpireDate: null },
+            { where: { Id: user.Id } }
+          );
           result.Message = 'Password changed successfully';
         } else {
           result.Success = false;
@@ -751,10 +769,9 @@ async function ResetPassword(req, res) {
     }
     console.log('[UserController/ResetPassword] Response:', JSON.stringify(result));
     return res.send(result);
-  } else {
-    const errorResult = BaseControllerHelper.GetDefaultErrorResult('Information is missing');
-    console.log('[UserController/ResetPassword] ERROR Response:', JSON.stringify(errorResult));
-    return res.send(JSON.stringify(errorResult));
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
   }
 }
 

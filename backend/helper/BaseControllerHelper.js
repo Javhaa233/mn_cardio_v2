@@ -11,6 +11,7 @@ const BaseHelper = require('./BaseHelper');
 const ObjectHelper = require('./ObjectHelper');
 const ImageHelper = require('./ImageHelper');
 const PatientScope = require('./PatientScope');
+const AccountWriteGuard = require('./AccountWriteGuard');
 
 const translate = require('../reports/translate.js');
 
@@ -482,6 +483,8 @@ class BaseControllerHelper {
 
   //base crud
   BaseCreate = async function ({ ObjectName, Data, LogedUser, SaveLog }) {
+    // Accounts exist only by approval - see helper/AccountWriteGuard.
+    AccountWriteGuard.CheckCreate(ObjectName, LogedUser);
     // Stamp the owning patient so a row cannot be written for someone else.
     const PatientCreateGuard = PatientScope.ApplyPatientOwnership({ ObjectName, LogedUser, Data });
     if (!PatientCreateGuard.Allowed) {
@@ -545,6 +548,7 @@ class BaseControllerHelper {
   };
 
   BaseUpdate = async function ({ ObjectName, LogedUser, Data, SaveLog }) {
+    AccountWriteGuard.CheckUpdate(ObjectName, Data, LogedUser);
     const PatientUpdateGuard = PatientScope.ApplyPatientOwnership({ ObjectName, LogedUser, Data });
     if (!PatientUpdateGuard.Allowed) {
       return null;
@@ -879,6 +883,7 @@ class BaseControllerHelper {
   };
 
   BaseDelete = async function ({ ObjectName, LogedUser, Option, SaveLog }) {
+    if (!AccountWriteGuard.MayDelete(ObjectName, LogedUser)) return null;
     // Option is passed straight to Model.destroy({ where: Option }), so an
     // unscoped patient delete would remove arbitrary rows from any model.
     if (PatientScope.IsPatient(LogedUser)) {
