@@ -253,6 +253,7 @@ class _DoctorPatientRehabScreenState extends State<DoctorPatientRehabScreen> {
       await context.read<ApiClient>().postObject(
         '/api/doctor/patients/${widget.patientId}/rehab/assessment',
         body: <String, dynamic>{
+          if (draft.riskLevel != null) 'RiskLevel': draft.riskLevel,
           if (draft.score != null) 'ToleranceScore': draft.score,
           if (draft.unit.isNotEmpty) 'ToleranceUnit': draft.unit,
           if (draft.notes.isNotEmpty) 'Notes': draft.notes,
@@ -408,11 +409,14 @@ class _DoctorPatientRehabScreenState extends State<DoctorPatientRehabScreen> {
 }
 
 class _AssessmentDraft {
-  const _AssessmentDraft(this.score, this.unit, this.notes);
+  const _AssessmentDraft(this.score, this.unit, this.notes, this.riskLevel);
 
   final double? score;
   final String unit;
   final String notes;
+
+  /// Эрсдэлийн түвшний **код** (`OptionTypes.value`), шошго биш.
+  final String? riskLevel;
 }
 
 class _AssessmentSheet extends StatefulWidget {
@@ -426,6 +430,41 @@ class _AssessmentSheetState extends State<_AssessmentSheet> {
   final TextEditingController _score = TextEditingController();
   final TextEditingController _unit = TextEditingController(text: 'МЕТ');
   final TextEditingController _notes = TextEditingController();
+
+  List<MapEntry<String, String>> _risks = const <MapEntry<String, String>>[];
+  String? _risk;
+  bool _risksLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRisks();
+  }
+
+  /// Эрсдэлийн түвшний толь бичиг — `GET /api/doctor/options/rehab_risk`
+  /// (2026-09-15-нд нэмэгдсэн). Хоосон ирвэл тухайн мэдээллийн санд толь
+  /// бичиг ороогүй гэсэн үг тул талбарыг огт харуулахгүй: сонгох зүйлгүй
+  /// хоосон жагсаалт эмчид хэрэггүй.
+  Future<void> _loadRisks() async {
+    try {
+      final data = await context
+          .read<ApiClient>()
+          .getObject('/api/doctor/options/rehab_risk');
+      if (!mounted) return;
+      setState(() {
+        _risks = Envelope.asList(data['data'])
+            .map((Map<String, dynamic> e) => MapEntry<String, String>(
+                  J.strOr(e, <String>['value']),
+                  J.strOr(e, <String>['label']),
+                ))
+            .where((MapEntry<String, String> e) => e.key.isNotEmpty)
+            .toList(growable: false);
+        _risksLoading = false;
+      });
+    } on ApiException {
+      if (mounted) setState(() => _risksLoading = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -472,6 +511,30 @@ class _AssessmentSheetState extends State<_AssessmentSheet> {
                   ),
                 ],
               ),
+              if (_risksLoading) ...<Widget>[
+                const SizedBox(height: 14),
+                const LinearProgressIndicator(minHeight: 2),
+              ] else if (_risks.isNotEmpty) ...<Widget>[
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: _risk,
+                  isExpanded: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Эрсдэлийн түвшин',
+                  ),
+                  items: <DropdownMenuItem<String>>[
+                    for (final MapEntry<String, String> e in _risks)
+                      DropdownMenuItem<String>(
+                        value: e.key,
+                        child: Text(
+                          e.value.isEmpty ? e.key : e.value,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                  ],
+                  onChanged: (String? value) => setState(() => _risk = value),
+                ),
+              ],
               const SizedBox(height: 10),
               TextField(
                 controller: _notes,
@@ -500,6 +563,7 @@ class _AssessmentSheetState extends State<_AssessmentSheet> {
                           double.tryParse(_score.text.trim()),
                           _unit.text.trim(),
                           _notes.text.trim(),
+                          _risk,
                         ),
                       ),
                       child: const Text('Хадгалах'),

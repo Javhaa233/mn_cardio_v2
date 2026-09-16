@@ -18,6 +18,8 @@ class AppNotification {
     this.linkObjectId,
     this.url,
     this.createDate,
+    this.patientId,
+    this.adviceId,
   });
 
   final int id;
@@ -36,6 +38,13 @@ class AppNotification {
   final String? url;
   final DateTime? createDate;
 
+  /// Аль үйлчлүүлэгчийнх вэ — 2026-09-15-нд сервер нэмсэн. Үүнгүйгээр эмч
+  /// "асуултад хариулсан" мэдэгдлээс яг тэр яриа руу орох боломжгүй байв.
+  final int? patientId;
+
+  /// Эцэг асуумжийн дугаар (`Advice`, `AdviceComment` мэдэгдэлд).
+  final int? adviceId;
+
   String get text => (notesMn ?? '').trim().isEmpty
       ? 'Шинэ мэдэгдэл'
       : notesMn!.trim();
@@ -50,6 +59,8 @@ class AppNotification {
         linkObjectId: J.intOf(json, <String>['LinkObjectId']),
         url: J.str(json, <String>['Url']),
         createDate: J.date(json, <String>['CreateDate']),
+        patientId: J.intOf(json, <String>['PatientId']),
+        adviceId: J.intOf(json, <String>['AdviceId']),
       );
 
   AppNotification copyWith({bool? seen}) => AppNotification(
@@ -61,6 +72,8 @@ class AppNotification {
         linkObjectId: linkObjectId,
         url: url,
         createDate: createDate,
+        patientId: patientId,
+        adviceId: adviceId,
       );
 }
 
