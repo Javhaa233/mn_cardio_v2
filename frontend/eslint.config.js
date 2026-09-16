@@ -54,6 +54,10 @@ export default [
         clearInterval: "readonly",
         fetch: "readonly",
         React: "readonly",
+        // Build stamp, substituted by vite.config.js `define`
+        __APP_VERSION__: "readonly",
+        __BUILD_TIME__: "readonly",
+        __BUILD_COMMIT__: "readonly",
       },
     },
     settings: {

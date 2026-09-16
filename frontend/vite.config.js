@@ -3,10 +3,36 @@ import react from "@vitejs/plugin-react-swc";
 import { resolve } from "path";
 import { fileURLToPath } from "url";
 import { dirname } from "path";
+import { readFileSync } from "fs";
+import { execSync } from "child_process";
 import { licenseHeaderPlugin } from "./vite-plugin-license-header.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// Build stamp. The app has no other way to tell you which build it is running -
+// answering "when was this last updated?" used to mean an SSH session. These
+// three constants are substituted into the bundle at build time, so the line in
+// the profile menu cannot go stale. In `npm run dev` the time is the dev server's
+// start time, which is honest but is not a deployment record.
+const pkg = JSON.parse(
+  readFileSync(resolve(__dirname, "package.json"), "utf8"),
+);
+
+function gitCommit() {
+  // The production build runs inside the /srv/clients/mncardio checkout, so this
+  // resolves there as well as locally. Anywhere else, the version alone is enough.
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: __dirname,
+      stdio: ["ignore", "pipe", "ignore"],
+    })
+      .toString()
+      .trim();
+  } catch {
+    return "dev";
+  }
+}
 
 // For legacy browsers support if needed
 // import legacy from '@vitejs/plugin-legacy';
@@ -183,6 +209,11 @@ export default defineConfig({
   define: {
     // Make sure global variables are available for compatibility with Create React App dependencies
     global: "globalThis",
+    // Build stamp - rendered by components/Navbars/BuildStamp.jsx. `define` does a
+    // raw text substitution, so every value has to be JSON.stringify'd.
+    __APP_VERSION__: JSON.stringify(pkg.version),
+    __BUILD_TIME__: JSON.stringify(new Date().toISOString()),
+    __BUILD_COMMIT__: JSON.stringify(gitCommit()),
   },
   optimizeDeps: {
     include: ["react", "react-dom", "react-router-dom"], // Force Vite to pre-bundle

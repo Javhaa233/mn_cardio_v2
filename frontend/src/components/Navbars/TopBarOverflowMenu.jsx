@@ -22,6 +22,7 @@ import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/comp
 import Helper from "helper";
 import customHistory from "customHistory";
 
+import BuildStamp from "./BuildStamp";
 import TopBarIconButton from "./TopBarIconButton";
 import { FlagMN, FlagGB } from "./FlagGlyphs";
 import T from "./topBarTokens";
@@ -157,6 +158,8 @@ export default function TopBarOverflowMenu() {
                     },
                     true,
                   )}
+                  <Divider light />
+                  <BuildStamp />
                 </MenuList>
               </ClickAwayListener>
             </Paper>

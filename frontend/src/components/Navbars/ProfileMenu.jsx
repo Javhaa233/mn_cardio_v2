@@ -19,6 +19,7 @@ import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
 import PersonOutlineOutlinedIcon from "@mui/icons-material/PersonOutlineOutlined";
 
+import BuildStamp from "./BuildStamp";
 import ChangePasswordDialog from "customComponents/Profile/ChangePasswordDialog";
 import { adminNavbarLinksSx } from "assets/jss/material-dashboard-pro-react/components/adminNavbarLinksStyle.js";
 import { colors } from "@/theme/colors";
@@ -226,6 +227,8 @@ export default function ProfileMenu({ Variant = "staff" }) {
                       {IsPatient ? t("Гарах") : t("Logout")}
                     </Box>
                   </MenuItem>
+                  <Divider light />
+                  <BuildStamp />
                 </MenuList>
               </ClickAwayListener>
             </Paper>
