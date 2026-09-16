@@ -6,7 +6,20 @@ plugins {
 
 android {
     namespace = "mn.telemedicine.mncardio"
-    compileSdk = flutter.compileSdkVersion
+    // 37, not flutter.compileSdkVersion (which is 36 on Flutter 3.44).
+    // permission_handler_android 14.1.0 sets compileSdk = 37 and publishes AAR
+    // metadata requiring everything that depends on it to do the same, so :app
+    // fails checkReleaseAarMetadata against 36. Flutter's own error message
+    // asks for exactly this line.
+    //
+    // Safe: compileSdk only decides which APIs the code may reference. It does
+    // not change minSdk (which devices can install the app) or targetSdk (which
+    // runtime behaviour it opts into) - both still come from Flutter below.
+    //
+    // AGP 9.0.1 calls 36 its highest *recommended* compileSdk, so a warning
+    // here is expected rather than a fault. Revert to flutter.compileSdkVersion
+    // once Flutter's own default reaches 37.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

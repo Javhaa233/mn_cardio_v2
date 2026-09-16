@@ -54,6 +54,28 @@ A deploy that changes the schema also needs its `scripts/*.sql` applied to
 `MnCardio_test` first — the app fails on a column the model declares and the
 database lacks.
 
+## Publishing the Android APK
+
+Separate from the web deploy above, and on its own schedule — the mobile app has its own
+version in `mobile/app/pubspec.yaml`, which `bump-version.js` deliberately does not touch.
+
+```
+uv run --with paramiko python rsh.py --host test --put-chunked <apk> /srv/clients/mncardio-apk/apk/mncardio-<version>.apk
+node deploy/scripts/make-apk-page.js <apk> <version> <out-dir>
+uv run --with paramiko python rsh.py --host test --put <out-dir>/index.html /srv/clients/mncardio-apk/apk/index.html
+uv run --with paramiko python rsh.py --script deploy/scripts/20-publish-apk.sh
+```
+
+`--put-chunked`, not `--put`: the latter builds the whole base64 payload in memory and pushes
+it through one exec channel, which is fine for a config file and a poor bet for ~60 MB. The
+chunked form verifies sha256 on both ends and removes the remote file if they disagree.
+
+The APK lives at `/srv/clients/mncardio-apk/` — a **sibling** of the checkout, not inside it.
+`git reset --hard origin/main` and the frontend rebuild both run over `/srv/clients/mncardio`.
+
+nginx already has the `location /apk` blocks (installed 2026-09-16); publishing a new build
+needs no nginx work. Full detail, including the signing-key situation: `mobile/APK-RELEASE.md`.
+
 ## Order
 
 | # | Step | Notes |

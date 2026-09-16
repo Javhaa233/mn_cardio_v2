@@ -1,6 +1,11 @@
 #!/bin/bash
 # Rebuild the test site's SPA after a git pull.
 #
+# RESOLVED 2026-09-16: this path is the correct one. The live vhost on the box
+# reads `root /srv/clients/mncardio/frontend/build;` and /var/www/mncardio does
+# not exist at all - it was the nginx file in this repo that was wrong, and it
+# has been corrected. Nothing to do here.
+#
 # nginx serves /srv/clients/mncardio/frontend/build, so the pull alone changes
 # nothing a browser sees until this runs. Node 24 lives alongside the system
 # Node 22 that other tenants depend on (see ecosystem.config.js), so the build
