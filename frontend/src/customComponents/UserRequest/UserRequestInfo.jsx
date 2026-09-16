@@ -112,15 +112,14 @@ const UserRequestInfo = forwardRef(function UserRequestInfo({ Id }, ref) {
     ref,
     () => ({
       Confirm: (callback) => {
+        // The licence code is optional: almost no doctor in the system has one
+        // yet, so requiring it here would block approvals for a reason nobody
+        // has resolved. The organization is not optional.
         const Found = {};
         if (!Organization) Found.Organization = t("Байгууллагыг сонгоно уу");
-        if (!License.trim())
-          Found.License = t("Зөвшөөрлийн дугаар шаардлагатай");
         setErrors(Found);
-        if (Found.License) LicenseRef.current && LicenseRef.current.focus();
         // null: the list shows nothing - the problem is marked on the field.
-        if (Found.Organization || Found.License)
-          return callback && callback(null);
+        if (Found.Organization) return callback && callback(null);
         Helper.BaseCrudHelper.CallService(
           "/UserRequest/Confirm",
           {

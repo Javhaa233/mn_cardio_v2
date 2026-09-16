@@ -189,7 +189,10 @@ async function GetProvinceData(req, res) {
   }
 }
 
-// Public organization picker for the sign-up form: names only.
+// Public organization picker for the sign-up form: names, plus the hospital's
+// own address so choosing one can fill the address section. Nothing here is
+// sensitive - it is where the hospital is. All 680 carry a province, 679 a
+// soum, only 188 a bag/khoroo, so the client fills what exists.
 async function GetOrganizations(req, res) {
   try {
     const where = { IsActive: true, MergedIntoId: null };
@@ -197,7 +200,7 @@ async function GetOrganizations(req, res) {
     if (Province) where.addr_prov_city = Province;
     const Data = await Models.Organization.findAll({
       where,
-      attributes: ['Id', 'Name'],
+      attributes: ['Id', 'Name', 'addr_prov_city', 'addr_soum_dist', 'addr_bag_khoroo'],
       order: [['Name', 'ASC']],
       raw: true,
     });
@@ -241,8 +244,14 @@ async function Register(req, res) {
       return Fail(res, 'Регистрийн дугаар буруу байна');
     }
     Row.Registration = Row.Registration.toUpperCase();
-    if (!Row.License) return Fail(res, 'Мэргэжлийн үйл ажиллагааны зөвшөөрлийн дугаараа оруулна уу');
-    if (Row.License.length > 50) return Fail(res, 'Зөвшөөрлийн дугаар хэт урт байна');
+    // The licence code is OPTIONAL. Not one of the ~3,300 doctors already in the
+    // system has one (the column is days old), the login gate that would demand
+    // it is off by default, and where codes come from is still a customer
+    // question - so requiring it here would hold applicants to a standard no
+    // existing doctor meets. An administrator can add it when approving.
+    if (Row.License && Row.License.length > 50) {
+      return Fail(res, 'Зөвшөөрлийн дугаар хэт урт байна');
+    }
 
     // Email and phone are required on every new request - accounts created
     // without them could not reset a password or be contacted.
@@ -259,13 +268,17 @@ async function Register(req, res) {
     const DuplicateEmail = await FindDuplicateEmail(Row.Email);
     if (DuplicateEmail) return Fail(res, DuplicateEmail);
 
-    const LicenceTaken =
-      (await Models.DoctorsProfile.count({ where: { LicenseCode: Row.License } })) > 0 ||
-      (await Models.UserRequests.count({
-        where: { License: Row.License, IsActive: STATUS.Pending },
-      })) > 0;
-    if (LicenceTaken) {
-      return Fail(res, 'Энэ зөвшөөрлийн дугаараар бүртгэл эсвэл хүсэлт аль хэдийн байна');
+    // Only when one was given: a blank code is not a duplicate, and matching on
+    // NULL would collide with every doctor who has none.
+    if (Row.License) {
+      const LicenceTaken =
+        (await Models.DoctorsProfile.count({ where: { LicenseCode: Row.License } })) > 0 ||
+        (await Models.UserRequests.count({
+          where: { License: Row.License, IsActive: STATUS.Pending },
+        })) > 0;
+      if (LicenceTaken) {
+        return Fail(res, 'Энэ зөвшөөрлийн дугаараар бүртгэл эсвэл хүсэлт аль хэдийн байна');
+      }
     }
 
     const Created = await Models.UserRequests.create({
@@ -319,8 +332,9 @@ async function Confirm(req, res) {
     const Organization = await FindOrganization(req.body.OrganizationId || Request.OrganizationId);
     if (!Organization) return Fail(res, 'Байгууллагыг сонгоно уу');
 
+    // Optional here too - see the note in Register. The administrator may fill
+    // it in while approving, but nothing is blocked when they cannot.
     const LicenseCode = Clean(req.body.License !== undefined ? req.body.License : Request.License);
-    if (!LicenseCode) return Fail(res, 'Зөвшөөрлийн дугаар шаардлагатай');
 
     const UserNameCount = await Models.Users.count({ where: { UserName: Request.UserName } });
     if (UserNameCount > 0) return Fail(res, 'The user name is a duplicate');
@@ -363,11 +377,16 @@ async function Confirm(req, res) {
           addr_bag_khoroo: Request.addr_bag_khoroo,
           OrganizationId: Organization.Id,
           AppId: Request.AppId || 1,
-          LicenseCode,
-          LicenseSource: 'registration',
-          // The approving administrator is the one vouching for the code.
-          LicenseVerifiedDate: new Date(),
-          LicenseVerifiedUserId: LogedUser.Id,
+          // Only stamp the licence columns when there is a code: "verified by
+          // this administrator on this date" must not be recorded against none.
+          ...(LicenseCode
+            ? {
+                LicenseCode,
+                LicenseSource: 'registration',
+                LicenseVerifiedDate: new Date(),
+                LicenseVerifiedUserId: LogedUser.Id,
+              }
+            : {}),
         },
         LogedUser,
         SaveLog: true,

@@ -2313,6 +2313,42 @@
 .login-v2 select.bad {
   border-color: #b4184f;
 }
+
+/* Type-to-find dropdown (the organization picker): one field instead of a
+   search box beside a select. The list floats over the fields below it. */
+.login-v2 .combo {
+  position: relative;
+}
+.login-v2 .combo-list {
+  position: absolute;
+  top: calc(100% - 11px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  margin: 0;
+  padding: 4px 0;
+  max-height: 232px;
+  overflow-y: auto;
+  list-style: none;
+  background: var(--bg-0);
+  border: 1px solid var(--panel-line);
+  border-radius: 3px;
+  box-shadow: 0 10px 24px rgba(9, 40, 64, 0.14);
+}
+.login-v2 .combo-list li {
+  padding: 8px 12px;
+  font-size: 14px;
+  line-height: 1.35;
+  color: var(--ink);
+  cursor: pointer;
+}
+.login-v2 .combo-list li.on,
+.login-v2 .combo-list li:hover {
+  background: var(--field);
+}
+.login-v2 .combo-list li[aria-selected="true"] {
+  font-weight: 600;
+}
 /* Live password checklist: dim until met, green when met, red after a
    failed submit. */
 .login-v2 .rules {

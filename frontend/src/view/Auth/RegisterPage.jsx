@@ -71,11 +71,25 @@ function Validate(Values) {
   if (EmailError) E.Email = EmailError;
   const PhoneError = ValidatePhone(Values.Telephone);
   if (PhoneError) E.Telephone = PhoneError;
-  if (!Values.License.trim())
-    E.License = "Мэргэжлийн үйл ажиллагааны зөвшөөрлийн дугаараа оруулна уу";
+  // The licence code is optional - see the note in UserRequestController.
   if (!Values.OrganizationId)
     E.OrganizationId = "Ажилладаг байгууллагаа сонгоно уу";
   return E;
+}
+
+const InList = (Items, Id) => Items.some((i) => i.id_data + "" === Id + "");
+
+/** Organizations whose name contains what was typed, in list order. */
+function FilterOrganizations(Organizations, Query) {
+  const Text = String(Query || "")
+    .trim()
+    .toLowerCase();
+  if (!Text) return Organizations;
+  return Organizations.filter((o) =>
+    String(o.Name || "")
+      .toLowerCase()
+      .includes(Text),
+  );
 }
 
 const CallPublic = (Url, Data) =>
@@ -103,16 +117,22 @@ export default function RegisterPage() {
   const [Loading, setLoading] = useState(false);
   const [Done, setDone] = useState("");
   const [ShowPassword, setShowPassword] = useState(false);
+  const [PasswordFocus, setPasswordFocus] = useState(false);
   // idle | checking | good | bad
   const [UserCheck, setUserCheck] = useState({ State: "idle", Message: "" });
   const [Provinces, setProvinces] = useState([]);
   const [Soums, setSoums] = useState([]);
   const [Bags, setBags] = useState([]);
   const [Organizations, setOrganizations] = useState([]);
-  const [OrgFilter, setOrgFilter] = useState("");
+  // The organization combobox: what is typed, whether the list is open, and
+  // which row the arrow keys are on.
+  const [OrgQuery, setOrgQuery] = useState("");
+  const [OrgOpen, setOrgOpen] = useState(false);
+  const [OrgHighlight, setOrgHighlight] = useState(0);
   // Only the latest user-name check may land; an older, slower answer is dropped.
   const CheckSeq = useRef(0);
   const OrgSeq = useRef(0);
+  const AddressSeq = useRef(0);
 
   useEffect(() => {
     // A signed-in staff member has no business here.
@@ -170,8 +190,13 @@ export default function RegisterPage() {
   const ChangeOrgProvince = async (Value) => {
     Set("OrgProvince", Value);
     Set("OrganizationId", "");
-    setOrgFilter("");
+    setOrgQuery("");
+    setOrgHighlight(0);
     setOrganizations([]);
+    // Most doctors live in the province they work in, so the address section
+    // follows this choice. It stays editable - changing it there does not
+    // touch the organization.
+    ChangeAddress("addr_prov_city", Value);
     if (!Value) return;
     const Seq = ++OrgSeq.current;
     const Res = await CallPublic("UserRequest/GetOrganizations", {
@@ -180,7 +205,98 @@ export default function RegisterPage() {
     if (Seq === OrgSeq.current && Res.Success) setOrganizations(Res.Data || []);
   };
 
+  const PickOrganization = (Org) => {
+    Set("OrganizationId", Org.Id + "");
+    setOrgQuery(Org.Name || "");
+    setOrgOpen(false);
+    FillAddressFrom(Org);
+  };
+
+  /**
+   * Put the hospital's own address into the Хаяг section, and load the lists
+   * behind it so the selects show the names rather than blank rows. Every
+   * organization has a province and nearly all have a soum; only about a
+   * quarter carry a bag/khoroo, so whatever is missing is simply left for the
+   * applicant to pick. All three stay editable.
+   */
+  const FillAddressFrom = async (Org) => {
+    const Prov = Org.addr_prov_city ? Org.addr_prov_city + "" : "";
+    const Soum = Org.addr_soum_dist ? Org.addr_soum_dist + "" : "";
+    const Bag = Org.addr_bag_khoroo ? Org.addr_bag_khoroo + "" : "";
+    if (!Prov) return;
+
+    setValues((Prev) => ({
+      ...Prev,
+      addr_prov_city: Prov,
+      addr_soum_dist: Soum,
+      addr_bag_khoroo: Bag,
+    }));
+
+    const Seq = ++AddressSeq.current;
+    const SoumRes = await CallPublic("UserRequest/GetProvinceData", {
+      ObjectName: "DictSoumDistrict",
+      Option: { Field: "id_province", Type: "Equals", Value: Prov },
+    });
+    if (Seq !== AddressSeq.current) return;
+    const SoumList = SoumRes.Success ? SoumRes.Data || [] : [];
+    setSoums(SoumList);
+
+    // A handful of organizations name a soum outside their own province, or a
+    // bag outside their own soum. Keep a value only when the list it belongs
+    // to actually holds it, so what is saved is what the selects show.
+    if (!Soum || !InList(SoumList, Soum)) {
+      setValues((Prev) => ({
+        ...Prev,
+        addr_soum_dist: "",
+        addr_bag_khoroo: "",
+      }));
+      return setBags([]);
+    }
+
+    const BagRes = await CallPublic("UserRequest/GetProvinceData", {
+      ObjectName: "DictBagKhoroo",
+      Option: { Field: "id_soum", Type: "Equals", Value: Soum },
+    });
+    if (Seq !== AddressSeq.current) return;
+    const BagList = BagRes.Success ? BagRes.Data || [] : [];
+    setBags(BagList);
+    if (!Bag || !InList(BagList, Bag)) {
+      setValues((Prev) => ({ ...Prev, addr_bag_khoroo: "" }));
+    }
+  };
+
+  const ChangeOrgQuery = (Value) => {
+    setOrgQuery(Value);
+    setOrgOpen(true);
+    setOrgHighlight(0);
+    // Typing after a choice means the choice no longer stands; the field is
+    // only "filled" once a row is picked.
+    if (Values.OrganizationId) Set("OrganizationId", "");
+  };
+
+  const OrgKeyDown = (Event) => {
+    const Options = FilterOrganizations(Organizations, OrgQuery);
+    if (Event.key === "ArrowDown" || Event.key === "ArrowUp") {
+      Event.preventDefault();
+      if (!OrgOpen) return setOrgOpen(true);
+      const Step = Event.key === "ArrowDown" ? 1 : -1;
+      const Next =
+        (OrgHighlight + Step + Options.length) % (Options.length || 1);
+      setOrgHighlight(Next);
+    } else if (Event.key === "Enter") {
+      if (OrgOpen && Options[OrgHighlight]) {
+        Event.preventDefault();
+        PickOrganization(Options[OrgHighlight]);
+      }
+    } else if (Event.key === "Escape") {
+      setOrgOpen(false);
+    }
+  };
+
   const ChangeAddress = async (Field, Value) => {
+    // Claims the address lists: a slower fill from a just-picked organization
+    // must not land on top of a choice made here afterwards.
+    const Seq = ++AddressSeq.current;
     if (Field === "addr_prov_city") {
       setValues((Prev) => ({
         ...Prev,
@@ -195,7 +311,7 @@ export default function RegisterPage() {
         ObjectName: "DictSoumDistrict",
         Option: { Field: "id_province", Type: "Equals", Value },
       });
-      if (Res.Success) setSoums(Res.Data || []);
+      if (Seq === AddressSeq.current && Res.Success) setSoums(Res.Data || []);
     } else if (Field === "addr_soum_dist") {
       setValues((Prev) => ({
         ...Prev,
@@ -208,7 +324,7 @@ export default function RegisterPage() {
         ObjectName: "DictBagKhoroo",
         Option: { Field: "id_soum", Type: "Equals", Value },
       });
-      if (Res.Success) setBags(Res.Data || []);
+      if (Seq === AddressSeq.current && Res.Success) setBags(Res.Data || []);
     } else {
       Set(Field, Value);
     }
@@ -343,15 +459,10 @@ export default function RegisterPage() {
     );
   }
 
-  const Filter = OrgFilter.trim().toLowerCase();
-  const OrgOptions = Filter
-    ? Organizations.filter(
-        (o) =>
-          (o.Name || "").toLowerCase().includes(Filter) ||
-          o.Id + "" === Values.OrganizationId,
-      )
-    : Organizations;
+  const OrgOptions = FilterOrganizations(Organizations, OrgQuery);
   const Met = PASSWORD_RULES.map((Rule) => Rule.Test(Values.Password));
+  const ShowPasswordRules =
+    PasswordFocus || !!Values.Password || !!Errors.Password;
 
   return (
     <AuthShell
@@ -440,6 +551,8 @@ export default function RegisterPage() {
               aria-describedby="register-password-rules"
               value={Values.Password}
               disabled={Loading}
+              onFocus={() => setPasswordFocus(true)}
+              onBlur={() => setPasswordFocus(false)}
               onChange={(e) => Set("Password", e.target.value)}
             />
           </AuthField>
@@ -466,16 +579,23 @@ export default function RegisterPage() {
           {Hint("PasswordConfirm")}
         </div>
       </div>
-      <ul className="rules" id="register-password-rules">
-        {PASSWORD_RULES.map((Rule, Index) => (
-          <li
-            key={Rule.Key}
-            className={Met[Index] ? "met" : Errors.Password ? "bad" : undefined}
-          >
-            {t(Rule.Label)}
-          </li>
-        ))}
-      </ul>
+      {/* The rules are guidance while choosing a password, not five lines of
+          standing instructions: shown once the field is in use, and kept up
+          after a failed submit so the reason stays on screen. */}
+      {ShowPasswordRules ? (
+        <ul className="rules" id="register-password-rules">
+          {PASSWORD_RULES.map((Rule, Index) => (
+            <li
+              key={Rule.Key}
+              className={
+                Met[Index] ? "met" : Errors.Password ? "bad" : undefined
+              }
+            >
+              {t(Rule.Label)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
 
       <div className="section" role="heading" aria-level="2">
         {t("Хувийн мэдээлэл")}
@@ -494,7 +614,9 @@ export default function RegisterPage() {
         {t("Мэргэжлийн мэдээлэл")}
       </div>
       <div className="grid2">
-        {Text("License", t("Мэргэжлийн үйл ажиллагааны зөвшөөрлийн дугаар"))}
+        {Text("License", t("Мэргэжлийн үйл ажиллагааны зөвшөөрлийн дугаар"), {
+          Required: false,
+        })}
         {Text("Profession", t("Profession"), { Required: false })}
         {/* Not through Select(): its handler reads a ref, which the hooks
             lint only accepts written directly as an event prop. */}
@@ -517,31 +639,66 @@ export default function RegisterPage() {
             ))}
           </select>
         </div>
+        {/* One field, not a search box plus a select: type to narrow the list,
+            arrow keys and Enter to choose, click anywhere else to close. */}
         <div>
-          <label htmlFor="register-OrgFilter">{t("Байгууллага хайх")}</label>
-          <input
-            id="register-OrgFilter"
-            type="search"
-            value={OrgFilter}
-            disabled={Loading || Organizations.length === 0}
-            placeholder={
-              Values.OrgProvince ? "" : t("Эхлээд аймаг/хот сонгоно уу")
-            }
-            onChange={(e) => setOrgFilter(e.target.value)}
-          />
+          <label htmlFor="register-OrganizationId">
+            {t("Ажилладаг байгууллага")} *
+          </label>
+          <div className="combo">
+            <input
+              id="register-OrganizationId"
+              name="OrganizationId"
+              type="text"
+              role="combobox"
+              autoComplete="off"
+              aria-expanded={OrgOpen}
+              aria-controls="register-org-list"
+              aria-autocomplete="list"
+              aria-activedescendant={
+                OrgOpen && OrgOptions[OrgHighlight]
+                  ? "register-org-" + OrgOptions[OrgHighlight].Id
+                  : undefined
+              }
+              className={Errors.OrganizationId ? "bad" : undefined}
+              aria-invalid={!!Errors.OrganizationId || undefined}
+              value={OrgQuery}
+              disabled={Loading || !Values.OrgProvince}
+              placeholder={
+                Values.OrgProvince
+                  ? t("Нэрээр хайх")
+                  : t("Эхлээд аймаг/хот сонгоно уу")
+              }
+              onChange={(e) => ChangeOrgQuery(e.target.value)}
+              onFocus={() => setOrgOpen(true)}
+              onBlur={() => setOrgOpen(false)}
+              onKeyDown={OrgKeyDown}
+            />
+            {OrgOpen && OrgOptions.length > 0 ? (
+              <ul className="combo-list" id="register-org-list" role="listbox">
+                {OrgOptions.slice(0, 60).map((o, Index) => (
+                  <li
+                    key={o.Id}
+                    id={"register-org-" + o.Id}
+                    role="option"
+                    aria-selected={o.Id + "" === Values.OrganizationId}
+                    className={Index === OrgHighlight ? "on" : undefined}
+                    // mousedown, not click: blur would close the list first.
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      PickOrganization(o);
+                    }}
+                    onMouseEnter={() => setOrgHighlight(Index)}
+                  >
+                    {o.Name}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
+          {Hint("OrganizationId")}
         </div>
       </div>
-      {Select(
-        "OrganizationId",
-        t("Ажилладаг байгууллага"),
-        OrgOptions,
-        (v) => Set("OrganizationId", v),
-        {
-          Required: true,
-          IdKey: "Id",
-          NameKey: "Name",
-        },
-      )}
 
       <div className="section" role="heading" aria-level="2">
         {t("Хаяг")}
