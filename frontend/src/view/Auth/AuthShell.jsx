@@ -2,6 +2,7 @@ import React, { useEffect, useReducer, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import LoginScene from "./LoginScene";
+import BuildStamp from "components/Navbars/BuildStamp";
 import centreLogo from "assets/img/new_print.png";
 import customHistory from "customHistory";
 
@@ -205,6 +206,10 @@ export default function AuthShell({
           {Sub ? <p className="sub">{Sub}</p> : null}
 
           {children}
+
+          {/* Which build this is, before anyone signs in. Same component as the
+              profile menu, so the two can never disagree. */}
+          <BuildStamp />
         </form>
       </main>
     </div>

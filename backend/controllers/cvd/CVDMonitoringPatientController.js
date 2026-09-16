@@ -7,6 +7,7 @@ const { Models, sequelize } = require('../../config/DB');
 var { CVDMonitoring, CVDRisk, CVDHistory, CVDBodySize, Patient } = Models;
 
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const ConfigHelper = require('../../helper/ConfigHelper');
 // const EMDServiceHelper = require("../../helper/EMDServiceHelper");
 // const ObjectHelper = require("../../helper/ObjectHelper");
 
@@ -52,12 +53,9 @@ async function CheckPatient(req, res) {
       // herev uilchluulegchiin burtgel baigaa bol shuud hyanaltiin idevhgui burtgel uusgene
       if (PatientData) {
         const [CVDMonitoringData, data] = await sequelize.query(
-          "SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=N'" +
-            PatRegNo +
-            "' AND p.p_registration=N'" +
-            PatRegNo +
-            "' AND Status <> 'inactive' ORDER BY m.Id DESC"
-        );
+        'SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo AND Status <> \'inactive\' ORDER BY m.Id DESC',
+        { replacements: { PatRegNo } }
+      );
         if (CVDMonitoringData.length > 0) {
           Id = CVDMonitoringData[0].Id;
           if (Id) {
@@ -135,8 +133,21 @@ async function CheckPatient(req, res) {
 async function CheckLastData({ LogedUser, ObjectName, PatRegNo, AppId }) {
   if (LogedUser && ObjectName && PatRegNo && AppId) {
     if (PatRegNo) {
+      // Two separate injection points lived on this line, and they need
+      // different fixes. PatRegNo is a VALUE, so it binds. ObjectName is a TABLE
+      // NAME, which cannot be bound at all - the only safe form is an allowlist.
+      //
+      // ConfigHelper is that allowlist: it returns null for anything not
+      // registered in ModelConfigs/mainConfig.js, so only a declared ObjectName
+      // ever reaches the query, and the name that does reach it is the config's
+      // own, not the caller's string.
+      const ModelConfig = ConfigHelper.getModelConfig(ObjectName);
+      if (!ModelConfig) return null;
+
       const [LastData, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM ' + ObjectName + " WHERE PatRegNo=N'" + PatRegNo + "' ORDER BY Id DESC"
+        'SELECT TOP 1 * FROM [' + ModelConfig.ObjectName + '] WHERE PatRegNo = :PatRegNo' +
+          ' ORDER BY Id DESC',
+        { replacements: { PatRegNo } }
       );
 
       if (LastData.length === 1) {

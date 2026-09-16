@@ -143,9 +143,12 @@ async function GetLastEchoId(req, res) {
     const LogedUser = req.LogedUser;
     if (LogedUser) {
       var [LastEchoId, data] = await sequelize.query(
-        'SELECT TOP 1 id_data FROM ExaminationEcho WHERE PatientId=' +
-          PatientId +
-          ' ORDER BY id_data DESC'
+        'SELECT TOP 1 id_data FROM ExaminationEcho WHERE PatientId = :PatientId' +
+          ' ORDER BY id_data DESC',
+        // Bound as NULL rather than the string "undefined" when the caller omits
+        // PatientId - this route only guards on LogedUser. NULL matches no row,
+        // which the `length === 1` check below already handles.
+        { replacements: { PatientId: PatientId === undefined ? null : PatientId } }
       );
       if (LastEchoId.length === 1) {
         result.Data = { DataId: LastEchoId[0].id_data };

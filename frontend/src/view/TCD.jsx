@@ -1,49 +1,37 @@
 import React, { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import Helper from "helper";
 import "./TCD.css";
 
 const TCD = () => {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
   const fetchData = () => {
-    const myHeaders = new Headers();
-    myHeaders.append("Content-Type", "application/json");
-    myHeaders.append(
-      "Authorization",
-      "Bearer " + window.localStorage.getItem("MnCardioToken"),
-    );
-    let user = JSON.parse(window.localStorage.getItem("LogedUser"));
-    const raw = JSON.stringify({
-      ObjectName: "PCathlab",
-      WhereType: "Contains",
-      FindType: "AllData",
-      OrderByField: "id_data",
-      OrderByType: "desc",
-      PageSize: 1000,
-      PageNumber: 0,
-      SearchField: [
-        {
-          Field: "user_mod",
-          Value: user.UserName,
-          Op: "Equals",
+    // Was a raw fetch to https://backend.telemedicine.mn/BaseObject/ carrying the
+    // user's MnCardioToken from localStorage - a live session token sent to another
+    // environment's backend, around config/Server.js and both proxies. See the same
+    // note in Visit2.jsx. BaseCrudHelper attaches the token centrally and keeps the
+    // request on this deployment's own /api.
+    const user = Helper.AuthHelper.GetLogedUserLocal();
+    if (!user) return;
+
+    Helper.BaseCrudHelper.BaseGetList(
+      {
+        ObjectName: "PCathlab",
+        SearchOption: {
+          WhereType: "Contains",
+          FindType: "AllData",
+          OrderBy: { Field: "id_data", Type: "desc" },
+          PageOption: { Limit: 1000, Page: 0 },
+          SearchField: [
+            { Field: "user_mod", Value: user.UserName, Op: "Equals" },
+          ],
         },
-      ],
-      AppId: 1,
-    });
-
-    const requestOptions = {
-      method: "POST",
-      headers: myHeaders,
-      body: raw,
-      redirect: "follow",
-    };
-
-    fetch("https://backend.telemedicine.mn/BaseObject/", requestOptions)
-      .then((response) => response.json())
-      .then((result) => {
-        setData(result);
-      })
-      .catch((error) => console.error(error));
+      },
+      (resData) => {
+        if (resData && resData.Success) setData(resData);
+      },
+    );
   };
   useEffect(() => {
     fetchData();

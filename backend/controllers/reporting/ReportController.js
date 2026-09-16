@@ -76,22 +76,40 @@ async function GetReport(req, res) {
         ? req.body.addr_bag_khoroo
         : null;
 
-    const StartDateQr = StartDate ? " @StartDate='" + StartDate + "'," : '';
-    const EndDateQr = EndDate ? " @EndDate='" + EndDate + "'," : '';
+    // Every one of these came straight from req.body and was concatenated into
+    // the EXEC string. StartDate/EndDate landed INSIDE single quotes, so
+    // "2020-01-01'; <statement>; --" closed the quote and ran; UserId and the
+    // three addr_* values were interpolated unquoted, which needed no quote to
+    // escape at all. `replacements` hands them to Sequelize's escaper instead.
+    //
+    // The two dates stay conditional - spNewReport treats an omitted @StartDate
+    // differently from a NULL one - but now only the PARAMETER NAME is chosen by
+    // the condition; the value is always bound.
+    //
+    // Keep the `[Data]` destructure and do NOT add `type: QueryTypes.SELECT`:
+    // with EXEC under tedious that changes the return shape. See
+    // controllers/organization/DashboardController.js for the same note.
+    const StartDateQr = StartDate ? ' @StartDate = :StartDate,' : '';
+    const EndDateQr = EndDate ? ' @EndDate = :EndDate,' : '';
 
     const [Data] = await sequelize.query(
       'EXEC spNewReport ' +
         StartDateQr +
         EndDateQr +
-        ' @UserId=' +
-        UserId +
-        ', @addr_prov_city=' +
-        addr_prov_city +
-        ', @addr_soum_dist=' +
-        addr_soum_dist +
-        ', @addr_bag_khoroo=' +
-        addr_bag_khoroo +
-        ';'
+        ' @UserId = :UserId,' +
+        ' @addr_prov_city = :addr_prov_city,' +
+        ' @addr_soum_dist = :addr_soum_dist,' +
+        ' @addr_bag_khoroo = :addr_bag_khoroo;',
+      {
+        replacements: {
+          StartDate: StartDate || null,
+          EndDate: EndDate || null,
+          UserId: UserId || null,
+          addr_prov_city,
+          addr_soum_dist,
+          addr_bag_khoroo,
+        },
+      }
     );
 
     result.Data = Data;

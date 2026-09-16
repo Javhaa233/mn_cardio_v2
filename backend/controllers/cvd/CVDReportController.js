@@ -94,28 +94,52 @@ async function CustomReportData(LogedUser, Organization, Option, Excel) {
 
   const [ProcedureData, spData] = await sequelize.query(
     `EXEC spCVDMonitoringReport
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']},
-        @Offset=${FindOption['Offset']},
-        @Limit=${FindOption['Limit']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId,
+        @Offset=:Offset,
+        @Limit=:Limit
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+        Offset: FindOption['Offset'],
+        Limit: FindOption['Limit'],
+      },
+    }
   );
 
   const [CountData, ctData] = await sequelize.query(
     `EXEC spCVDMonitoringReportTotal
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+      },
+    }
   );
 
   if (CountData.length === 1) {
@@ -253,28 +277,52 @@ async function CustomInspectionReportData(LogedUser, Organization, Option, Excel
 
   const [ProcedureData, spData] = await sequelize.query(
     `EXEC spCVDInspectionReport
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']},
-        @Offset=${FindOption['Offset']},
-        @Limit=${FindOption['Limit']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId,
+        @Offset=:Offset,
+        @Limit=:Limit
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+        Offset: FindOption['Offset'],
+        Limit: FindOption['Limit'],
+      },
+    }
   );
 
   const [CountData, ctData] = await sequelize.query(
     `EXEC spCVDInspectionReportTotal
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+      },
+    }
   );
 
   if (CountData.length === 1) Total = CountData[0]['Total'];
@@ -395,14 +443,25 @@ async function CustomReportUnitData(LogedUser, Organization, Option, Excel) {
 
   const [ProcedureData, spData] = await sequelize.query(
     `EXEC spCVDMonitoringReportUnit
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @Offset=${FindOption['Offset']},
-        @Limit=${FindOption['Limit']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @Offset=:Offset,
+        @Limit=:Limit
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        Offset: FindOption['Offset'],
+        Limit: FindOption['Limit'],
+      },
+    }
   );
 
   ReportData = ProcedureData;
@@ -476,16 +535,29 @@ async function CustomReportSoumData(LogedUser, Organization, Option, Excel) {
 
   const [ProcedureData, spData] = await sequelize.query(
     `EXEC spCVDMonitoringReportSoum
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']},
-        @Offset=${FindOption['Offset']},
-        @Limit=${FindOption['Limit']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId,
+        @Offset=:Offset,
+        @Limit=:Limit
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+        Offset: FindOption['Offset'],
+        Limit: FindOption['Limit'],
+      },
+    }
   );
 
   ReportData = ProcedureData;
@@ -559,16 +631,29 @@ async function CustomReportMonthData(LogedUser, Organization, Option, Excel) {
 
   const [ProcedureData, spData] = await sequelize.query(
     `EXEC spCVDMonitoringReportMonth
-        @StartDate='${FindOption['StartDate']}',
-        @EndDate='${FindOption['EndDate']}',
-        @OrgIds='${FindOption['OrgIds']}',
-        @OrganizationId=${FindOption['OrganizationId']},
-        @ProvinceCityId=${FindOption['ProvinceCityId']},
-        @SoumDistrictId=${FindOption['SoumDistrictId']},
-        @BagKhorooId=${FindOption['BagKhorooId']},
-        @Offset=${FindOption['Offset']},
-        @Limit=${FindOption['Limit']}
-    `
+        @StartDate=:StartDate,
+        @EndDate=:EndDate,
+        @OrgIds=:OrgIds,
+        @OrganizationId=:OrganizationId,
+        @ProvinceCityId=:ProvinceCityId,
+        @SoumDistrictId=:SoumDistrictId,
+        @BagKhorooId=:BagKhorooId,
+        @Offset=:Offset,
+        @Limit=:Limit
+    `,
+    {
+      replacements: {
+        StartDate: FindOption['StartDate'],
+        EndDate: FindOption['EndDate'],
+        OrgIds: FindOption['OrgIds'],
+        OrganizationId: FindOption['OrganizationId'],
+        ProvinceCityId: FindOption['ProvinceCityId'],
+        SoumDistrictId: FindOption['SoumDistrictId'],
+        BagKhorooId: FindOption['BagKhorooId'],
+        Offset: FindOption['Offset'],
+        Limit: FindOption['Limit'],
+      },
+    }
   );
 
   ReportData = ProcedureData;

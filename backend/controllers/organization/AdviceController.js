@@ -36,7 +36,8 @@ async function GetAdviceCommentPoint(req, res) {
     const LogedUser = req.LogedUser;
     if (LogedUser) {
       var [Data, data] = await sequelize.query(
-        'EXEC spAdviceCommentPoints @UserId=' + LogedUser.Id + ';'
+        'EXEC spAdviceCommentPoints @UserId = :UserId;',
+        { replacements: { UserId: LogedUser.Id } }
       );
       result.Data = Data;
       console.log('GetAdviceCommentPoint SUCCESS response:', JSON.stringify(result));
@@ -287,7 +288,8 @@ async function CustomSave(req, res) {
           });
 
           const [Doctors, data] = await sequelize.query(
-            `EXEC spGetAdviceNotificationUsers @UserId=${Doctor.UserId}`
+            'EXEC spGetAdviceNotificationUsers @UserId = :UserId',
+            { replacements: { UserId: Doctor.UserId } }
           );
 
           for (var s = 0; s < Doctors.length; s++) {
@@ -362,7 +364,8 @@ async function CreateComment(req, res) {
         }
 
         var [Doctors, data] = await sequelize.query(
-          `EXEC spGetAdviceCommentNotificationUsers @AdviceId=${Advice.id_data}, @UserId=${LogedUser.Id}`
+          'EXEC spGetAdviceCommentNotificationUsers @AdviceId = :AdviceId, @UserId = :UserId',
+          { replacements: { AdviceId: Advice.id_data, UserId: LogedUser.Id } }
         );
 
         for (var s = 0; s < Doctors.length; s++) {

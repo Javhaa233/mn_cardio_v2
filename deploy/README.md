@@ -26,6 +26,34 @@ uv run --with paramiko python rsh.py --put local.tar.gz /tmp/local.tar.gz
 
 Anything with quotes, newlines or a heredoc goes through `--script`. Do not fight the quoting.
 
+## Deploying a change (the recurring loop)
+
+The table below is the one-time bring-up. A normal deploy is this:
+
+```
+node mobile/tools/bump-version.js minor|patch          # BEFORE the export
+node mobile/tools/export-to-github.js "C:/Ajil/mncardio-github"
+node mobile/tools/verify-no-secrets.js "C:/Ajil/mncardio-github"   # must PASS
+cd C:/Ajil/mncardio-github && git add -A && git commit && git push
+# then on webhost, as `its`:
+uv run --with paramiko python rsh.py "cd /srv/clients/mncardio && git fetch --depth 1 origin main -q && git reset --hard origin/main -q && git log --oneline -1"
+uv run --with paramiko python rsh.py --script deploy/scripts/10-build-frontend.sh
+uv run --with paramiko python rsh.py "cd /srv/clients/mncardio/backend && pm2 restart mncardio-api --update-env"
+```
+
+**Bump first.** `vite.config.js` bakes `__APP_VERSION__` into the bundle when the
+SPA is built on the server, so a bump after the rebuild publishes nothing. The
+number then shows on the sign-in page and in the profile menu (`BuildStamp.jsx`),
+and on `GET /` from the API; `pm2 list` reports the same value.
+
+**minor** for a new screen or feature, a new endpoint, a schema change, or a
+change to who may see or do something. **patch** for fixes, wording, styling,
+refactors, docs and tooling. Mixed deploy: the highest applicable wins.
+
+A deploy that changes the schema also needs its `scripts/*.sql` applied to
+`MnCardio_test` first — the app fails on a column the model declares and the
+database lacks.
+
 ## Order
 
 | # | Step | Notes |

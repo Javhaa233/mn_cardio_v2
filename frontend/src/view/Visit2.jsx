@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import Helper from "helper";
 import "./visit.css";
 
 const Visit2 = () => {
@@ -12,59 +13,45 @@ const Visit2 = () => {
   const [totalPages, setTotalPages] = useState(0);
 
   useEffect(() => {
-    const fetchData = async () => {
-      const url = "https://backend.telemedicine.mn/BaseObject/";
-      const token = window.localStorage.getItem("MnCardioToken");
-      const requestData = {
+    // This used to raw-fetch https://backend.telemedicine.mn/BaseObject/ with the
+    // user's MnCardioToken read straight out of localStorage - i.e. it sent a live
+    // session token to a DIFFERENT environment's backend, bypassing the axios
+    // instance in config/Server.js, the Vite dev proxy and the production reverse
+    // proxy. In dev and on test that leaked the token off-box entirely.
+    //
+    // BaseCrudHelper is how every other screen talks to the API: relative /api URL,
+    // token attached centrally, 401 handled centrally. It is callback-style, not
+    // promise-style.
+    let active = true;
+    setLoading(true);
+    Helper.BaseCrudHelper.BaseGetList(
+      {
         ObjectName: "Visit",
-        WhereType: "Contains",
-        FindType: "AllData",
-        OrderByField: "id_data",
-        OrderByType: "desc",
-        PageSize: pageSize,
-        PageNumber: currentPage,
-        SearchField: [
-          {
-            Field: "id",
-            Value: 320,
-            Op: "Equals",
-          },
-        ],
-        AppId: 1,
-      };
-
-      try {
-        const response = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(requestData),
-        });
-
-        if (!response.ok) {
-          throw new Error("Network response was not ok");
+        SearchOption: {
+          WhereType: "Contains",
+          FindType: "AllData",
+          OrderBy: { Field: "id_data", Type: "desc" },
+          PageOption: { Limit: pageSize, Page: currentPage },
+          SearchField: [{ Field: "id", Value: 320, Op: "Equals" }],
+        },
+      },
+      (resData) => {
+        if (!active) return;
+        if (resData && resData.Success) {
+          setData(resData);
+          const totalItems = resData.Data ? resData.Data.length : 0;
+          setTotalPages(Math.ceil(totalItems / pageSize));
+          setError(null);
+        } else {
+          setError((resData && resData.Message) || t("Алдаа гарлаа"));
         }
-
-        const result = await response.json();
-        console.log(result); // Debug: Show the result to check the structure
-
-        setData(result);
-
-        // To calculate total pages, we use the length of the current data and the page size
-        const totalItems = result.Data ? result.Data.length : 0;
-        const totalPagesCalculated = Math.ceil(totalItems / pageSize); // Calculate total pages
-        setTotalPages(totalPagesCalculated);
-      } catch (err) {
-        setError(err.message);
-      } finally {
         setLoading(false);
-      }
+      },
+    );
+    return () => {
+      active = false;
     };
-
-    fetchData();
-  }, [currentPage, pageSize]);
+  }, [currentPage, pageSize, t]);
 
   if (loading) return <p>{t("Loading...")}</p>;
   if (error) return <p>{t("Error: {{error}}", { error })}</p>;

@@ -104,9 +104,8 @@ async function GetLastData(req, res) {
     const { PatientId, PatientRegNo, AppId } = req.body;
     if (LogedUser && PatientId && PatientRegNo) {
       const [LastData, data] = await sequelize.query(
-        "SELECT TOP 1 Id FROM CardiacRhythm WHERE PatRegNo=N'" +
-          PatientRegNo +
-          "' AND (is_confirm='no' OR is_confirm IS NULL) ORDER BY Id DESC"
+        'SELECT TOP 1 Id FROM CardiacRhythm WHERE PatRegNo=:PatientRegNo AND (is_confirm=\'no\' OR is_confirm IS NULL) ORDER BY Id DESC',
+        { replacements: { PatientRegNo } }
       );
       if (LastData.length === 1) {
         const DataId = LastData[0].Id;

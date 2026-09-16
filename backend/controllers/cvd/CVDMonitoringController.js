@@ -439,12 +439,9 @@ async function CheckPatient(req, res) {
         };
 
         const [CVDMonitoringData, data] = await sequelize.query(
-          "SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=N'" +
-            PatRegNo +
-            "' AND p.p_registration=N'" +
-            PatRegNo +
-            "' ORDER BY m.Id DESC"
-        );
+        'SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo ORDER BY m.Id DESC',
+        { replacements: { PatRegNo } }
+      );
         console.log(
           '[CVDMonitoring/CheckPatient] CVDMonitoringRows=%o',
           CVDMonitoringData && CVDMonitoringData.length > 0
@@ -514,7 +511,8 @@ async function GetLastHistoryData(req, res) {
 
     if (MonitoringId && LogedUser) {
       const [CVDHistory, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM CVDHistory WHERE MonitoringId=' + MonitoringId + ' ORDER BY Id DESC'
+        'SELECT TOP 1 * FROM CVDHistory WHERE MonitoringId = :MonitoringId ORDER BY Id DESC',
+        { replacements: { MonitoringId } }
       );
 
       if (CVDHistory.length === 1) {
@@ -557,7 +555,8 @@ async function GetLastBodySizeData(req, res) {
 
     if (MonitoringId && LogedUser) {
       const [CVDBodySize, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM CVDBodySize WHERE MonitoringId=' + MonitoringId + ' ORDER BY Id DESC'
+        'SELECT TOP 1 * FROM CVDBodySize WHERE MonitoringId = :MonitoringId ORDER BY Id DESC',
+        { replacements: { MonitoringId } }
       );
 
       if (CVDBodySize.length === 1) {
@@ -600,7 +599,8 @@ async function GetLastRiskData(req, res) {
 
     if (MonitoringId && LogedUser) {
       const [CVDRiskData, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM CVDRisk WHERE MonitoringId=' + MonitoringId + ' ORDER BY Id DESC'
+        'SELECT TOP 1 * FROM CVDRisk WHERE MonitoringId = :MonitoringId ORDER BY Id DESC',
+        { replacements: { MonitoringId } }
       );
 
       if (CVDRiskData.length === 1) {
@@ -630,7 +630,8 @@ async function GetLastManagementData(req, res) {
 
     if (MonitoringId && LogedUser) {
       const [CVDManagement, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM CVDManagement WHERE MonitoringId=' + MonitoringId + ' ORDER BY Id DESC'
+        'SELECT TOP 1 * FROM CVDManagement WHERE MonitoringId = :MonitoringId ORDER BY Id DESC',
+        { replacements: { MonitoringId } }
       );
 
       if (CVDManagement.length === 1) {
@@ -677,7 +678,8 @@ async function GetLastDiagnosisData(req, res) {
 
     if (MonitoringId && LogedUser) {
       const [CVDDiagnosis, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM CVDDiagnosis WHERE MonitoringId=' + MonitoringId + ' ORDER BY Id DESC'
+        'SELECT TOP 1 * FROM CVDDiagnosis WHERE MonitoringId = :MonitoringId ORDER BY Id DESC',
+        { replacements: { MonitoringId } }
       );
 
       if (CVDDiagnosis.length === 1) {

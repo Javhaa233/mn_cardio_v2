@@ -3,6 +3,10 @@ const express = require('express');
 const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
+// Used only by the REPORT_DIR fallback below, on a platform that is neither
+// win32 nor linux. It was never imported, so that branch threw
+// "ReferenceError: os is not defined" at boot instead of picking a default.
+const os = require('os');
 dotenv.config({ path: './config/Config.env' });
 
 // Environment detection
@@ -209,11 +213,24 @@ const routeGroups = {
     { path: '/User', controller: controllers.auth.UserController },
     { path: '/UserRequest', controller: controllers.auth.UserRequestController },
     { path: '/PatientUser', controller: controllers.auth.PatientUserController },
-    { path: '/XypService', controller: controllers.integrations.XypServiceController },
     { path: '/Test', controller: TestController },
   ],
   protected: [
     { path: '/BaseObject', controller: BaseController },
+    // Moved out of `public` on 2026-09-16. It was grouped with the pre-auth
+    // bootstrap routes as "the XYP server-to-server call", but it is not one:
+    // nothing in the frontend, the mobile app or the acceptance harness calls
+    // it, and XYP calls US on the citizen endpoints, not this one. What it
+    // actually did was let any anonymous caller make this server sign a
+    // WS100008_registerOTPRequest to xyp.gov.mn with the hospital's own key and
+    // REGNUM - unmetered, since RateLimit.AUTH_PATHS does not list it and the
+    // global bucket is count-only by default.
+    //
+    // Kept rather than deleted (unlike the four TestController routes) because
+    // it is the only working reference for XYP SOAP signing, and mobile tender
+    // 1.2 needs that. It is a developer probe now, so it also requires RoleId 1
+    // inside the controller.
+    { path: '/XypService', controller: controllers.integrations.XypServiceController },
     // Moved out of `public`. Every other member of that group is a pre-auth
     // bootstrap route (login, registration, the ХУР server-to-server call);
     // /RiskScores was not - both of its callers already send a bearer token,
@@ -501,9 +518,11 @@ registerRoutes(routeGroups.protected, true);
 app.use('/api', require('./api'));
 console.log('✓ Registered route: /api');
 
-// Health check
+// Health check. The version is READ, not written here: it used to be the
+// literal 'MnCardio API v2.0', which every release since has quietly falsified.
+// package.json is the one number, and PM2 reports the same value.
 app.get('/', function (req, res) {
-  return res.send('MnCardio API v2.0');
+  return res.send('MnCardio API v' + require('./package.json').version);
 });
 
 app.get('/health', function (req, res) {

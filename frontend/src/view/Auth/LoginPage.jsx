@@ -14,6 +14,7 @@ import {
   PasswordToggle,
   SUPPORT_PHONE,
 } from "./AuthShell";
+import BuildStamp from "components/Navbars/BuildStamp";
 
 // After this many failures we stop repeating the server's message and point the
 // user at IT support instead, which is what they actually need by then.
@@ -213,6 +214,10 @@ export default function LoginPage() {
             {/* Registration is for doctors only - citizens use ХУР / ДАН. */}
             <AuthLink To="/auth/register">{t("Эмчээр бүртгүүлэх")}</AuthLink>
           </div>
+
+          {/* Readable before anyone logs in, which is what makes confirming a
+              deploy a page reload rather than an SSH session. */}
+          <BuildStamp />
         </form>
       </main>
     </div>

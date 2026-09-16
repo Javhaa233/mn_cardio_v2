@@ -11,6 +11,9 @@ export PATH=/opt/node-24/bin:$PATH
 cd /srv/clients/mncardio/frontend
 
 echo "node: $(node -v)"
+# The version is baked into the bundle by vite.config.js at build time, so this
+# line says what users are about to see - bump it BEFORE deploying, not after.
+echo "version: $(node -p "require('./package.json').version")"
 echo "before: $(stat -c '%y' build 2>/dev/null || echo 'no build dir')"
 
 npm run build 2>&1 | tail -15

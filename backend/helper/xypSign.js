@@ -1,5 +1,4 @@
 const crypto = require('crypto');
-const xypSign = crypto.createSign('SHA256');
 const fs = require('fs');
 const path = require('path');
 
@@ -24,6 +23,12 @@ class Sign {
    * @returns {{timeStamp, signature: string, accessToken}}
    */
   sign() {
+    // The Sign object MUST be created per call. It was a module-level
+    // `crypto.createSign('SHA256')` shared by every caller: .write()/.end()
+    // finalise that stream, so the FIRST signature in a process was correct and
+    // every one after it threw ERR_STREAM_WRITE_AFTER_END. That is why XYP
+    // appeared to "work until it didn't" and came back after a restart.
+    const xypSign = crypto.createSign('SHA256');
     var signData = this.AccessToken + '.' + this.Timestamp;
     xypSign.write(signData);
     xypSign.end();

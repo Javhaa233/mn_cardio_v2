@@ -43,11 +43,35 @@ const AllowedOrigins = () =>
  */
 const Normalize = (value) => String(value || '').trim().replace(/\/+$/, '').toLowerCase();
 
+/**
+ * Loopback, on any port.
+ *
+ * The development branch below used to be `return callback(null, true)` for
+ * ANY origin. Combined with `credentials: true` in server.js, that is a fully
+ * open credentialed CORS policy on every host whose NODE_ENV is not exactly
+ * the string 'production' - which, per the note above, is several of them.
+ * Any page on the internet could read authenticated responses from such a host.
+ *
+ * Almost all of what that branch was really for is loopback on a port the list
+ * below does not name: a second dev server pair runs on 3100, tests use other
+ * ports. Allowing any localhost port keeps that working without opening the
+ * door to the internet.
+ */
+const IsLoopback = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(
+  String(origin || '').trim()
+);
+
+// The escape hatch, for the rare case that needs a genuinely foreign origin
+// (an external tool, a demo from another host). Defaults OFF, and read lazily
+// for the same reason as IsDevelopment.
+const AllowAnyOrigin = () => String(process.env.CORS_ALLOW_ANY_ORIGIN || '').toLowerCase() === 'true';
+
 const originCallback = function (origin, callback) {
   // No origin: same-origin, a mobile app, or a tool like Postman.
   if (!origin) return callback(null, true);
 
-  if (IsDevelopment()) return callback(null, true);
+  if (AllowAnyOrigin()) return callback(null, true);
+  if (IsDevelopment() && IsLoopback(origin)) return callback(null, true);
 
   const Wanted = Normalize(origin);
   if (AllowedOrigins().some((allowed) => Normalize(allowed) === Wanted)) {

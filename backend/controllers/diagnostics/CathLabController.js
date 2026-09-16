@@ -90,11 +90,9 @@ async function GetLastCathLabId(req, res) {
     const LogedUser = req.LogedUser;
     if (LogedUser && PatientId && PatRegNo) {
       const [LastCathlabId, data] = await sequelize.query(
-        'SELECT TOP 1 id_data FROM PCathlab WHERE PatientId=' +
-          PatientId +
-          " AND PatRegNo=N'" +
-          PatRegNo +
-          "' ORDER BY id_data DESC"
+        'SELECT TOP 1 id_data FROM PCathlab WHERE PatientId = :PatientId' +
+          ' AND PatRegNo = :PatRegNo ORDER BY id_data DESC',
+        { replacements: { PatientId, PatRegNo } }
       );
       if (LastCathlabId.length === 1) {
         result.Data = { DataId: LastCathlabId[0].id_data };

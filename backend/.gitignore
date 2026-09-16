@@ -1,4 +1,29 @@
 node_modules/*
+
+# Secrets. This list used to be four lines and covered only Config.env, which
+# is why three private keys and three populated .env files ended up tracked and
+# pushed to GitLab. Anything matching the patterns below must never be in the
+# repository; real values belong only in config/Config.env on the server.
+#
+# Removing the files from tracking does NOT remove them from git history - the
+# credentials that were committed have to be rotated. See
+# ZSUT-credential-rotation-2026-09-16.md in the project root.
+.env
+.env.*
+!.env.example
 config/Config.env
-reportPDF/*
 config/Config.env*
+
+# Private keys, certificate requests and VPN profiles, anywhere in the tree.
+*.key
+*.pem
+*.pfx
+*.p12
+*.ovpn
+*.jks
+*.keystore
+id_rsa*
+
+# Generated output
+reportPDF/*
+logs/
