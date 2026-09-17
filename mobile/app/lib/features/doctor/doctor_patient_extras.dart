@@ -11,6 +11,7 @@ import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import '../risk/risk_assessment.dart';
+import 'doctor_rehab_plan.dart';
 
 /// Эмч үйлчлүүлэгчийн **эрсдэлийн үзүүлэлт**-ийг харах — тендерийн "эмч
 /// үйлчлүүлэгчийн модулийг харах боломжтой байна" мөр.
@@ -307,6 +308,8 @@ class _DoctorPatientRehabScreenState extends State<DoctorPatientRehabScreen> {
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 90),
               children: <Widget>[
+                DoctorRehabPlanCard(patientId: widget.patientId),
+                const SizedBox(height: 14),
                 SectionCard(
                   title: 'Сүүлийн үнэлгээ',
                   icon: Icons.assignment_turned_in_outlined,

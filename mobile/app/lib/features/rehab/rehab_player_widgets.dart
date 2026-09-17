@@ -399,8 +399,9 @@ class RehabNumberPad extends StatelessWidget {
           onPressed: () {
             HapticFeedback.selectionClick();
             if (k == '⌫') {
-              if (value.isNotEmpty)
+              if (value.isNotEmpty) {
                 onChanged(value.substring(0, value.length - 1));
+              }
             } else if (k == 'C') {
               onChanged('');
             } else if (value.length < maxLength) {

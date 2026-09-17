@@ -21,8 +21,9 @@ class RehabTodayTab extends StatelessWidget {
     final controller = context.watch<RehabController>();
     final state = controller.today;
 
-    if (state.isFirstLoad)
+    if (state.isFirstLoad) {
       return const LoadingView(label: 'Өнөөдрийн дасгал уншиж байна…');
+    }
     if (state.hasError && !state.hasData) {
       if (controller.moduleDisabled) return const RehabDisabledView();
       return ErrorView(

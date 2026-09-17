@@ -67,7 +67,8 @@ class RehabRepository {
     );
   }
 
-  Future<RehabVitalsBundle> fetchVitals({DateRange range = DateRange.all}) async {
+  Future<RehabVitalsBundle> fetchVitals(
+      {DateRange range = DateRange.all}) async {
     final data = await _api.getRaw(
       '/api/patient/rehab/vitals',
       query: range.toQuery(),
@@ -113,7 +114,8 @@ class RehabRepository {
         .toList(growable: false);
   }
 
-  Future<RehabSessionStart> startSession({int? restingHr, int? exerciseId}) async {
+  Future<RehabSessionStart> startSession(
+      {int? restingHr, int? exerciseId}) async {
     final data = await _api.postObject(
       '/api/patient/rehab/sessions',
       body: <String, dynamic>{
@@ -132,7 +134,8 @@ class RehabRepository {
     return RehabCheckin.fromJson(data);
   }
 
-  Future<RehabSessionDetail> finish(int sessionId, Map<String, dynamic> body) async {
+  Future<RehabSessionDetail> finish(
+      int sessionId, Map<String, dynamic> body) async {
     final data = await _api.patchObject(
       '/api/patient/rehab/sessions/$sessionId',
       body: body,
