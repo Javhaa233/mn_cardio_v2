@@ -237,6 +237,8 @@ const BaseDialog = React.forwardRef((props, ref) => {
     Save,
     Confirm,
     ConfirmButtonText = "Confirm",
+    DeclineButtonText,
+    DeclineIcon,
     Decline,
     ShowPrint = false,
     Print,
@@ -417,6 +419,8 @@ const BaseDialog = React.forwardRef((props, ref) => {
           Print={Print}
           SaveButtonText={SaveButtonText}
           ConfirmButtonText={ConfirmButtonText}
+          DeclineButtonText={DeclineButtonText}
+          DeclineIcon={DeclineIcon}
         />
       )}
       {resizeHandle}

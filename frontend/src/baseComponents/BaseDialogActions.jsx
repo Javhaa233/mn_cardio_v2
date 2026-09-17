@@ -26,6 +26,8 @@ import { dialogActionSx } from "@/theme/controlStyles";
  * @param {Function} props.Print - Print callback
  * @param {string} props.SaveButtonText - Custom text for Save button
  * @param {string} props.ConfirmButtonText - Custom text for Confirm button
+ * @param {string} props.DeclineButtonText - Custom text for the danger-slot button
+ * @param {Object} props.DeclineIcon - Custom icon for the danger-slot button
  */
 // How long to leave an action button spinning before assuming its consumer
 // forgot to signal completion. Mirrors the safety timeout in BaseCustomForm.
@@ -100,6 +102,10 @@ export default function BaseDialogActions(props) {
     Print,
     SaveButtonText = "Save",
     ConfirmButtonText = "Confirm",
+    // The danger slot is not only "Decline" - a delete confirmation uses it
+    // too, and a button that says Decline must not delete anything.
+    DeclineButtonText = "Decline",
+    DeclineIcon = CloseIcon,
   } = props;
 
   const { t } = useTranslation();
@@ -175,14 +181,14 @@ export default function BaseDialogActions(props) {
       {ShowDecline && (
         <ActionButton
           Rank="danger"
-          Icon={CloseIcon}
+          Icon={DeclineIcon}
           Busy={DeclineLoading}
           onClick={() => {
             setDeclineLoading(true);
             runAction(Decline, setDeclineLoading);
           }}
         >
-          {t("Decline")}
+          {t(DeclineButtonText)}
         </ActionButton>
       )}
 

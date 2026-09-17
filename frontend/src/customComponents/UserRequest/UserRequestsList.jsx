@@ -7,6 +7,7 @@ import Box from "@mui/material/Box";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 // default components
 import Button from "components/CustomButtons/Button";
 // custom components
@@ -460,7 +461,8 @@ class UserRequestsList extends BaseList {
         Width="560px"
         Height="560px"
         SaveButtonText="Баталгаажуулах"
-        ShowSave={true}
+        // Nothing to press when every selected row would be skipped.
+        ShowSave={Ready > 0}
         Save={(setLoading) => {
           this.ConfirmMany().finally(() => setLoading && setLoading(false));
         }}
@@ -472,7 +474,7 @@ class UserRequestsList extends BaseList {
               "хүсэлтийг баталгаажуулж, эмчийн эрх үүсгэнэ. Буцаах боломжгүй.",
             )}
             {NoOrg > 0
-              ? ` ${NoOrg} ${t("хүсэлтэд байгууллага заагаагүй тул алгасна.")}`
+              ? ` ${NoOrg} ${t("хүсэлтийн байгууллага жагсаалтаас сонгогдоогүй тул алгасна. Тэдгээрийг нэг бүрчлэн нээж байгууллагыг сонгоно уу.")}`
               : ""}
           </Alert>
 
@@ -501,7 +503,7 @@ class UserRequestsList extends BaseList {
           <SelectedRows
             Rows={Rows}
             Note={(Row) =>
-              Row.OrganizationId ? "" : t("байгууллагагүй - алгасна")
+              Row.OrganizationId ? "" : t("байгууллага сонгогдоогүй - алгасна")
             }
           />
         </Box>
@@ -599,6 +601,8 @@ class UserRequestsList extends BaseList {
         Width="560px"
         Height="520px"
         ShowDecline={true}
+        DeclineButtonText="Устгах"
+        DeclineIcon={DeleteOutlineIcon}
         Decline={(setLoading) => {
           this.DeleteMany().finally(() => setLoading && setLoading(false));
         }}
