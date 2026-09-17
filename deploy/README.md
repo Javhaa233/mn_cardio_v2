@@ -37,9 +37,17 @@ node mobile/tools/verify-no-secrets.js "C:/Ajil/mncardio-github"   # must PASS
 cd C:/Ajil/mncardio-github && git add -A && git commit && git push
 # then on webhost, as `its`:
 uv run --with paramiko python rsh.py "cd /srv/clients/mncardio && git fetch --depth 1 origin main -q && git reset --hard origin/main -q && git log --oneline -1"
+uv run --with paramiko python rsh.py --script deploy/scripts/15-npm-sync.sh    # only if a package.json or lockfile changed
 uv run --with paramiko python rsh.py --script deploy/scripts/10-build-frontend.sh
 uv run --with paramiko python rsh.py "cd /srv/clients/mncardio/backend && pm2 restart mncardio-api --update-env"
 ```
+
+**A pull does not install packages.** If `package.json` or `package-lock.json` changed in
+either repo, run `15-npm-sync.sh` before the frontend build. On 2026-09-17 the 2.1.0
+security-patch lockfiles had been deployed for a day while the server still ran the unpatched
+packages. `npm ls` reported nothing wrong, because the old versions still satisfied the
+`package.json` ranges. To see whether a deploy needs it:
+`git diff --stat <previous>..origin/main -- '*/package*.json'` in the GitHub clone.
 
 **Bump first.** `vite.config.js` bakes `__APP_VERSION__` into the bundle when the
 SPA is built on the server, so a bump after the rebuild publishes nothing. The
