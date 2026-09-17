@@ -146,6 +146,17 @@ class ApiClient {
     return Envelope.asMap(Envelope.modernData(response));
   }
 
+  Future<Map<String, dynamic>> patchObject(
+    String path, {
+    Object? body,
+    CancelToken? cancelToken,
+  }) async {
+    final response = await _guard(
+      () => _dio.patch<dynamic>(path, data: body, cancelToken: cancelToken),
+    );
+    return Envelope.asMap(Envelope.modernData(response));
+  }
+
   Future<void> delete(
     String path, {
     Object? body,

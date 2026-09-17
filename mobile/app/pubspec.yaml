@@ -70,6 +70,9 @@ dependencies:
   excel: 4.0.6
   share_plus: 12.0.2
 
+  # --- Сэргээн засах дасгалын тоглуулагч — дасгалын турш дэлгэц унтрахгүй ---
+  wakelock_plus: 1.3.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -81,3 +84,5 @@ flutter:
     # Системийн албан ёсны лого — `frontend/public/logo.ico`-ийн 256px хувилбар.
     # Flutter .ico уншдаггүй тул PNG болгож хөрвүүлсэн (тунгалаг дэвсгэртэй).
     - assets/logo.png
+    # Дасгалын тоглуулагчийн 3-2-1 дохио (давтамжаар үүсгэсэн, лицензгүй).
+    - assets/sounds/
