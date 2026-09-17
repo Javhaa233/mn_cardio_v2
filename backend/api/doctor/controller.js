@@ -6,6 +6,8 @@ const CareTeam = require('../../helper/CareTeam');
 const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
+const RehabDose = require('../../helper/RehabDose');
+const RehabPlayer = require('../../helper/RehabPlayer');
 const NotificationHelper = require('../../helper/NotificationHelper');
 const CreatedAt = require('../../helper/CreatedAt');
 const RiskInputs = require('../../helper/RiskInputs');
@@ -2400,7 +2402,16 @@ exports.getPatientRehab = async (req, res) => {
       }),
       Models.RehabVitalSign.findAll({
         where: Object.assign({ PatRegNo }, readDateRange(req, 'MeasuredAt')),
-        attributes: ['Id', 'MeasuredAt', 'Phase', 'Pulse', 'BloodPressure', 'Borg', 'Notes'],
+        attributes: [
+          'Id',
+          'MeasuredAt',
+          'Phase',
+          'Pulse',
+          'BloodPressure',
+          'Borg',
+          'BorgScale',
+          'Notes',
+        ],
         order: [['MeasuredAt', 'ASC']],
         limit: 365,
         raw: true,
@@ -2561,6 +2572,254 @@ exports.createPatientAssessment = async (req, res) => {
     return ok(res, { Id: created.Id, PatRegNo, AssessmentDate: AssessmentDate || Now });
   } catch (ex) {
     return serverError(res, ex, 'createPatientAssessment');
+  }
+};
+
+/* ------------------------------------ rehabilitation PLAYER (plan + sessions) */
+
+/**
+ * The programmes a doctor can assign. Draft content on MnCardio_test until the
+ * rehab team approves it (scripts/seed_rehab_programs_draft.sql).
+ */
+exports.listRehabPrograms = async (req, res) => {
+  try {
+    const rows = await Models.RehabProgram.findAll({
+      where: { IsActive: true },
+      attributes: [
+        'Id',
+        'Code',
+        'Name',
+        'Description',
+        'HasHrTarget',
+        'DefaultIntensityPct',
+        'OrderNo',
+      ],
+      order: [
+        ['OrderNo', 'ASC'],
+        ['Id', 'ASC'],
+      ],
+      raw: true,
+    });
+    return ok(
+      res,
+      rows.map((r) =>
+        Object.assign({}, r, {
+          HasHrTarget: !!r.HasHrTarget,
+          DefaultIntensityPct:
+            r.DefaultIntensityPct === null ? null : Number(r.DefaultIntensityPct),
+        })
+      ),
+      { total: rows.length }
+    );
+  } catch (ex) {
+    return serverError(res, ex, 'listRehabPrograms');
+  }
+};
+
+/** Shared access check for the plan endpoints. Sends the refusal itself. */
+async function RehabPatient(req, res) {
+  const PatientId = toInt(req.params.id);
+  if (!PatientId) {
+    fail(res, 'INVALID_ID', 'Буруу дугаар');
+    return null;
+  }
+  const May = await CareTeam.CanAccessPatient(req.Doctor, PatientId);
+  if (!May) {
+    fail(res, 'NO_PATIENT_ACCESS', 'Энэ үйлчлүүлэгчид хандах эрхгүй байна', 403);
+    return null;
+  }
+  const { Patient, PatRegNo } = await ResolvePatRegNo(PatientId);
+  if (!Patient) {
+    fail(res, 'NOT_FOUND', 'Үйлчлүүлэгч олдсонгүй', 404);
+    return null;
+  }
+  if (!PatRegNo) {
+    fail(res, 'NO_REGISTRATION', 'Үйлчлүүлэгчийн регистрийн дугаар бүртгэгдээгүй', 409);
+    return null;
+  }
+  return { PatientId, PatRegNo };
+}
+
+/**
+ * The patient's current plan, today's resolved day (what the patient's phone
+ * shows), and the last 30 sessions with stops flagged.
+ */
+exports.getPatientRehabPlan = async (req, res) => {
+  try {
+    const P = await RehabPatient(req, res);
+    if (!P) return undefined;
+
+    AccessAudit.RecordAccess({
+      LogedUser: req.LogedUser,
+      PatientId: P.PatientId,
+      ObjectName: 'RehabPlan',
+      Action: 'ViewRehabPlan',
+    });
+
+    const Active = await RehabPlayer.ActivePlan(P.PatRegNo);
+    const [sessions, age] = await Promise.all([
+      Models.RehabSession.findAll({
+        where: { PatRegNo: P.PatRegNo },
+        order: [
+          ['StartedAt', 'DESC'],
+          ['Id', 'DESC'],
+        ],
+        limit: 30,
+        raw: true,
+      }),
+      RehabPlayer.PatientAge(P.PatientId),
+    ]);
+
+    let plan = null;
+    let blocks = [];
+    if (Active) {
+      plan = RehabPlayer.ShapePlan(Active.plan, Active.program);
+      blocks = (await RehabPlayer.BuildDay(Active.program, plan.DayNo)).map((b) => {
+        // The doctor sees the structure, not the playlist.
+        const { Movements, ...rest } = b;
+        return Object.assign(rest, { MovementCount: Movements.length });
+      });
+    }
+
+    return ok(res, {
+      plan,
+      blocks,
+      age,
+      maxHr:
+        plan && plan.Program.HasHrTarget
+          ? RehabDose.MaxHr({ age, override: plan.MaxHrOverride })
+          : null,
+      sessions: sessions.map((s) =>
+        Object.assign({}, s, { StopReason: RehabPlayer.ParseStopReason(s.StopReason) })
+      ),
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'getPatientRehabPlan');
+  }
+};
+
+/** One session with its check-ins, for the doctor's session detail. */
+exports.getPatientRehabSession = async (req, res) => {
+  try {
+    const P = await RehabPatient(req, res);
+    if (!P) return undefined;
+    const sid = toInt(req.params.sessionId);
+    const detail = sid ? await RehabPlayer.SessionDetail(sid) : null;
+    if (!detail || detail.PatRegNo !== P.PatRegNo) {
+      return fail(res, 'NOT_FOUND', 'Дасгалын бүртгэл олдсонгүй', 404);
+    }
+    return ok(res, detail);
+  } catch (ex) {
+    return serverError(res, ex, 'getPatientRehabSession');
+  }
+};
+
+/**
+ * Assign or change the plan. Assigning ends the previous active plan rather
+ * than editing it, so the sessions done under it keep the plan they belonged to.
+ *
+ * Body: { ProgramId, StartDate?, IntensityPct?, MaxHrOverride?, Notes? }
+ * Without ProgramId, { Status: 'active' | 'paused' | 'ended' } changes the
+ * current plan's status.
+ */
+exports.savePatientRehabPlan = async (req, res) => {
+  try {
+    const P = await RehabPatient(req, res);
+    if (!P) return undefined;
+    const body = req.body || {};
+    const Now = ObjectHelper.getDateYMDHMS();
+
+    if (!body.ProgramId) {
+      if (!['active', 'paused', 'ended'].includes(body.Status)) {
+        return fail(res, 'PROGRAM_REQUIRED', 'Хөтөлбөр сонгоно уу');
+      }
+      const current = await Models.RehabPlan.findOne({
+        where: { PatRegNo: P.PatRegNo, Status: { [Op.in]: ['active', 'paused'] } },
+        order: [['Id', 'DESC']],
+        raw: true,
+      });
+      if (!current) return fail(res, 'NO_PLAN', 'Идэвхтэй хөтөлбөр алга', 404);
+      await Models.RehabPlan.update(
+        { Status: body.Status, EndedAt: body.Status === 'ended' ? Now : null },
+        { where: { Id: current.Id } }
+      );
+      return ok(res, { Id: current.Id, Status: body.Status });
+    }
+
+    const program = await Models.RehabProgram.findOne({
+      where: { Id: toInt(body.ProgramId), IsActive: true },
+      raw: true,
+    });
+    if (!program) return fail(res, 'INVALID_PROGRAM', 'Хөтөлбөр олдсонгүй');
+
+    const StartDate = body.StartDate ? String(body.StartDate).slice(0, 10) : Now.slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(StartDate)) {
+      return fail(res, 'INVALID_START_DATE', 'Эхлэх огноо буруу байна');
+    }
+
+    let IntensityPct = null;
+    if (body.IntensityPct !== undefined && body.IntensityPct !== null && body.IntensityPct !== '') {
+      IntensityPct = Number(body.IntensityPct);
+      if (!(IntensityPct >= 10 && IntensityPct <= 90)) {
+        return fail(res, 'INVALID_INTENSITY', 'Эрчим 10-90% хооронд байна');
+      }
+    }
+    let MaxHrOverride = null;
+    if (
+      body.MaxHrOverride !== undefined &&
+      body.MaxHrOverride !== null &&
+      body.MaxHrOverride !== ''
+    ) {
+      MaxHrOverride = toInt(body.MaxHrOverride);
+      if (!(MaxHrOverride >= 80 && MaxHrOverride <= 220)) {
+        return fail(res, 'INVALID_MAX_HR', 'Дээд пульс 80-220 хооронд байна');
+      }
+    }
+
+    const hadPlan = await Models.RehabPlan.count({
+      where: { PatRegNo: P.PatRegNo, Status: { [Op.in]: ['active', 'paused'] } },
+    });
+    // End whatever is running before the new one starts.
+    await Models.RehabPlan.update(
+      { Status: 'ended', EndedAt: Now },
+      { where: { PatRegNo: P.PatRegNo, Status: { [Op.in]: ['active', 'paused'] } } }
+    );
+
+    const created = await Models.RehabPlan.create({
+      PatRegNo: P.PatRegNo,
+      ProgramId: program.Id,
+      StartDate,
+      IntensityPct,
+      MaxHrOverride,
+      Status: 'active',
+      Notes: body.Notes ? String(body.Notes).slice(0, 2000) : null,
+      CreateDate: Now,
+      CreateUserId: req.Doctor.UserId,
+    });
+
+    await BaseControllerHelper.CreateUserActionHistory({
+      LinkObjectName: 'RehabPlan',
+      LinkObjectId: created.Id,
+      Action: hadPlan ? 'Update' : 'Create',
+      LogedUser: req.LogedUser,
+      PatientId: P.PatientId,
+      NotesMn: 'Сэргээн засах хөтөлбөр оноолоо: ' + (program.Name || program.Code),
+      Notes: 'Assigned rehabilitation programme ' + program.Code,
+    });
+
+    await NotificationHelper.NotifyPatient({
+      PatientId: P.PatientId,
+      Action: 'RehabPlan',
+      LinkObjectName: 'RehabPlan',
+      LinkObjectId: created.Id,
+      NotesMn: 'Эмч тань сэргээн засах дасгалын хөтөлбөр оноолоо',
+      Notes: 'Your doctor assigned a rehabilitation programme',
+      LogedUser: req.LogedUser,
+    });
+
+    return ok(res, { Id: created.Id, ProgramId: program.Id, StartDate, Status: 'active' });
+  } catch (ex) {
+    return serverError(res, ex, 'savePatientRehabPlan');
   }
 };
 

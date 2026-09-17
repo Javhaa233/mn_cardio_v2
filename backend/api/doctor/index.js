@@ -173,6 +173,17 @@ router.post(
   may('Rehab', 'create'),
   c.createPatientAssessment
 );
+// The guided player: programmes, a patient's plan (assign / change / pause /
+// end) and their sessions with heart rate check-ins and stop symptoms
+router.get('/rehab/programs', gate, may('Rehab', 'read'), c.listRehabPrograms);
+router.get('/patients/:id/rehab/plan', gate, may('Rehab', 'read'), c.getPatientRehabPlan);
+router.post('/patients/:id/rehab/plan', gate, may('Rehab', 'create'), c.savePatientRehabPlan);
+router.get(
+  '/patients/:id/rehab/sessions/:sessionId',
+  gate,
+  may('Rehab', 'read'),
+  c.getPatientRehabSession
+);
 
 // §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the
 // request BODY; these resolve it from the patient id after checking access, so

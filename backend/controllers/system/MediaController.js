@@ -41,6 +41,13 @@ router.get('/stream/:generatedName', stream);
 router.head('/stream/:generatedName', stream);
 router.get('/exercise/:exerciseId', exercise);
 router.head('/exercise/:exerciseId', exercise);
+// The player's per-movement loop and still, and a programme block's still
+router.get('/movement/:movementId', movement);
+router.head('/movement/:movementId', movement);
+router.get('/movement/:movementId/thumb', movementThumb);
+router.head('/movement/:movementId/thumb', movementThumb);
+router.get('/block/:blockId/thumb', blockThumb);
+router.head('/block/:blockId/thumb', blockThumb);
 
 /**
  * Stream any file the caller is allowed to read, by its generated_name.
@@ -97,41 +104,91 @@ async function exercise(req, res) {
     });
     if (!Ex || Ex.IsActive === false) return res.status(404).end();
 
-    const Media = MediaRef.Parse(Ex.MediaRef);
-
-    if (!Media.kind) return res.status(404).end();
-
-    if (Media.kind === 'url') {
-      // Short cache: the customer may repoint this at a different CDN, and a
-      // long-lived redirect would outlive the decision.
-      res.set('Cache-Control', 'private, max-age=300');
-      return res.redirect(302, Media.url);
-    }
-
-    if (Media.kind === 'asset') {
-      return res.status(409).json({
-        success: false,
-        code: 'MEDIA_BUNDLED',
-        message: 'Бичлэг аппликейшнд суулгагдсан байна',
-        data: { asset: Media.ref },
-      });
-    }
-
-    // kind === 'file'. Authorized through the same MayDownload as everything
-    // else - the catalogue is shared content, so FileAccessHelper lets any
-    // authenticated caller read it, but it still has to be a real File row.
-    const Stored = await MayDownload({
-      FileInfo: { generated_name: Media.ref },
-      LogedUser: req.LogedUser,
-    });
-    if (!Stored) return res.status(404).end();
-
-    const OnDisk = ResolveOnDisk(Stored.generated_name);
-    if (!OnDisk) return res.status(404).end();
-
-    return SendFile(req, res, Stored, OnDisk);
+    return await ServeRef(req, res, Ex.MediaRef);
   } catch (ex) {
     console.error('[MediaController/exercise] ' + ex.message);
+    return res.status(500).end();
+  }
+}
+
+/**
+ * Serve whatever a MediaRef points at: stream a file, redirect a url, 409 a
+ * bundled asset, 404 nothing. Shared by every catalogue media route.
+ */
+async function ServeRef(req, res, Ref) {
+  const Media = MediaRef.Parse(Ref);
+
+  if (!Media.kind) return res.status(404).end();
+
+  if (Media.kind === 'url') {
+    // Short cache: the customer may repoint this at a different CDN, and a
+    // long-lived redirect would outlive the decision.
+    res.set('Cache-Control', 'private, max-age=300');
+    return res.redirect(302, Media.url);
+  }
+
+  if (Media.kind === 'asset') {
+    return res.status(409).json({
+      success: false,
+      code: 'MEDIA_BUNDLED',
+      message: 'Бичлэг аппликейшнд суулгагдсан байна',
+      data: { asset: Media.ref },
+    });
+  }
+
+  // kind === 'file'. Authorized through the same MayDownload as everything
+  // else - the catalogue is shared content, so FileAccessHelper lets any
+  // authenticated caller read it, but it still has to be a real File row.
+  const Stored = await MayDownload({
+    FileInfo: { generated_name: Media.ref },
+    LogedUser: req.LogedUser,
+  });
+  if (!Stored) return res.status(404).end();
+
+  const OnDisk = ResolveOnDisk(Stored.generated_name);
+  if (!OnDisk) return res.status(404).end();
+
+  return SendFile(req, res, Stored, OnDisk);
+}
+
+/** A movement's loop (RehabMovement.MediaRef) or still (ThumbRef). */
+function movementMedia(Column) {
+  return async (req, res) => {
+    try {
+      const Id = parseInt(req.params.movementId, 10);
+      if (!Id) return res.status(400).end();
+      const M = await Models.RehabMovement.findByPk(Id, {
+        attributes: ['Id', 'MediaRef', 'ThumbRef', 'IsActive'],
+        raw: true,
+      });
+      if (!M || M.IsActive === false) return res.status(404).end();
+      return await ServeRef(req, res, M[Column]);
+    } catch (ex) {
+      console.error('[MediaController/movement] ' + ex.message);
+      return res.status(500).end();
+    }
+  };
+}
+// Declarations, not consts: the router table above references them at load.
+function movement(req, res) {
+  return movementMedia('MediaRef')(req, res);
+}
+function movementThumb(req, res) {
+  return movementMedia('ThumbRef')(req, res);
+}
+
+async function blockThumb(req, res) {
+  try {
+    const Id = parseInt(req.params.blockId, 10);
+    if (!Id) return res.status(400).end();
+    const B = await Models.RehabProgramBlock.findByPk(Id, {
+      attributes: ['Id', 'ThumbRef', 'IsActive'],
+      raw: true,
+    });
+    if (!B || B.IsActive === false) return res.status(404).end();
+    return await ServeRef(req, res, B.ThumbRef);
+  } catch (ex) {
+    console.error('[MediaController/block] ' + ex.message);
     return res.status(500).end();
   }
 }

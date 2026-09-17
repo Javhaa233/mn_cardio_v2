@@ -12,6 +12,7 @@ RehabProgress.init(
     CompletedAt: { type: Sequelize.DATE },
     DurationSec: { type: Sequelize.INTEGER },
     Notes: { type: Sequelize.STRING },
+    SessionId: { type: Sequelize.INTEGER },
     CreateDate: { type: Sequelize.DATE },
     CreateUserId: { type: Sequelize.INTEGER },
   },

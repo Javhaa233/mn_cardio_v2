@@ -133,4 +133,14 @@ router.get('/rehab/assessment', gate, c.getRehabAssessment);
 // a whole programme, which is why they are recorded repeatedly
 router.get('/rehab/assessments', gate, c.listRehabAssessments);
 
+// The guided player (scripts/add_rehab_program_tables.sql). Today's programme
+// day, one exercise's movement playlist, and a session with heart rate check-ins
+router.get('/rehab/today', gate, c.getRehabToday);
+router.get('/rehab/exercises/:id/movements', gate, c.listExerciseMovements);
+router.get('/rehab/sessions', gate, c.listRehabSessions);
+router.post('/rehab/sessions', gate, c.startRehabSession);
+router.get('/rehab/sessions/:id', gate, c.getRehabSession);
+router.post('/rehab/sessions/:id/checkins', gate, c.addRehabCheckin);
+router.patch('/rehab/sessions/:id', gate, c.finishRehabSession);
+
 module.exports = router;

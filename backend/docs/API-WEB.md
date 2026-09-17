@@ -37,11 +37,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
 | protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 50 | 259 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 108 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 125 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **399** |
+| **Нийт** |  |  | **416** |
 
-api-layer задаргаа: `/api/patient` 39 · `/api/doctor` 42 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/patient` 46 · `/api/doctor` 46 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -111,7 +111,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/UserRequest/ConfirmMany` | token (route-level) | `UserRequestController.js:140` |  |
 | `POST` | `/api/UserRequest/DeclineMany` | token (route-level) | `UserRequestController.js:141` |  |
 | `POST` | `/api/UserRequest/DeleteMany` | token (route-level) | `UserRequestController.js:142` |  |
-| `POST` | `/api/UserRequest/PendingCount` | token (route-level) | `UserRequestController.js:143` | How many requests are waiting - for the sidebar badge. |
+| `POST` | `/api/UserRequest/PendingCount` | token (route-level) | `UserRequestController.js:143` | How many requests are waiting. |
 | `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:17` |  |
 | `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:18` |  |
 | `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:19` |  |
@@ -518,6 +518,13 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/patient/rehab/vitals` | token (RoleId 4 only) | `api/patient/index.js:130` |  |
 | `GET` | `/api/patient/rehab/assessment` | token (RoleId 4 only) | `api/patient/index.js:131` | Tracker #50: the latest risk / exercise-tolerance assessment. |
 | `GET` | `/api/patient/rehab/assessments` | token (RoleId 4 only) | `api/patient/index.js:134` | The history behind that single row - risk level and exercise tolerance over a whole programme… |
+| `GET` | `/api/patient/rehab/today` | token (RoleId 4 only) | `api/patient/index.js:138` | The guided player (scripts/add_rehab_program_tables.sql). |
+| `GET` | `/api/patient/rehab/exercises/:id/movements` | token (RoleId 4 only) | `api/patient/index.js:139` | One exercise's playlist, for trying it outside a plan. |
+| `GET` | `/api/patient/rehab/sessions` | token (RoleId 4 only) | `api/patient/index.js:140` |  |
+| `POST` | `/api/patient/rehab/sessions` | token (RoleId 4 only) | `api/patient/index.js:141` | Start a session. |
+| `GET` | `/api/patient/rehab/sessions/:id` | token (RoleId 4 only) | `api/patient/index.js:142` |  |
+| `POST` | `/api/patient/rehab/sessions/:id/checkins` | token (RoleId 4 only) | `api/patient/index.js:143` | A check-in during a session: pulse and/or CR10. |
+| `PATCH` | `/api/patient/rehab/sessions/:id` | token (RoleId 4 only) | `api/patient/index.js:144` | Finish: completed, stopped (with the symptom checklist) or abandoned. |
 | `GET` | `/api/doctor/me` | token (staff only) | `api/doctor/index.js:74` |  |
 | `GET` | `/api/doctor/options/:dico` | token (staff only) | `api/doctor/index.js:79` | Dropdown wording (rehab risk, phase, category, e-visit status). |
 | `GET` | `/api/doctor/visits` | token (staff only) | `api/doctor/index.js:82` | 28 Миний үзлэгүүд |
@@ -551,15 +558,19 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:166` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
 | `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:168` | The assessment history, newest first |
 | `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:170` | Record an assessment. |
-| `GET` | `/api/doctor/emd/drugs` | token (staff only) | `api/doctor/index.js:180` | §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the request BODY; these… |
-| `GET` | `/api/doctor/emd/services` | token (staff only) | `api/doctor/index.js:181` | The insurance service catalogue. |
-| `GET` | `/api/doctor/notifications` | token (staff only) | `api/doctor/index.js:186` | Мэдэгдэл - the same four the patient app has, addressed by ToUserId. |
-| `GET` | `/api/doctor/notifications/unread-count` | token (staff only) | `api/doctor/index.js:188` | The badge count on its own, so the app is not paging a list to count |
-| `POST` | `/api/doctor/notifications/:id/read` | token (staff only) | `api/doctor/index.js:189` | Ownership lives in the WHERE clause, never in a check beforehand. |
-| `POST` | `/api/doctor/notifications/read-all` | token (staff only) | `api/doctor/index.js:190` |  |
-| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:194` | Push registration, identical in shape to the patient app's. |
-| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:195` | POST, not DELETE /:token - see the patient equivalent for why. |
-| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:196` |  |
+| `GET` | `/api/doctor/rehab/programs` | token (staff only) | `api/doctor/index.js:178` | The guided player: programmes, a patient's plan (assign / change / pause / end) and their sessions… |
+| `GET` | `/api/doctor/patients/:id/rehab/plan` | token (staff only) | `api/doctor/index.js:179` | The patient's current plan, today's resolved day (what the patient's phone shows), and the last 30… |
+| `POST` | `/api/doctor/patients/:id/rehab/plan` | token (staff only) | `api/doctor/index.js:180` | Assign or change the plan. |
+| `GET` | `/api/doctor/patients/:id/rehab/sessions/:sessionId` | token (staff only) | `api/doctor/index.js:181` | One session with its check-ins, for the doctor's session detail. |
+| `GET` | `/api/doctor/emd/drugs` | token (staff only) | `api/doctor/index.js:191` | §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the request BODY; these… |
+| `GET` | `/api/doctor/emd/services` | token (staff only) | `api/doctor/index.js:192` | The insurance service catalogue. |
+| `GET` | `/api/doctor/notifications` | token (staff only) | `api/doctor/index.js:197` | Мэдэгдэл - the same four the patient app has, addressed by ToUserId. |
+| `GET` | `/api/doctor/notifications/unread-count` | token (staff only) | `api/doctor/index.js:199` | The badge count on its own, so the app is not paging a list to count |
+| `POST` | `/api/doctor/notifications/:id/read` | token (staff only) | `api/doctor/index.js:200` | Ownership lives in the WHERE clause, never in a check beforehand. |
+| `POST` | `/api/doctor/notifications/read-all` | token (staff only) | `api/doctor/index.js:201` |  |
+| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:205` | Push registration, identical in shape to the patient app's. |
+| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:206` | POST, not DELETE /:token - see the patient equivalent for why. |
+| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:207` |  |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 | `POST` | `/api/auth/logout` | self-authenticating | `api/auth/index.js:21` | End this session. |
@@ -633,4 +644,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-16. Нийт endpoint: 399._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-17. Нийт endpoint: 416._

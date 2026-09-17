@@ -16,6 +16,10 @@ RehabVitalSign.init(
     BloodPressure: { type: Sequelize.STRING },
     Spo2: { type: Sequelize.INTEGER },
     Borg: { type: Sequelize.INTEGER },
+    // '6-20' or 'CR10'. NULL on rows from before the player: those were 6-20.
+    BorgScale: { type: Sequelize.STRING },
+    SessionId: { type: Sequelize.INTEGER },
+    AtSec: { type: Sequelize.INTEGER },
     Notes: { type: Sequelize.STRING },
     CreateDate: { type: Sequelize.DATE },
     CreateUserId: { type: Sequelize.INTEGER },

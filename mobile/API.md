@@ -461,6 +461,103 @@ An id you may not read, or one that does not exist, both answer `404`. No token 
 `401` (not the legacy HTTP-200 `AuthError` envelope — that was deliberately avoided here,
 because a player would try to decode it as video).
 
+### 2.7c Guided exercise player — programme, session, check-ins
+
+**New 2026-09-17.** Tables: `backend/scripts/add_rehab_program_tables.sql` (applied on
+MnCardio_test). Programme content on test is **DRAFT** (`seed_rehab_programs_draft.sql`),
+transcribed from the rehab team's xlsx and not clinically approved. Rules live in
+`helper/RehabDose.js`; UI decisions are the options page of 2026-09-17.
+
+A doctor assigns a **programme** (one per disease group: `MI`, `HF`, `DEVICE`, `SURGERY`,
+`STROKE`). A programme day is a list of **blocks**; a `video` block plays an exercise as a
+playlist of **movements** (one silent 9:16 loop each).
+
+```
+GET   /api/patient/rehab/today                   plan + today's blocks + streak + 7-day strip
+GET   /api/patient/rehab/exercises/:id/movements one exercise's playlist (try outside a plan)
+POST  /api/patient/rehab/sessions                start   { RestingHr, ExerciseId? }
+POST  /api/patient/rehab/sessions/:id/checkins   { AtSec, Pulse?, Borg?, Spo2? }
+PATCH /api/patient/rehab/sessions/:id            finish  { Status, StopReason?, DurationSec,
+                                                           CompletedBlocks, SkippedMovements,
+                                                           Checkins[], CompletedExerciseIds[] }
+GET   /api/patient/rehab/sessions                history (paged, from/to on StartedAt)
+GET   /api/patient/rehab/sessions/:id            one session with its check-ins
+
+GET   /api/doctor/rehab/programs
+GET   /api/doctor/patients/:id/rehab/plan        plan, today's blocks, age, maxHr, last 30 sessions
+POST  /api/doctor/patients/:id/rehab/plan        assign { ProgramId, StartDate?, IntensityPct?,
+                                                 MaxHrOverride?, Notes? } — or { Status } alone
+GET   /api/doctor/patients/:id/rehab/sessions/:sessionId
+
+GET   /api/Media/movement/:id          the loop       (same answers as /exercise, §2.7b)
+GET   /api/Media/movement/:id/thumb    the still
+GET   /api/Media/block/:id/thumb       a block's still
+```
+
+**`today`** — `plan` is `null` when no programme is assigned (show "Эмч тань хөтөлбөр
+оноогоогүй байна", not an error). Otherwise:
+
+```json
+{
+  "plan": { "Id": 3, "StartDate": "2026-09-06", "DayNo": 12, "IntensityPct": 30,
+            "MaxHrOverride": null, "Program": { "Code": "MI", "Name": "…", "HasHrTarget": true } },
+  "blocks": [{
+    "Id": 1, "OrderNo": 1, "Title": "Бие халаалтын дасгал", "Kind": "video",
+    "DurationSec": 600, "Locked": false, "UnlocksOnDay": null, "CheckInEverySec": null,
+    "GuideText": "…", "thumb": { "kind": null, "url": null },
+    "Exercise": { "Id": 1, "Code": "EX-01", "Name": "…" },
+    "Movements": [{ "Id": 1, "Name": "…", "Steps": ["…", "…"], "WorkSec": 30, "Reps": null,
+                    "PrepSec": 10, "RestSec": null, "loop": { "startMs": 0, "endMs": 5500 },
+                    "media": { "kind": "file", "url": "/api/Media/movement/1" }, "thumb": {…} }]
+  }],
+  "streak": 5, "doneToday": false, "notStarted": false,
+  "week": [{ "date": "2026-09-11", "dayNo": 6, "done": true }, …],
+  "hr": { "age": 61, "maxHr": 159, "lastRestingHr": 70 }
+}
+```
+
+- `Kind`: `video` (play `Movements`), `timed` (walking / cycling / stairs: a timer of
+  `DurationSec` with a check-in every `CheckInEverySec`), `vitals` (BP / pulse / SpO2 / sugar,
+  stroke programme), `image` (a still guide).
+- `Locked` blocks carry no movements — show them greyed with "`UnlocksOnDay`-оос".
+- **Timed or counted per movement:** exactly one of `WorkSec` / `Reps` is normally set.
+- `PrepSec` is the "Дараагийн дасгал" preview, **never below 10**. "+10 сек" is client-side.
+- `loop` non-null means loop that **segment** of the file (a demo over an uncut recording);
+  `null` means loop the whole clip.
+- Download every `media.url` of unlocked blocks **before** starting (pre-download decision);
+  header token as in §2.7b.
+
+**Start** — for a programme with `HasHrTarget`, `RestingHr` (30–150) is required
+(`RESTING_HR_REQUIRED`). The server computes and **stores** the numbers; show what it returns:
+
+```json
+{ "Id": 17, "DayNo": 12, "RestingHr": 70, "MaxHr": 159, "TargetHr": 97,
+  "Warning": "Та өнөөдөр дасгалын туршид ЗЦТ-оо 97-аас дээш гаргахгүй …" }
+```
+
+`TargetHr = round((MaxHr − RestingHr) × IntensityPct/100 + RestingHr)`, `MaxHr = 220 − age`
+unless the doctor set `MaxHrOverride`. Errors: `NO_PLAN` 409, `PLAN_NOT_STARTED` 409
+(start date in the future), `NO_REGISTRATION` 409.
+
+**Check-in** — `AtSec` = seconds since the session started, and is the **idempotency key**:
+resending the same `AtSec` does not duplicate. `Borg` is **CR10, 0–10** (user decision; the
+older vitals tab stored 6–20, and `BorgScale` on each row tells them apart). Pulse 30–250.
+Answer: `{ AtSec, Pulse, Borg, Zone, TargetHr }`, `Zone` = `above` | `in` | `below` | `null`
+(no target). `in` includes up to 5 beats below target.
+
+**Finish** — `Status`: `completed` | `stopped` | `abandoned`; a finished session answers
+`409 SESSION_CLOSED` to anything further. For `stopped`, send the checklist:
+`StopReason: { symptoms: ["chest_pain","dizzy","breathless","palpitations","nausea","other"], note }`
+— unknown codes are dropped. Put any check-ins that failed to send in `Checkins[]`; bad
+entries there are skipped, never fatal. `CompletedExerciseIds[]` also writes `RehabProgress`,
+so the catalogue's "Сүүлд хийсэн" keeps working. Answers with the session detail (as `GET
+/sessions/:id`: the row, parsed `StopReason`, and `Checkins[]` with `Zone`).
+
+**Doctor assign** ends any active or paused plan and creates a new one (history is kept),
+then notifies the patient (`Action: "RehabPlan"`). `IntensityPct` 10–90, `MaxHrOverride`
+80–220. `{ "Status": "paused" | "ended" | "active" }` without `ProgramId` changes the current
+plan only. Gated by `may('Rehab','create')` and `CareTeam.CanAccessPatient`.
+
 ### 2.8 Мэдэгдэл — notifications
 
 **New 2026-09-14.** Patients were previously denied every notification row.

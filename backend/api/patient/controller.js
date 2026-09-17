@@ -4,6 +4,8 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const DicoLabels = require('../../helper/DicoLabels');
 const RemoteVisitFlow = require('../../helper/RemoteVisitFlow');
 const MediaRef = require('../../helper/MediaRef');
+const RehabDose = require('../../helper/RehabDose');
+const RehabPlayer = require('../../helper/RehabPlayer');
 const PushHelper = require('../../helper/PushHelper');
 const NotificationHelper = require('../../helper/NotificationHelper');
 const CreatedAt = require('../../helper/CreatedAt');
@@ -1085,7 +1087,16 @@ exports.listRehabVitals = async (req, res) => {
 
     const rows = await Models.RehabVitalSign.findAll({
       where,
-      attributes: ['Id', 'MeasuredAt', 'Phase', 'Pulse', 'BloodPressure', 'Spo2', 'Borg'],
+      attributes: [
+        'Id',
+        'MeasuredAt',
+        'Phase',
+        'Pulse',
+        'BloodPressure',
+        'Spo2',
+        'Borg',
+        'BorgScale',
+      ],
       order: [['MeasuredAt', 'ASC']],
       limit: 365,
       raw: true,
@@ -1108,6 +1119,13 @@ exports.createRehabVital = async (req, res) => {
   try {
     const { ExerciseId, Phase, Pulse, BloodPressure, Spo2, Borg, Notes } = req.body;
 
+    // The app sends BorgScale 'CR10' since 2026-09-17; older builds send nothing
+    // and their readings are 6-20. Only the new scale is range-checked.
+    const BorgScale = req.body.BorgScale === 'CR10' ? 'CR10' : Borg ? '6-20' : null;
+    if (BorgScale === 'CR10' && !(Number(Borg) >= 0 && Number(Borg) <= 10)) {
+      return fail(res, 'INVALID_BORG', 'Ачааллын үнэлгээ 0-10 хооронд байна');
+    }
+
     const created = await Models.RehabVitalSign.create({
       PatRegNo: req.Patient.PatRegNo,
       ExerciseId: ExerciseId || null,
@@ -1116,7 +1134,8 @@ exports.createRehabVital = async (req, res) => {
       Pulse: Pulse || null,
       BloodPressure: BloodPressure || null,
       Spo2: Spo2 || null,
-      Borg: Borg || null,
+      Borg: Borg === 0 || Borg ? Borg : null,
+      BorgScale,
       Notes: Notes || null,
       CreateDate: ObjectHelper.getDateYMDHMS(),
     });
@@ -1189,6 +1208,374 @@ exports.listRehabAssessments = async (req, res) => {
     );
   } catch (ex) {
     return serverError(res, ex, 'listRehabAssessments');
+  }
+};
+
+/* ------------------------------------ rehabilitation PLAYER (guided sessions) */
+
+/*
+ * The guided exercise player: a doctor-assigned programme, today's blocks, a
+ * session with heart rate check-ins. Tables: scripts/add_rehab_program_tables.sql.
+ * Rules (target HR, day bands) in helper/RehabDose.js, shaping in
+ * helper/RehabPlayer.js - shared with /api/doctor.
+ *
+ * Exertion is CR10 (0-10), chosen on the options page 2026-09-17. The older
+ * vitals tab wrote 6-20; RehabVitalSign.BorgScale tells them apart.
+ */
+
+/**
+ * Today: the plan, the programme day, every block resolved for that day, the
+ * streak, the last seven days for the week strip, and whether today is done.
+ * No plan is a normal state (plan: null), not an error.
+ */
+exports.getRehabToday = async (req, res) => {
+  try {
+    const PatRegNo = req.Patient.PatRegNo;
+    const Active = await RehabPlayer.ActivePlan(PatRegNo);
+    if (!Active) return ok(res, { plan: null, blocks: [], streak: 0, week: [], doneToday: false });
+
+    const Plan = RehabPlayer.ShapePlan(Active.plan, Active.program);
+    const [blocks, days, lastRestingHr, age] = await Promise.all([
+      RehabPlayer.BuildDay(Active.program, Plan.DayNo),
+      RehabPlayer.CompletedDays(PatRegNo),
+      RehabPlayer.LastRestingHr(PatRegNo),
+      RehabPlayer.PatientAge(req.Patient.PatientId),
+    ]);
+
+    const now = new Date();
+    const iso = (d) =>
+      d.getFullYear() +
+      '-' +
+      String(d.getMonth() + 1).padStart(2, '0') +
+      '-' +
+      String(d.getDate()).padStart(2, '0');
+    const done = new Set(days);
+    const week = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      const dayNo = RehabDose.DayNo(Plan.StartDate, d);
+      week.push({ date: iso(d), dayNo: dayNo > 0 ? dayNo : null, done: done.has(iso(d)) });
+    }
+
+    const maxHr = Plan.Program.HasHrTarget
+      ? RehabDose.MaxHr({ age, override: Plan.MaxHrOverride })
+      : null;
+
+    return ok(res, {
+      plan: Plan,
+      blocks,
+      streak: RehabDose.Streak(days, now),
+      week,
+      doneToday: done.has(iso(now)),
+      // Enough for the setup sheet to preview the target before the session
+      // starts; the authoritative number is the one POST /rehab/sessions stores.
+      hr: { age, maxHr, lastRestingHr },
+      notStarted: Plan.DayNo !== null && Plan.DayNo < 1,
+    });
+  } catch (ex) {
+    return serverError(res, ex, 'getRehabToday');
+  }
+};
+
+/** One exercise's playlist, for trying it outside a plan. */
+exports.listExerciseMovements = async (req, res) => {
+  try {
+    const Id = parseInt(req.params.id, 10);
+    if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
+    const Ex = await Models.RehabExercise.findOne({
+      where: { Id, IsActive: true },
+      attributes: ['Id', 'Code', 'Name', 'Description'],
+      raw: true,
+    });
+    if (!Ex) return fail(res, 'NOT_FOUND', 'Дасгал олдсонгүй', 404);
+    const map = await RehabPlayer.MovementsByExercise([Id]);
+    return ok(res, Object.assign({}, Ex, { Movements: map.get(Id) || [] }));
+  } catch (ex) {
+    return serverError(res, ex, 'listExerciseMovements');
+  }
+};
+
+/**
+ * Start a session. The server computes and STORES max and target HR, so what
+ * the patient was told that day never changes with a later plan edit.
+ *
+ * Body: { RestingHr, ExerciseId? } - ExerciseId alone (no plan) is "try this
+ * one exercise", which carries no target.
+ */
+exports.startRehabSession = async (req, res) => {
+  try {
+    const PatRegNo = req.Patient.PatRegNo;
+    if (!PatRegNo) {
+      return fail(res, 'NO_REGISTRATION', 'Регистрийн дугаар бүртгэгдээгүй байна', 409);
+    }
+    const body = req.body || {};
+    const Active = await RehabPlayer.ActivePlan(PatRegNo);
+    if (!Active && !body.ExerciseId) {
+      return fail(res, 'NO_PLAN', 'Эмч тань хөтөлбөр оноогоогүй байна', 409);
+    }
+
+    let RestingHr = null;
+    if (body.RestingHr !== undefined && body.RestingHr !== null && body.RestingHr !== '') {
+      RestingHr = parseInt(body.RestingHr, 10);
+      if (!(RestingHr >= 30 && RestingHr <= 150)) {
+        return fail(res, 'INVALID_RESTING_HR', 'Тайван үеийн пульс 30-150 хооронд байна');
+      }
+    }
+
+    let PlanId = null;
+    let DayNo = null;
+    let MaxHr = null;
+    let TargetHr = null;
+    let Warning = null;
+
+    if (Active && !body.ExerciseId) {
+      const Plan = RehabPlayer.ShapePlan(Active.plan, Active.program);
+      PlanId = Plan.Id;
+      DayNo = Plan.DayNo;
+      if (DayNo !== null && DayNo < 1) {
+        return fail(res, 'PLAN_NOT_STARTED', 'Хөтөлбөр хараахан эхлээгүй байна', 409);
+      }
+      if (Plan.Program.HasHrTarget) {
+        if (RestingHr === null) {
+          return fail(res, 'RESTING_HR_REQUIRED', 'Тайван үеийн пульсаа оруулна уу');
+        }
+        const age = await RehabPlayer.PatientAge(req.Patient.PatientId);
+        MaxHr = RehabDose.MaxHr({ age, override: Plan.MaxHrOverride });
+        TargetHr = RehabDose.TargetHr({
+          maxHr: MaxHr,
+          restingHr: RestingHr,
+          intensityPct: Plan.IntensityPct,
+        });
+        Warning = RehabDose.Warning(Active.program.WarningTemplate, TargetHr);
+      }
+    }
+
+    const Now = ObjectHelper.getDateYMDHMS();
+    const created = await Models.RehabSession.create({
+      PatRegNo,
+      PlanId,
+      DayNo,
+      StartedAt: Now,
+      RestingHr,
+      MaxHr,
+      TargetHr,
+      Status: 'started',
+      CreateDate: Now,
+    });
+
+    return ok(res, { Id: created.Id, DayNo, RestingHr, MaxHr, TargetHr, Warning });
+  } catch (ex) {
+    return serverError(res, ex, 'startRehabSession');
+  }
+};
+
+/** Load a session for this patient, or send the refusal and return null. */
+async function OwnSession(req, res) {
+  const Id = parseInt(req.params.id, 10);
+  if (!Id) {
+    fail(res, 'INVALID_ID', 'Буруу дугаар');
+    return null;
+  }
+  const S = await Models.RehabSession.findByPk(Id, { raw: true });
+  if (!S || S.PatRegNo !== req.Patient.PatRegNo) {
+    fail(res, 'NOT_FOUND', 'Дасгалын бүртгэл олдсонгүй', 404);
+    return null;
+  }
+  return S;
+}
+
+/**
+ * Validate and write one check-in. Idempotent on (SessionId, AtSec): the app
+ * resends queued check-ins when it finishes, and a duplicate must not double
+ * the chart. Returns { row, error }.
+ */
+async function WriteCheckin(Session, PatRegNo, input) {
+  const AtSec = parseInt(input.AtSec, 10);
+  if (!(AtSec >= 0)) return { error: ['INVALID_AT', 'Хугацаа буруу байна'] };
+
+  const Pulse =
+    input.Pulse === undefined || input.Pulse === null || input.Pulse === ''
+      ? null
+      : parseInt(input.Pulse, 10);
+  if (Pulse !== null && !(Pulse >= 30 && Pulse <= 250)) {
+    return { error: ['INVALID_PULSE', 'Пульс 30-250 хооронд байна'] };
+  }
+  const Borg =
+    input.Borg === undefined || input.Borg === null || input.Borg === ''
+      ? null
+      : parseInt(input.Borg, 10);
+  if (Borg !== null && !(Borg >= 0 && Borg <= 10)) {
+    return { error: ['INVALID_BORG', 'Ачааллын үнэлгээ 0-10 хооронд байна'] };
+  }
+  const Spo2 =
+    input.Spo2 === undefined || input.Spo2 === null || input.Spo2 === ''
+      ? null
+      : parseInt(input.Spo2, 10);
+  if (Spo2 !== null && !(Spo2 >= 50 && Spo2 <= 100)) {
+    return { error: ['INVALID_SPO2', 'Сатураци 50-100 хооронд байна'] };
+  }
+  if (Pulse === null && Borg === null) {
+    return { error: ['EMPTY_CHECKIN', 'Пульс эсвэл ачааллын үнэлгээ оруулна уу'] };
+  }
+
+  const existing = await Models.RehabVitalSign.findOne({
+    where: { SessionId: Session.Id, AtSec },
+    attributes: ['Id'],
+    raw: true,
+  });
+  if (!existing) {
+    const Now = ObjectHelper.getDateYMDHMS();
+    await Models.RehabVitalSign.create({
+      PatRegNo,
+      SessionId: Session.Id,
+      AtSec,
+      MeasuredAt: Now,
+      Phase: 'during',
+      Pulse,
+      Spo2,
+      Borg,
+      BorgScale: Borg === null ? null : 'CR10',
+      CreateDate: Now,
+    });
+  }
+  return { row: { AtSec, Pulse, Borg, Zone: RehabDose.Zone(Pulse, Session.TargetHr) } };
+}
+
+/** A check-in during a session: pulse and/or CR10. Answers with the zone. */
+exports.addRehabCheckin = async (req, res) => {
+  try {
+    const S = await OwnSession(req, res);
+    if (!S) return undefined;
+    if (S.Status !== 'started') {
+      return fail(res, 'SESSION_CLOSED', 'Дасгал аль хэдийн дууссан байна', 409);
+    }
+    const { row, error } = await WriteCheckin(S, req.Patient.PatRegNo, req.body || {});
+    if (error) return fail(res, error[0], error[1]);
+    return ok(res, Object.assign(row, { TargetHr: S.TargetHr }));
+  } catch (ex) {
+    return serverError(res, ex, 'addRehabCheckin');
+  }
+};
+
+/**
+ * Finish: completed, stopped (with the symptom checklist) or abandoned.
+ * Check-ins queued offline ride along in Checkins[] and are written first.
+ * A finished session is final.
+ */
+exports.finishRehabSession = async (req, res) => {
+  try {
+    const S = await OwnSession(req, res);
+    if (!S) return undefined;
+    const body = req.body || {};
+
+    if (S.Status !== 'started') {
+      return fail(res, 'SESSION_CLOSED', 'Дасгал аль хэдийн дууссан байна', 409);
+    }
+    if (!RehabPlayer.FINISH_STATUSES.includes(body.Status)) {
+      return fail(res, 'INVALID_STATUS', 'Төлөв буруу байна');
+    }
+
+    const StopReason =
+      body.Status === 'stopped' ? RehabPlayer.CleanStopReason(body.StopReason) : null;
+
+    const queued = Array.isArray(body.Checkins) ? body.Checkins.slice(0, 200) : [];
+    for (const c of queued) {
+      // A bad queued reading is skipped rather than failing the whole finish:
+      // losing the session because one offline entry was malformed is worse.
+      await WriteCheckin(S, req.Patient.PatRegNo, c || {});
+    }
+
+    const toInt = (v) => {
+      const n = parseInt(v, 10);
+      return n >= 0 ? n : null;
+    };
+    await Models.RehabSession.update(
+      {
+        Status: body.Status,
+        StopReason,
+        EndedAt: ObjectHelper.getDateYMDHMS(),
+        DurationSec: toInt(body.DurationSec),
+        CompletedBlocks: toInt(body.CompletedBlocks),
+        SkippedMovements: toInt(body.SkippedMovements),
+      },
+      { where: { Id: S.Id } }
+    );
+
+    // Completed exercises also land in RehabProgress, so the catalogue's
+    // "last done" marks and the doctor's existing progress list keep working.
+    const ExerciseIds = Array.isArray(body.CompletedExerciseIds)
+      ? [...new Set(body.CompletedExerciseIds.map((x) => parseInt(x, 10)).filter((x) => x > 0))]
+      : [];
+    if (ExerciseIds.length) {
+      const Now = ObjectHelper.getDateYMDHMS();
+      const known = await Models.RehabExercise.findAll({
+        where: { Id: { [Op.in]: ExerciseIds } },
+        attributes: ['Id'],
+        raw: true,
+      });
+      for (const e of known) {
+        await Models.RehabProgress.create({
+          PatRegNo: req.Patient.PatRegNo,
+          ExerciseId: e.Id,
+          SessionId: S.Id,
+          CompletedAt: Now,
+          CreateDate: Now,
+        });
+      }
+    }
+
+    if (body.Status === 'stopped') {
+      // The doctor sees a stop on the patient card; the patient chose chat over
+      // a push (options page), so no notification is sent here.
+      await BaseControllerHelper.CreateUserActionHistory({
+        LinkObjectName: 'RehabSession',
+        LinkObjectId: S.Id,
+        Action: 'Stop',
+        LogedUser: req.LogedUser,
+        PatientId: req.Patient.PatientId,
+        NotesMn: 'Сэргээн засах дасгалаа биеийн байдлаас болж зогсоосон',
+        Notes: 'Stopped a rehabilitation session because of symptoms',
+      });
+    }
+
+    return ok(res, await RehabPlayer.SessionDetail(S.Id));
+  } catch (ex) {
+    return serverError(res, ex, 'finishRehabSession');
+  }
+};
+
+exports.getRehabSession = async (req, res) => {
+  try {
+    const S = await OwnSession(req, res);
+    if (!S) return undefined;
+    return ok(res, await RehabPlayer.SessionDetail(S.Id));
+  } catch (ex) {
+    return serverError(res, ex, 'getRehabSession');
+  }
+};
+
+exports.listRehabSessions = async (req, res) => {
+  try {
+    const { limit, offset } = readPaging(req);
+    const { rows, count } = await Models.RehabSession.findAndCountAll({
+      where: Object.assign({ PatRegNo: req.Patient.PatRegNo }, readDateRange(req, 'StartedAt')),
+      order: [
+        ['StartedAt', 'DESC'],
+        ['Id', 'DESC'],
+      ],
+      limit,
+      offset,
+      raw: true,
+    });
+    return ok(
+      res,
+      rows.map((r) =>
+        Object.assign({}, r, { StopReason: RehabPlayer.ParseStopReason(r.StopReason) })
+      ),
+      { total: count, limit, offset }
+    );
+  } catch (ex) {
+    return serverError(res, ex, 'listRehabSessions');
   }
 };
 

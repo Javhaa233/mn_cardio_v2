@@ -35,7 +35,9 @@ const Flags = require('./FeatureFlags');
  * different patients to see the same file?" - for a demonstration video the
  * answer is no; for anything clinical it is yes.
  */
-const SHARED_CONTENT = ['RehabExercise'];
+// RehabMovement and RehabProgramBlock are the player's loops and thumbnails -
+// the same demonstration content as RehabExercise, split per movement.
+const SHARED_CONTENT = ['RehabExercise', 'RehabMovement', 'RehabProgramBlock'];
 
 /**
  * May this user attach to / replace the files of this object?
@@ -100,7 +102,7 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser, Mode }
    * so attaching is admin-only. That asymmetry is the whole reason this branch
    * sits ABOVE the admin short-circuit below rather than relying on it.
    */
-  if (LinkedObjectName === 'RehabExercise') {
+  if (SHARED_CONTENT.includes(LinkedObjectName)) {
     if (Mode === 'read') return true;
     return String(LogedUser.RoleId) === '1';
   }

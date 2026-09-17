@@ -156,6 +156,12 @@ const MobileSettingConfig = require('./MobileSettingConfig');
 const RehabAssessmentConfig = require('./RehabAssessmentConfig');
 const RehabVitalSignConfig = require('./RehabVitalSignConfig');
 const RehabProgressConfig = require('./RehabProgressConfig');
+// The guided player (scripts/add_rehab_program_tables.sql)
+const RehabProgramConfig = require('./RehabProgramConfig');
+const RehabProgramBlockConfig = require('./RehabProgramBlockConfig');
+const RehabMovementConfig = require('./RehabMovementConfig');
+const RehabPlanConfig = require('./RehabPlanConfig');
+const RehabSessionConfig = require('./RehabSessionConfig');
 const PatientTransferConfig = require('./Patient/PatientTransferConfig');
 const LaboratoryTestConfig = require('./LaboratoryTestConfig');
 
@@ -349,6 +355,11 @@ function MainConfig() {
     new RehabAssessmentConfig(),
     new RehabVitalSignConfig(),
     new RehabProgressConfig(),
+    new RehabProgramConfig(),
+    new RehabProgramBlockConfig(),
+    new RehabMovementConfig(),
+    new RehabPlanConfig(),
+    new RehabSessionConfig(),
     new PatientTransferConfig(),
 
     new CVDHistoryConfig(),

@@ -89,7 +89,7 @@ const ALLOWED_UPLOAD_EXT = [
  */
 const ALLOWED_UPLOAD_EXT_VIDEO = ['mp4', 'm4v', 'mov', 'webm'];
 
-const VIDEO_FOR = ['RehabExercise', 'ChatMessages'];
+const VIDEO_FOR = ['RehabExercise', 'RehabMovement', 'ChatMessages'];
 
 /*
  * Chat-only, and it is AUDIO: 'weba' is audio/webm.

@@ -43,6 +43,7 @@ const AllTickets = React.lazy(() => import("view/AllTickets"));
 const Apps = React.lazy(() => import("view/Security/Apps"));
 const Users = React.lazy(() => import("view/Security/Users.jsx"));
 const Medications = React.lazy(() => import("view/Medications"));
+const RehabContent = React.lazy(() => import("view/RehabContent"));
 const JournalRef = React.lazy(() => import("view/JournalRef"));
 const OptionType = React.lazy(() => import("view/OptionType.jsx"));
 const Roles = React.lazy(() => import("view/Security/Roles"));
@@ -207,6 +208,15 @@ const settingsRoutes = [
             icon: CardTravelIcon,
             component: Medications,
             roles: [1],
+            layout: "/admin",
+          },
+          {
+            // Mobile tender 2.7: rehab programmes, blocks, exercise movements
+            path: "/RehabContent",
+            name: "Rehabilitation content",
+            icon: OfflineBoltIcon,
+            component: RehabContent,
+            roles: [1, 6],
             layout: "/admin",
           },
           {

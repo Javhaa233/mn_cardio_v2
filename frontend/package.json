@@ -1,7 +1,7 @@
 {
   "name": "mn-cardio-frontend",
   "author": "batuna",
-  "version": "2.2.2",
+  "version": "2.3.0",
   "private": true,
   "homepage": "https://smr.telemedicine.mn/",
   "dependencies": {
