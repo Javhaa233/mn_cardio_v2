@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import React from "react";
 import useInput from "../useInput";
 import { TextField } from "@mui/material";
@@ -7,7 +6,6 @@ export default ({ config, ...props }) => {
   const { value, changeValue, validate, validatorRef } = useInput(props);
 
   const handleChange = (event) => {
-    const { t } = useTranslation();
     const newValue = event.target.value;
     // Convert to number if it's a valid number, otherwise pass as is
     const numericValue = newValue === "" ? null : Number(newValue);

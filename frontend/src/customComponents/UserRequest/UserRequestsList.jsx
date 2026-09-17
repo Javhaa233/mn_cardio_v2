@@ -17,19 +17,42 @@ import DivLoading from "customComponents/DivLoading";
 import BaseDialog from "customComponents/BaseDialog";
 import BaseList from "baseComponents/BaseList";
 import IsActiveStatus from "customComponents/UserRequest/IsActiveStatus";
-import UserRequestInfo from "customComponents/UserRequest/UserRequestInfo";
+import UserRequestInfo, {
+  RoleOptions,
+} from "customComponents/UserRequest/UserRequestInfo";
 // helper
 import Helper from "helper";
-import PendingRequests from "helper/PendingRequests";
 import { FormField } from "customComponents/Profile/profileDialogParts";
 import { colors } from "@/theme/colors";
 import { radius, space } from "@/theme/tokens";
 
-// Matches DECLINE_MANY_CAP in backend/controllers/auth/UserRequestController.js,
-// which is also MUI's largest page size - so one visible page is one call.
+// Each matches its route's cap in backend/controllers/auth/UserRequestController.js,
+// so one visible grid page is one call.
+//
+// Approve is the low one on purpose: declining is a single UPDATE, while each
+// approval creates an account and a profile, and the reply has to say which
+// rows got one.
 const DECLINE_BATCH = 100;
+const CONFIRM_BATCH = 25;
+const DELETE_BATCH = 100;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+
+/** A request nobody has decided yet. */
+function IsPendingRow(Row) {
+  return String(Row.IsActive) === "0";
+}
+
+/**
+ * Decided, and therefore deletable.
+ *
+ * A NULL status counts as decided - the old backlog holds rows with none, and
+ * the server treats them the same way (see DeleteMany). Only a live pending
+ * request is protected.
+ */
+function IsDecidedRow(Row) {
+  return !IsPendingRow(Row);
+}
 
 /**
  * The request date, and for a pending one how long it has been waiting.
@@ -74,6 +97,42 @@ function StampWaitedDays(Rows) {
   );
 }
 
+/**
+ * Who a bulk action is about to touch, by name.
+ *
+ * Every one of these dialogs acts on people, irreversibly, and a bare count
+ * ("25 хүсэлт") is not something an administrator can check before pressing the
+ * button. `Note` marks the rows that will not go through.
+ */
+function SelectedRows({ Rows, Note }) {
+  return (
+    <Box
+      sx={{
+        maxHeight: 180,
+        overflowY: "auto",
+        border: `1px solid ${colors.brand.hairline}`,
+        borderRadius: radius.sm,
+        padding: space[2],
+      }}
+    >
+      {Rows.map((Row) => {
+        const Marked = Note ? Note(Row) : "";
+        return (
+          <Typography
+            key={Row.Id}
+            variant="body2"
+            sx={{ color: Marked ? colors.brand.inkDim : colors.brand.ink }}
+          >
+            {Row.UserName}
+            {Row.OrgName ? ` · ${Row.OrgName}` : ""}
+            {Marked ? ` · ${Marked}` : ""}
+          </Typography>
+        );
+      })}
+    </Box>
+  );
+}
+
 // UserRequests.IsActive codes; "" shows every request.
 const STATUS_FILTERS = [
   { Value: "0", Label: "Хүлээгдэж буй" },
@@ -92,10 +151,16 @@ class UserRequestsList extends BaseList {
       StatusFilter: "0",
       GridPage: 0,
       Selected: [],
+      Roles: [],
+      ConfirmManyOpen: false,
+      ConfirmManyRole: "2",
+      ConfirmManyBusy: false,
       DeclineManyOpen: false,
       DeclineManyReason: "",
       DeclineManyError: "",
       DeclineManyBusy: false,
+      DeleteManyOpen: false,
+      DeleteManyBusy: false,
     };
     this.SearchOption = Helper.BaseCrudHelper.GetSearchOption();
     this.SearchOption.OrderBy = { Field: "Id", Type: "desc" };
@@ -103,6 +168,16 @@ class UserRequestsList extends BaseList {
       { Field: "IsActive", Value: "0", Op: "Equals" },
     ];
     this.InfoRef = null;
+  }
+
+  componentDidMount() {
+    super.componentDidMount();
+    // The role list for the bulk-approve dialog, from the same config the
+    // single-request dialog reads.
+    Helper.BaseCrudHelper.GetConfigData("Users", (resData) => {
+      if (resData && resData.Data)
+        this.setState({ Roles: RoleOptions(resData.Data) });
+    });
   }
 
   ChangeStatusFilter = (Value) => {
@@ -150,6 +225,88 @@ class UserRequestsList extends BaseList {
     this.setState({ Selected: Array.isArray(Rows) ? Rows : [] });
   };
 
+  /**
+   * Post one bulk action for many rows, a batch at a time.
+   *
+   * Every bulk route is capped server-side so a single click can never aim the
+   * whole backlog at it. Matching that cap here means one call per visible
+   * page, and a partial failure stops at the batch that failed instead of
+   * reporting rows that were never sent. Numeric counters in `Data` are summed
+   * across batches; `Results` rows are collected in order.
+   */
+  RunBatched = async (Url, Ids, Size, Body) => {
+    const { t } = this.props;
+    const Totals = {};
+    const Results = [];
+    let Failed = false;
+    let Message = "";
+
+    for (let i = 0; i < Ids.length; i += Size) {
+      const Res = await new Promise((Resolve) =>
+        Helper.BaseCrudHelper.CallService(
+          Url,
+          { ...(Body || {}), Ids: Ids.slice(i, i + Size) },
+          (resData) => Resolve(resData || {}),
+        ),
+      );
+      if (!Res.Success) {
+        Failed = true;
+        Message = Res.Message || t("Сервертэй холбогдож чадсангүй");
+        break;
+      }
+      const Data = Res.Data || {};
+      Object.keys(Data).forEach((Key) => {
+        if (typeof Data[Key] === "number")
+          Totals[Key] = (Totals[Key] || 0) + Data[Key];
+      });
+      if (Array.isArray(Data.Results)) Results.push(...Data.Results);
+    }
+
+    return { Failed, Message, Totals, Results };
+  };
+
+  /** What every bulk action does afterwards: say what happened, reload. */
+  FinishBulk = (Summary, Ok) => {
+    const alert = Helper.BaseCrudHelper.ShowAlert(Summary, Ok, () =>
+      this.setState({ Alert: null }),
+    );
+    this.setState({ Selected: [], Alert: alert });
+    // The page that held them may no longer exist.
+    this.ResetPage();
+    this.GetData();
+  };
+
+  ConfirmMany = async () => {
+    const { t } = this.props;
+    const Ids = this.state.Selected.filter(IsPendingRow)
+      .map((Row) => Row.Id)
+      .filter(Boolean);
+    if (Ids.length === 0) return;
+
+    this.setState({ ConfirmManyBusy: true });
+    const { Failed, Message, Totals, Results } = await this.RunBatched(
+      "/UserRequest/ConfirmMany",
+      Ids,
+      CONFIRM_BATCH,
+      { RoleId: this.state.ConfirmManyRole },
+    );
+    this.setState({ ConfirmManyBusy: false, ConfirmManyOpen: false });
+
+    // Name what did not go through. A count alone leaves the administrator
+    // hunting for which four of twenty-five are still waiting.
+    const Left = Results.filter((Row) => Row.Outcome !== "approved");
+    const Names = Left.slice(0, 5)
+      .map((Row) => Row.Name || Row.UserName)
+      .join(", ");
+    const Summary = Failed
+      ? Message
+      : `${Totals.Approved || 0} ${t("хүсэлтийг баталгаажууллаа")}.` +
+        (Left.length
+          ? ` ${Left.length} ${t("хүсэлт үлдлээ")}: ${Names}${Left.length > 5 ? "…" : ""}.`
+          : "");
+    this.FinishBulk(Summary, !Failed);
+  };
+
   DeclineMany = async () => {
     const { t } = this.props;
     const Reason = this.state.DeclineManyReason.trim();
@@ -157,55 +314,56 @@ class UserRequestsList extends BaseList {
       this.setState({ DeclineManyError: t("Татгалзсан шалтгаанаа бичнэ үү") });
       return;
     }
-    const Ids = this.state.Selected.map((Row) => Row.Id).filter(Boolean);
+    const Ids = this.state.Selected.filter(IsPendingRow)
+      .map((Row) => Row.Id)
+      .filter(Boolean);
     if (Ids.length === 0) return;
 
     this.setState({ DeclineManyBusy: true, DeclineManyError: "" });
-    // Batched to the server's own cap, so one click never asks it to send a
-    // thousand emails in a single request.
-    let Declined = 0;
-    let Skipped = 0;
-    let Failed = false;
-    let Message = "";
-    for (let i = 0; i < Ids.length; i += DECLINE_BATCH) {
-      const Batch = Ids.slice(i, i + DECLINE_BATCH);
-      const Res = await new Promise((Resolve) =>
-        Helper.BaseCrudHelper.CallService(
-          "/UserRequest/DeclineMany",
-          { Ids: Batch, Reason },
-          (resData) => Resolve(resData || {}),
-        ),
-      );
-      if (Res.Success) {
-        Declined += (Res.Data && Res.Data.Declined) || 0;
-        Skipped += (Res.Data && Res.Data.Skipped) || 0;
-      } else {
-        Failed = true;
-        Message = Res.Message || t("Сервертэй холбогдож чадсангүй");
-        break;
-      }
-    }
-
+    const { Failed, Message, Totals } = await this.RunBatched(
+      "/UserRequest/DeclineMany",
+      Ids,
+      DECLINE_BATCH,
+      { Reason },
+    );
     this.setState({
       DeclineManyBusy: false,
       DeclineManyOpen: false,
       DeclineManyReason: "",
-      Selected: [],
     });
+
     const Summary = Failed
       ? Message
-      : `${Declined} ${t("хүсэлтийг татгалзлаа")}.` +
-        (Skipped
-          ? ` ${Skipped} ${t("хүсэлтийг өмнө нь шийдвэрлэсэн тул алгаслаа")}.`
+      : `${Totals.Declined || 0} ${t("хүсэлтийг татгалзлаа")}.` +
+        (Totals.Skipped
+          ? ` ${Totals.Skipped} ${t("хүсэлтийг өмнө нь шийдвэрлэсэн тул алгаслаа")}.`
           : "");
-    const alert = Helper.BaseCrudHelper.ShowAlert(Summary, !Failed, () =>
-      this.setState({ Alert: null }),
+    this.FinishBulk(Summary, !Failed);
+  };
+
+  DeleteMany = async () => {
+    const { t } = this.props;
+    const Ids = this.state.Selected.filter(IsDecidedRow)
+      .map((Row) => Row.Id)
+      .filter(Boolean);
+    if (Ids.length === 0) return;
+
+    this.setState({ DeleteManyBusy: true });
+    const { Failed, Message, Totals } = await this.RunBatched(
+      "/UserRequest/DeleteMany",
+      Ids,
+      DELETE_BATCH,
+      null,
     );
-    this.setState({ Alert: alert });
-    // The page that held them may no longer exist.
-    this.ResetPage();
-    this.GetData();
-    PendingRequests.Refresh({ force: true });
+    this.setState({ DeleteManyBusy: false, DeleteManyOpen: false });
+
+    const Summary = Failed
+      ? Message
+      : `${Totals.Deleted || 0} ${t("хүсэлтийг устгалаа")}.` +
+        (Totals.Skipped
+          ? ` ${Totals.Skipped} ${t("хүсэлтийг устгасангүй")}.`
+          : "");
+    this.FinishBulk(Summary, !Failed);
   };
 
   // The dialog's reply: close and reload on success, alert either way. A null
@@ -215,7 +373,6 @@ class UserRequestsList extends BaseList {
     if (resData.Success) {
       this.setState({ ReadMoreDialog: null });
       this.GetData();
-      PendingRequests.Refresh({ force: true });
     }
     const alert = Helper.BaseCrudHelper.ShowAlert(
       resData.Message,
@@ -232,11 +389,6 @@ class UserRequestsList extends BaseList {
       (resData) => {
         if (resData) {
           if (resData.Success === false) this.ShowAlert(resData.Message, false);
-          // While the pending filter is on, this list IS the pending count -
-          // hand it to the sidebar rather than asking the server twice.
-          if (this.state.StatusFilter === "0" && resData.Option) {
-            PendingRequests.Set(resData.Option.Total);
-          }
           this.setState({
             Data: StampWaitedDays(resData.Data),
             GridOption: Object.assign({}, resData.Option),
@@ -247,6 +399,7 @@ class UserRequestsList extends BaseList {
     );
   };
 
+  /** The whole record for one request. Opened by double-clicking its row. */
   ReadMore = (data) => {
     // Only a pending request can be decided; the server refuses the rest too.
     const Pending = data.IsActive + "" === "0";
@@ -279,6 +432,81 @@ class UserRequestsList extends BaseList {
       </BaseDialog>
     );
     this.setState({ ReadMoreDialog: DialogData });
+  };
+
+  /**
+   * The bulk approve: one role for all of them, each into the organization the
+   * applicant gave on their own form.
+   *
+   * There is no per-row organization picker in a batch, and filing a doctor
+   * under the wrong hospital is worse than not filing them at all - so a
+   * request without one is skipped here and stays in the queue, to be opened
+   * on its own. The dialog says so before the button is pressed, by name.
+   */
+  RenderConfirmMany = (Rows) => {
+    const { t } = this.props;
+    const { Roles, ConfirmManyRole, ConfirmManyBusy } = this.state;
+    const NoOrg = Rows.filter((Row) => !Row.OrganizationId).length;
+    const Ready = Rows.length - NoOrg;
+
+    return (
+      <BaseDialog
+        Close={
+          ConfirmManyBusy
+            ? undefined
+            : () => this.setState({ ConfirmManyOpen: false })
+        }
+        Title="Сонгосон хүсэлтийг баталгаажуулах"
+        Width="560px"
+        Height="560px"
+        SaveButtonText="Баталгаажуулах"
+        ShowSave={true}
+        Save={(setLoading) => {
+          this.ConfirmMany().finally(() => setLoading && setLoading(false));
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: space[3] }}>
+          <Alert severity="warning">
+            {Ready}{" "}
+            {t(
+              "хүсэлтийг баталгаажуулж, эмчийн эрх үүсгэнэ. Буцаах боломжгүй.",
+            )}
+            {NoOrg > 0
+              ? ` ${NoOrg} ${t("хүсэлтэд байгууллага заагаагүй тул алгасна.")}`
+              : ""}
+          </Alert>
+
+          <FormField
+            Id="confirm-many-role"
+            Label={t("Эрхийн төрөл")}
+            Required
+            select
+            disabled={ConfirmManyBusy}
+            Hint={t("Бүх сонгосон хүсэлтэд нэг эрх олгоно")}
+            value={ConfirmManyRole}
+            onChange={(e) => this.setState({ ConfirmManyRole: e.target.value })}
+          >
+            {/* Same fallback as the single-request dialog: a config fetch that
+                failed must not leave an empty, unusable picker. */}
+            {(Roles.length
+              ? Roles
+              : [2, 3].map((Id) => ({ Id, Name: "Role " + Id }))
+            ).map((Role) => (
+              <MenuItem key={Role.Id} value={String(Role.Id)}>
+                {t(Role.Name + "")}
+              </MenuItem>
+            ))}
+          </FormField>
+
+          <SelectedRows
+            Rows={Rows}
+            Note={(Row) =>
+              Row.OrganizationId ? "" : t("байгууллагагүй - алгасна")
+            }
+          />
+        </Box>
+      </BaseDialog>
+    );
   };
 
   /**
@@ -338,27 +566,54 @@ class UserRequestsList extends BaseList {
             }
           />
 
-          <Box
-            sx={{
-              maxHeight: 180,
-              overflowY: "auto",
-              border: `1px solid ${colors.brand.hairline}`,
-              borderRadius: radius.sm,
-              padding: space[2],
-            }}
-          >
-            {Rows.map((Row) => (
-              <Typography
-                key={Row.Id}
-                variant="body2"
-                sx={{ color: colors.brand.ink }}
-              >
-                {Row.UserName}
-                {Row.OrgName ? ` · ${Row.OrgName}` : ""}
-                {Row.Email ? "" : ` · ${t("и-мэйлгүй")}`}
-              </Typography>
-            ))}
-          </Box>
+          <SelectedRows
+            Rows={Rows}
+            Note={(Row) => (Row.Email ? "" : t("и-мэйлгүй"))}
+          />
+        </Box>
+      </BaseDialog>
+    );
+  };
+
+  /**
+   * The bulk delete: gone means gone.
+   *
+   * There is no soft-delete column on this table, so the dialog names what goes
+   * with the row rather than leaving the administrator to discover it - who
+   * approved an account, and the reason a refused applicant is shown when they
+   * try to log in. Only decided requests can reach here; a pending one has to
+   * be answered first.
+   */
+  RenderDeleteMany = (Rows) => {
+    const { t } = this.props;
+    const { DeleteManyBusy } = this.state;
+
+    return (
+      <BaseDialog
+        Close={
+          DeleteManyBusy
+            ? undefined
+            : () => this.setState({ DeleteManyOpen: false })
+        }
+        Title="Сонгосон хүсэлтийг устгах"
+        Width="560px"
+        Height="520px"
+        ShowDecline={true}
+        Decline={(setLoading) => {
+          this.DeleteMany().finally(() => setLoading && setLoading(false));
+        }}
+      >
+        <Box sx={{ display: "flex", flexDirection: "column", gap: space[3] }}>
+          <Alert severity="error">
+            {Rows.length} {t("хүсэлтийг бүрмөсөн устгана. Буцаах боломжгүй.")}
+          </Alert>
+          <Typography variant="body2" sx={{ color: colors.brand.inkDim }}>
+            {t(
+              "Зөвшөөрсөн хүсэлтийг устгавал эрхийг хэн, хэзээ баталгаажуулсан бүртгэл үлдэхгүй. Татгалзсан хүсэлтийг устгавал хүсэлт гаргагч нэвтрэх үедээ татгалзсан шалтгаанаа харахаа болино.",
+            )}
+          </Typography>
+
+          <SelectedRows Rows={Rows} />
         </Box>
       </BaseDialog>
     );
@@ -366,7 +621,7 @@ class UserRequestsList extends BaseList {
 
   CustomRender = () => {
     const {
-      Alert,
+      Alert: AlertNode,
       Data,
       GridOption,
       Config,
@@ -374,19 +629,17 @@ class UserRequestsList extends BaseList {
       isLoading,
       StatusFilter,
       Selected,
+      ConfirmManyOpen,
       DeclineManyOpen,
-      DeclineManyReason,
-      DeclineManyError,
-      DeclineManyBusy,
+      DeleteManyOpen,
     } = this.state;
     const { t } = this.props;
-    const Pending = StatusFilter === "0";
     const Total = GridOption && GridOption.Total ? GridOption.Total : 0;
     // Belt and braces: the grid's own column filter can override the status
-    // dropdown, so the bulk action judges each row, not the dropdown.
-    const SelectedPending = (Selected || []).filter(
-      (Row) => String(Row.IsActive) === "0",
-    );
+    // dropdown, so each bulk action judges the rows it was given, not the
+    // dropdown. A selection can straddle both sets under "Бүгд".
+    const SelectedPending = (Selected || []).filter(IsPendingRow);
+    const SelectedDecided = (Selected || []).filter(IsDecidedRow);
 
     if (!Config) {
       return null;
@@ -404,9 +657,11 @@ class UserRequestsList extends BaseList {
             minWidth: 0,
           }}
         >
-          {Alert}
+          {AlertNode}
           {ReadMoreDialog}
+          {ConfirmManyOpen ? this.RenderConfirmMany(SelectedPending) : null}
           {DeclineManyOpen ? this.RenderDeclineMany(SelectedPending) : null}
+          {DeleteManyOpen ? this.RenderDeleteMany(SelectedDecided) : null}
           <div
             style={{
               flex: "1 1 auto",
@@ -471,9 +726,19 @@ class UserRequestsList extends BaseList {
                     this.GetData();
                   }}
                 />
-                {/* Only where a bulk decision applies, and only once rows are
-                    ticked. Destructive, so it carries the danger rank. */}
-                {Pending && SelectedPending.length > 0 ? (
+                {/* Each action appears only once rows it can act on are ticked,
+                    and each counts its OWN subset - under "Бүгд" a selection can
+                    hold both pending and decided rows. */}
+                {SelectedPending.length > 0 ? (
+                  <Button
+                    color="primary"
+                    size="sm"
+                    onClick={() => this.setState({ ConfirmManyOpen: true })}
+                  >
+                    {t("Сонгосныг баталгаажуулах")} ({SelectedPending.length})
+                  </Button>
+                ) : null}
+                {SelectedPending.length > 0 ? (
                   <Button
                     color="danger"
                     size="sm"
@@ -488,6 +753,23 @@ class UserRequestsList extends BaseList {
                     {t("Сонгосныг татгалзах")} ({SelectedPending.length})
                   </Button>
                 ) : null}
+                {SelectedDecided.length > 0 ? (
+                  <Button
+                    color="danger"
+                    size="sm"
+                    onClick={() => this.setState({ DeleteManyOpen: true })}
+                  >
+                    {t("Сонгосныг устгах")} ({SelectedDecided.length})
+                  </Button>
+                ) : null}
+                {/* The row button is gone, so the way in has to be written
+                    down somewhere the administrator will see it. */}
+                <Typography
+                  variant="caption"
+                  sx={{ color: colors.brand.inkDim, marginLeft: "auto" }}
+                >
+                  {t("Мөр дээр давхар товшиж дэлгэрэнгүйг харна уу")}
+                </Typography>
               </div>
               <div
                 style={{
@@ -513,20 +795,24 @@ class UserRequestsList extends BaseList {
                   ChangePage={this.ChangeGridPage}
                   Page={this.state.GridPage}
                   PageSizeOptions={[20, 50, 100]}
-                  // Ticking rows is only useful where a bulk decision applies.
-                  HideCheck={!Pending}
+                  // Ticking rows works on every status now: approving and
+                  // declining need pending rows, deleting needs decided ones.
+                  HideCheck={false}
                   SelectRow={this.SelectRows}
+                  // The detail popup. There is no row button any more - the
+                  // action column cost more width than it was worth with ten
+                  // columns already off the side of the screen.
+                  ShowData={this.ReadMore}
                   FillHeight={true}
                   NoRowsText={
-                    Pending
+                    StatusFilter === "0"
                       ? t("Хүлээгдэж буй хүсэлт алга")
                       : t("Мэдээлэл олдсонгүй")
                   }
-                  // The action sits first: with ten columns the row is wider
-                  // than the screen, and a button you must scroll sideways to
-                  // reach is a button an administrator does not press.
-                  RowActionFirst={true}
-                  widthPattern="50c, 160c, 130l, 130, 120, 120, 130, 200, 110, 200, 150c, 120c"
+                  // One slot per column, in order, and BaseGrid only advances
+                  // through them for columns it actually draws: the row number,
+                  // then the ten fields. The action column's slot went with it.
+                  widthPattern="50c, 130l, 130, 120, 120, 130, 200, 110, 200, 150c, 120c"
                   ColumnActions={[
                     {
                       Field: "IsActive",
@@ -537,20 +823,6 @@ class UserRequestsList extends BaseList {
                       Field: "CreateDate",
                       Component: <WaitedFor />,
                       onClick: () => {},
-                    },
-                  ]}
-                  RowActions={[
-                    {
-                      Component: (
-                        <Button
-                          color="info"
-                          size="sm"
-                          style={{ padding: "4px 8px 3px" }}
-                        >
-                          {t("Read more")}
-                        </Button>
-                      ),
-                      onClick: (data) => this.ReadMore(data),
                     },
                   ]}
                 />

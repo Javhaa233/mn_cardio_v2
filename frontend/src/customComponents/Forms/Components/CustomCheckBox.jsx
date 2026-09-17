@@ -98,8 +98,7 @@ export default function CustomCheckBox(props) {
                         sx={{
                           width: "20px",
                           height: "20px",
-                          border:
-                            `1px solid ${FIELD.unchecked}`,
+                          border: `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -110,8 +109,7 @@ export default function CustomCheckBox(props) {
                           width: "0px",
                           height: "0px",
                           padding: "9px",
-                          border:
-                            `1px solid ${FIELD.unchecked}`,
+                          border: `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />

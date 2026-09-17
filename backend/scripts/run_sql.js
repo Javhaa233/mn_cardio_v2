@@ -73,7 +73,8 @@ if (!dry && !expectDb) {
       'so a later batch can land on a connection that never saw the NOEXEC and the guard\n' +
       'becomes inert. Name the database you expect and it is checked here, before anything runs.\n' +
       '\n' +
-      '  node scripts/run_sql.js --db MnCardio_test ' + file
+      '  node scripts/run_sql.js --db MnCardio_test ' +
+      file
   );
   process.exit(2);
 }
@@ -120,8 +121,14 @@ const sequelize = require('../config/DbConnection');
     if (String(who.db) !== String(expectDb)) {
       console.error(
         '\nREFUSING TO RUN.\n' +
-          '  --db said:   ' + expectDb + '\n' +
-          '  connected to: ' + who.db + ' on ' + who.srv + '\n' +
+          '  --db said:   ' +
+          expectDb +
+          '\n' +
+          '  connected to: ' +
+          who.db +
+          ' on ' +
+          who.srv +
+          '\n' +
           '\nNothing was executed. config/Config.env does not point at the test database by\n' +
           'default (CLAUDE.md §4), and dotenv never overrides an already-set variable - so set\n' +
           'SQL_SERVER / SQL_DB / SQL_USER / SQL_PASSWORD / SQL_PORT / SQL_ENCRYPT in the\n' +

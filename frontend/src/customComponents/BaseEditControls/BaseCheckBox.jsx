@@ -144,8 +144,7 @@ export default function BaseCheckBox(props) {
                           width: "16px",
                           height: "16px",
                           pointerEvents: "none",
-                          border:
-                            `1px solid ${FIELD.unchecked}`,
+                          border: `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -157,8 +156,7 @@ export default function BaseCheckBox(props) {
                           width: "16px",
                           height: "16px",
                           pointerEvents: "none",
-                          border:
-                            `1px solid ${FIELD.unchecked}`,
+                          border: `1px solid ${FIELD.unchecked}`,
                           borderRadius: "3px",
                         }}
                       />
@@ -229,7 +227,10 @@ export default function BaseCheckBox(props) {
     return (
       <GridContainer
         sx={(theme) =>
-          fieldRowSx(theme, { borderColor: FIELD.rowBorder, fixedHeight: false })
+          fieldRowSx(theme, {
+            borderColor: FIELD.rowBorder,
+            fixedHeight: false,
+          })
         }
       >
         {Config.Label && (

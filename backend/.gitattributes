@@ -1,0 +1,43 @@
+# This file used to exist only at the project root - which is NOT a git
+# repository - so it was completely inert. `git check-attr text -- <file>`
+# reported `unspecified` for everything. Copied into each repo so it actually
+# applies, and so line endings stop depending on each developer's core.autocrlf.
+#
+# Verified before committing: with this in place `git status` reports no extra
+# modified files, because the index is already LF throughout. It prevents future
+# CRLF from entering the index; it does not rewrite anything that is there.
+
+# Normalise line endings in the repository to LF, regardless of who commits.
+# Without this, a Windows clone with core.autocrlf=true reports every file as
+# modified straight after checkout.
+* text=auto eol=lf
+
+# Windows-only scripts keep CRLF in the working tree.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Never touched, never diffed as text.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.ico binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+*.xls binary
+*.zip binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.otf binary
+*.mp4 binary
+*.mp3 binary
+*.dcm binary
+
+# The tracker and tender documents are the customer's; keep them intact.
+*.xlsx -diff
+*.docx -diff

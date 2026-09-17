@@ -68,7 +68,8 @@ exports.listBackups = async (req, res) => {
 
     const summary = { days: 30, total: recent.length, succeeded: 0, failed: 0, unknown: 0 };
     recent.forEach((r) => {
-      const s = r.Status === null || r.Status === undefined || r.Status === '' ? null : String(r.Status);
+      const s =
+        r.Status === null || r.Status === undefined || r.Status === '' ? null : String(r.Status);
       if (s === '1') summary.succeeded += 1;
       else if (s === null) summary.unknown += 1;
       else summary.failed += 1;
@@ -78,7 +79,8 @@ exports.listBackups = async (req, res) => {
       res,
       rows.map((r) => ({
         Id: r.Id,
-        Status: r.Status === null || r.Status === undefined || r.Status === '' ? null : String(r.Status),
+        Status:
+          r.Status === null || r.Status === undefined || r.Status === '' ? null : String(r.Status),
         StatusText: Text(r.Status),
         FileName: r.FileName,
         CreatedDate: r.CreatedDate,

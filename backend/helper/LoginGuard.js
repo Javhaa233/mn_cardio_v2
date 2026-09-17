@@ -36,7 +36,11 @@ const ObjectHelper = require('./ObjectHelper');
 const Memory = new Map();
 
 const KeyOf = (UserType, UserName) =>
-  String(UserType || 'staff') + ':' + String(UserName || '').trim().toLowerCase();
+  String(UserType || 'staff') +
+  ':' +
+  String(UserName || '')
+    .trim()
+    .toLowerCase();
 
 const WindowMs = () => Flags.LoginLockoutWindowMin * 60 * 1000;
 const LockMs = () => Flags.LoginLockoutMinutes * 60 * 1000;

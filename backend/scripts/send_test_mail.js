@@ -69,7 +69,9 @@ const message = [
   'Content-Type: text/plain; charset=UTF-8',
   'Content-Transfer-Encoding: base64',
   '',
-  Buffer.from(bodyLines.join('\r\n')).toString('base64').replace(/(.{76})/g, '$1\r\n'),
+  Buffer.from(bodyLines.join('\r\n'))
+    .toString('base64')
+    .replace(/(.{76})/g, '$1\r\n'),
 ].join('\r\n');
 
 const steps = [

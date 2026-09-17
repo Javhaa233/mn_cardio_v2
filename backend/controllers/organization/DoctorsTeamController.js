@@ -23,7 +23,6 @@ router.post('/GetList', GetList);
 router.post('/ExportDoctorsTeamPatient', ExportDoctorsTeamPatient);
 router.post('/DeleteDoctorsTeam', DeleteDoctorsTeam);
 
-
 async function GetList(req, res) {
   try {
     var result = { Success: true, Message: '', Data: [], Option: {} };
@@ -484,4 +483,3 @@ async function DeleteDoctorsTeam(req, res) {
 }
 
 module.exports = router;
-

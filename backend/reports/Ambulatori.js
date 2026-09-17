@@ -57,9 +57,7 @@ function Ambulatori(Data, BeginDate, Meta) {
   const DoctorName = esc(Meta && Meta.DoctorName);
   const CabinetName = esc(Meta && Meta.CabinetName);
   const PeriodText = esc(
-    BeginDate && Meta && Meta.EndDate
-      ? BeginDate + ' — ' + Meta.EndDate
-      : BeginDate || ''
+    BeginDate && Meta && Meta.EndDate ? BeginDate + ' — ' + Meta.EndDate : BeginDate || ''
   );
 
   const Education = function (education) {
@@ -499,7 +497,7 @@ function Ambulatori(Data, BeginDate, Meta) {
             !Data || Data.length === 0
               ? '<tr><td colspan="24" style="padding: 12px; text-align: center">Тухайн хугацаанд үзлэг бүртгэгдээгүй байна.</td></tr>'
               : Data.map((value, key) => {
-              return `
+                  return `
           <tr class="trBody">
             <td style="padding: 4px 0">
               <span style="font-size: 10px; line-height: 0.8">
@@ -661,7 +659,7 @@ function Ambulatori(Data, BeginDate, Meta) {
                 : esc(value.incapacity_days)
             }</td>
           </tr>`;
-            }).join('')
+                }).join('')
           }
           </tbody>
         </table>

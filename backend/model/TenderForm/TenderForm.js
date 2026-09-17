@@ -23,7 +23,14 @@ TenderForm.init(
   { sequelize, tableName: 'TenderForm', modelName: 'TenderForm', timestamps: false }
 );
 
-TenderForm.SearchField = ['FormCode', 'NameMn', 'GroupCode', 'Position', 'IsActive', 'AllowDuplicate'];
+TenderForm.SearchField = [
+  'FormCode',
+  'NameMn',
+  'GroupCode',
+  'Position',
+  'IsActive',
+  'AllowDuplicate',
+];
 
 TenderForm.SetAssocations = (Models) => {
   TenderForm.hasMany(Models.TenderFormField, {

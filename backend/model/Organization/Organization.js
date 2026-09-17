@@ -8,7 +8,7 @@ Sequelize.DATE.prototype._stringify = function _stringify(date, options) {
 
 const OrganizationHelper = require('../../helper/OrganizationHelper');
 
-class Organization extends Sequelize.Model { }
+class Organization extends Sequelize.Model {}
 Organization.init(
   {
     Id: { type: Sequelize.INTEGER, primaryKey: true, autoIncrement: true },
@@ -150,27 +150,35 @@ Organization.SetFunctions = (Models) => {
 
   Organization.createNew = async function (Data, ReturnIdField) {
     Data = await OrganizationHelper.SetDictNames(Models, Data);
-    await Organization.create(Data);
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' + ReturnIdField + ' FROM [Organization] ORDER BY ' + ReturnIdField + ' DESC '
-    );
+    // The id comes from the INSERT, not from a follow-up query.
+    //
+    // This used to be `SELECT TOP 1 <pk> FROM [Organization] ORDER BY <pk> DESC` run
+    // immediately after the create. Two concurrent creates both read the HIGHER
+    // id, so the loser returned the winner's row and attached its child rows -
+    // files, lookups, many-to-many links - to the wrong record. Reproduced
+    // against the database: two creates in one transaction returned 5 and 6,
+    // while the old query returned 6 for both.
+    //
+    // create() already carries the generated key: ReturnIdField is declared
+    // autoIncrement, and Sequelize reads it back through OUTPUT INSERTED.
+    const Created = await Organization.create(Data);
 
-    return ReturnData[0][ReturnIdField];
+    return Created[ReturnIdField];
   };
 
   Organization.updateNew = async function (Data, DataId, PK) {
-    console.log("Organization.updateNew - DataId received:", DataId);
-    console.log("Organization.updateNew - PK:", PK);
-    console.log("Organization.updateNew - Data.Id:", Data.Id);
-    console.log("Organization.updateNew - Data.ParentOrganizationId:", Data.ParentOrganizationId);
+    console.log('Organization.updateNew - DataId received:', DataId);
+    console.log('Organization.updateNew - PK:', PK);
+    console.log('Organization.updateNew - Data.Id:', Data.Id);
+    console.log('Organization.updateNew - Data.ParentOrganizationId:', Data.ParentOrganizationId);
 
     Data = await OrganizationHelper.SetDictNames(Models, Data);
 
-    console.log("Organization.updateNew - Updating where:", { [PK]: DataId });
+    console.log('Organization.updateNew - Updating where:', { [PK]: DataId });
 
     const UpdateData = await Organization.update(Data, {
       where: { [PK]: DataId },
-      logging: (sql) => console.log("SQL:", sql),
+      logging: (sql) => console.log('SQL:', sql),
     });
 
     return UpdateData;

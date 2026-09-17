@@ -25,7 +25,11 @@ const path = require('path');
 const BACKEND = path.resolve(__dirname, '..');
 const OUT_FILE = path.join(BACKEND, 'docs', 'API-WEB.md');
 const MOBILE_DOC_LINK = '../../mobile/API.md';
-const VERBS = ['get', 'post', 'put', 'delete', 'patch'];
+// `head` belongs here: MediaController and MediaTicketController declare
+// router.head() alongside their GETs so a browser can probe a clip's size and
+// type before fetching it. Without it those three routes were reported as
+// unclassified and left out of the reference entirely.
+const VERBS = ['get', 'post', 'put', 'delete', 'patch', 'head'];
 
 /* ------------------------------------------------------------ source I/O */
 
@@ -303,7 +307,11 @@ function summarize(lines) {
   if (!text) return '';
   if (/#\s*(end)?region|eslint|prettier-ignore|istanbul/i.test(text)) return '';
   // commented-out code, not a description
-  if (/(^|\s)(router|app)\s*\.\s*\w+\s*\(|require\(|;\s*$|^[\w.]+\s*\(.*\)\s*;?$|^\w[\w.]*\s*=\s*/.test(text))
+  if (
+    /(^|\s)(router|app)\s*\.\s*\w+\s*\(|require\(|;\s*$|^[\w.]+\s*\(.*\)\s*;?$|^\w[\w.]*\s*=\s*/.test(
+      text
+    )
+  )
     return '';
   if (SENSITIVE.test(text)) return '';
   const sentence = firstSentence(text);
@@ -454,10 +462,29 @@ function parseServer() {
     });
   }
 
+  // ...and those mounted from the `controllers` registry rather than a require()
+  for (const am of code.matchAll(
+    /app\.use\(\s*['"]([^'"]+)['"][^;]*?controllers\.(\w+)\.(\w+)\s*\)/g
+  )) {
+    const file = fileByName.get(am[3]);
+    if (file) {
+      appMounts.push({
+        mount: am[1],
+        file,
+        offset: am.index,
+        beforeLegacy: legacyAt >= 0 && am.index < legacyAt,
+      });
+    }
+  }
+
   // endpoints declared directly on the app
   const appRoutes = [];
-  for (const rm of code.matchAll(/app\.(get|post|put|delete|patch)\(\s*['"]([^'"]+)['"]/g)) {
-    appRoutes.push({ method: rm[1].toUpperCase(), path: rm[2], line: lineOf(lineStarts, rm.index) });
+  for (const rm of code.matchAll(/app\.(get|post|put|delete|patch|head)\(\s*['"]([^'"]+)['"]/g)) {
+    appRoutes.push({
+      method: rm[1].toUpperCase(),
+      path: rm[2],
+      line: lineOf(lineStarts, rm.index),
+    });
   }
 
   return { fileByName, groups, patientAllowed, appMounts, appRoutes, problems };
@@ -552,7 +579,15 @@ function discover() {
   }
 
   // controller files that no mount reaches
+  //
+  // legacyMounts covers only the routeGroups tables; server.appMounts carries the
+  // controllers mounted directly with app.use(). MediaTicketController and
+  // MediaController are mounted that way at /api/Media, so counting routeGroups
+  // alone listed them here as unreachable - and they are the delivery path for
+  // voice notes and the rehabilitation videos, so that was exactly the wrong
+  // thing for this document to say about them.
   const mountedFiles = new Set(legacyMounts.map((m) => m.file));
+  for (const am of server.appMounts) if (am.file) mountedFiles.add(am.file);
   const requiredFiles = new Set(server.fileByName.values());
   const unmounted = [];
   for (const abs of walk(path.join(BACKEND, 'controllers'))) {
@@ -590,8 +625,7 @@ const DOMAIN_TITLES = {
 const ENGINE_NOTES = {
   '/getData':
     'Маягтын талбарын тохиргоо (`Fields`, `NewObject`, `TitleObject`, `PK`, `AttachFiles`); `OptionType` сонголтууд аль хэдийн дүүргэгдсэн байна.',
-  '/':
-    'Жагсаалт: хуудаслалт (`PageSize`, `PageNumber`), хайлт (`SearchText`, `SearchField`), эрэмбэ (`OrderByField`, `OrderByType`). Хуудаслалтын мэдээлэл `Option`-д ирнэ.',
+  '/': 'Жагсаалт: хуудаслалт (`PageSize`, `PageNumber`), хайлт (`SearchText`, `SearchField`), эрэмбэ (`OrderByField`, `OrderByType`). Хуудаслалтын мэдээлэл `Option`-д ирнэ.',
   '/getListInfo': '`/`-тэй ижил параметртэй жагсаалт (`BaseGetListInfo`).',
   '/getDetail': 'Нэг бичлэг; `SearchField`-ээр шүүнэ.',
   '/getDetailInfo': 'Нэг бичлэг (`BaseDetailInfo`).',
@@ -623,10 +657,7 @@ const mdCell = (s) =>
     .replace(/\|/g, '\\|');
 
 function table(headers, rows) {
-  const out = [
-    '| ' + headers.join(' | ') + ' |',
-    '|' + headers.map(() => '---').join('|') + '|',
-  ];
+  const out = ['| ' + headers.join(' | ') + ' |', '|' + headers.map(() => '---').join('|') + '|'];
   for (const r of rows) out.push('| ' + r.map(mdCell).join(' | ') + ' |');
   return out.join('\n');
 }
@@ -696,7 +727,7 @@ function render(model) {
       '.',
     '- **Иргэний токен (`RoleId 4`):** хамгаалагдсан угтваруудаас зөвхөн ' +
       allowedList +
-      '-аар нэвтэрнэ. Бусад дээр `{ Success: false, Message: \'Хандах эрхгүй байна\' }` буцна.',
+      "-аар нэвтэрнэ. Бусад дээр `{ Success: false, Message: 'Хандах эрхгүй байна' }` буцна.",
     ''
   );
 
@@ -799,15 +830,15 @@ function render(model) {
     const d = abs && relPath(abs).split('/')[1];
     if (d && !domainOrder.includes(d)) domainOrder.push(d);
   }
-  for (const d of new Set(legacy.map((r) => r.domain))) if (!domainOrder.includes(d)) domainOrder.push(d);
+  for (const d of new Set(legacy.map((r) => r.domain)))
+    if (!domainOrder.includes(d)) domainOrder.push(d);
   const prefixOrder = [...server.groups.public, ...server.groups.protected].map((g) => g.full);
   let n = 0;
   for (const d of domainOrder) {
     const rows = legacy
       .filter((r) => r.domain === d)
       .sort(
-        (a, b) =>
-          prefixOrder.indexOf(a.prefix) - prefixOrder.indexOf(b.prefix) || a.line - b.line
+        (a, b) => prefixOrder.indexOf(a.prefix) - prefixOrder.indexOf(b.prefix) || a.line - b.line
       );
     if (!rows.length) continue;
     n++;
@@ -884,17 +915,19 @@ function render(model) {
         .readdirSync(cfgDir)
         .filter((f) => f.endsWith('.js') && f !== 'index.js' && !f.startsWith('.'))
         .map((f) => {
-          const m = fs.readFileSync(path.join(cfgDir, f), 'utf8').match(/\btarget\s*:\s*['"](\w+)['"]/);
+          const m = fs
+            .readFileSync(path.join(cfgDir, f), 'utf8')
+            .match(/\btarget\s*:\s*['"](\w+)['"]/);
           return m ? m[1] : f.replace(/\.js$/, '');
         })
     : [];
   push(
     '## 7. Шинэ давхарга — `/api/base`, `/api/report`',
     '',
-    '`app.use(\'/api\', require(\'./api\'))`-ээр холбогдсон ерөнхий REST нөөц. Бодит HTTP арга, жижиг',
+    "`app.use('/api', require('./api'))`-ээр холбогдсон ерөнхий REST нөөц. Бодит HTTP арга, жижиг",
     'үсгийн `{ success, message, data }` бүтэц. `:target` нь `api/base/config/` дахь тохиргооны нэг:',
     targets.map(code).join(', ') + '.',
-    'Тохиргоонд тухайн үйлдэл тодорхойлогдоогүй бол `{ success: false, message: \'Идвэхигүй үйлдэл\' }`',
+    "Тохиргоонд тухайн үйлдэл тодорхойлогдоогүй бол `{ success: false, message: 'Идвэхигүй үйлдэл' }`",
     'буцна.',
     '',
     table(
@@ -937,15 +970,13 @@ function render(model) {
     '>',
     `> - ${code('/api/base/*')} — ${baseRows.length} endpoint. ${code('api/index.js')} дотор`,
     `>   ${code('[VerifyTokenJson, DenyPatient]')}-ээр хамгаалагдсан. Токенгүй бол 401,`,
-    '>   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use(\'/api\', ...)` дээр биш,',
+    ">   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use('/api', ...)` дээр биш,",
     '>   дэд router дээр тавьсан нь санаатай: mount түвшинд тавьбал энэ давхаргын үйлчилдэггүй',
     '>   бүх зам 404-ийн оронд 401 болж, хүсэлт бүр дээр хэрэглэгч уншина.',
     `> - ${code('/api/report/*')} — ${reportRows.length} endpoint, мөн адил хамгаалагдсан.`,
     `> - ${code('/api/Test/*')} — ${testRows.length} endpoint үлдсэн, ${code('routeGroups.public')}-д`,
     '>   (`controllers/system/TestController.js`): ' +
-      (testRows.length
-        ? testRows.map((r) => code(r.method + ' ' + r.path)).join(', ')
-        : '—') +
+      (testRows.length ? testRows.map((r) => code(r.method + ' ' + r.path)).join(', ') : '—') +
       '.',
     '>   Токенгүй 1 ГБ файл байршуулдаг байсан `PUT /api/Test/uploadFile`, хатуу бичсэн хаяг руу',
     '>   мэйл илгээдэг `ApiSendMail`, хариу буцаадаггүй `printNew`, нэвтрэлтгүй Puppeteer',
@@ -1027,7 +1058,9 @@ function main() {
   );
   console.log('  api-layer: ' + JSON.stringify(surfaces));
   const withPurpose = model.legacy.filter((r) => r.purpose).length;
-  console.log(`  legacy routes with a purpose from comments: ${withPurpose}/${model.legacy.length}`);
+  console.log(
+    `  legacy routes with a purpose from comments: ${withPurpose}/${model.legacy.length}`
+  );
   for (const p of model.server.problems) console.log('  PROBLEM: ' + p);
   for (const u of model.unclassified) {
     console.log(`  UNCLASSIFIED ${u.file}:${u.line} (${u.why}) ${u.text}`);

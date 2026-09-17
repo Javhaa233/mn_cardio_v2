@@ -74,9 +74,7 @@ async function Notify({ LogedUser, PatientId, ObjectName }) {
     if (!Decision.Notify) return Decision;
 
     const Org =
-      LogedUser.Doctor && LogedUser.Doctor.Organization
-        ? LogedUser.Doctor.Organization.Name
-        : null;
+      LogedUser.Doctor && LogedUser.Doctor.Organization ? LogedUser.Doctor.Organization.Name : null;
 
     await NotificationHelper.NotifyPatient({
       PatientId,

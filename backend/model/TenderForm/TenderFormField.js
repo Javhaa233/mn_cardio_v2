@@ -38,8 +38,17 @@ TenderFormField.init(
 );
 
 TenderFormField.SearchField = [
-  'Id', 'FormCode', 'FieldCode', 'LabelMn', 'FieldType', 'OptionType',
-  'SectionCode', 'SectionLabel', 'SectionPos', 'Position', 'IsSearchable',
+  'Id',
+  'FormCode',
+  'FieldCode',
+  'LabelMn',
+  'FieldType',
+  'OptionType',
+  'SectionCode',
+  'SectionLabel',
+  'SectionPos',
+  'Position',
+  'IsSearchable',
 ];
 
 module.exports = TenderFormField;

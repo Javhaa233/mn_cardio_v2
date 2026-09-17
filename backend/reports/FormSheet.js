@@ -125,7 +125,12 @@ function FindChecklistFamily(Fields, Forced) {
   const Families = [];
   Candidates.forEach((Field) => {
     const Values = (Field.Data || []).map(
-      (o) => o.Value + ' | ' + String(o.Label == null ? '' : o.Label).trim().toLowerCase()
+      (o) =>
+        o.Value +
+        ' | ' +
+        String(o.Label == null ? '' : o.Label)
+          .trim()
+          .toLowerCase()
     );
     const Family = Families.find(
       (fam) => IsSubset(Values, fam.Values) || IsSubset(fam.Values, Values)
@@ -434,9 +439,7 @@ function FormSheet({ Title, Sections, Values, Labels, Meta, Options }) {
 
   const Body = (Sections || [])
     .map((Section) => {
-      const Fields = (Section.Fields || []).filter(
-        (f) => Blank || IsVisible(f, Vals, ByName)
-      );
+      const Fields = (Section.Fields || []).filter((f) => Blank || IsVisible(f, Vals, ByName));
       if (!Fields.length) return '';
 
       const Blocks = PickBlocks(Fields)

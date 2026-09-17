@@ -32,7 +32,9 @@ import { space } from "@/theme/tokens";
 // A self-registered account is a doctor account: role 2 or 3 only.
 const DOCTOR_ROLES = ["2", "3"];
 
-function RoleOptions(Config) {
+// Exported for the bulk-approve dialog, which picks one role for a whole batch
+// and must offer exactly the same list as the single-request dialog.
+export function RoleOptions(Config) {
   const Rows = Config && Array.isArray(Config.Fields) ? Config.Fields : [];
   const Field = Rows.flat().find((F) => F && F.Name === "RoleId");
   const Data = Field && Array.isArray(Field.Data) ? Field.Data : [];

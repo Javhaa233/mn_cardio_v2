@@ -94,7 +94,6 @@ async function CustomCreate(req, res) {
     return res.send(
       JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.Message || ex.message))
     );
-
   }
 }
 
@@ -133,7 +132,6 @@ async function CustomUpdate(req, res) {
     return res.send(
       JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(ex.Message || ex.message))
     );
-
   }
 }
 
@@ -429,19 +427,25 @@ async function SetLicense(req, res) {
   try {
     const LogedUser = req.LogedUser;
     if (!MayAdministerLicences(LogedUser)) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна'))
+      );
     }
 
     const { DoctorId, LicenseCode, LicenseIssuedDate, LicenseExpireDate } = req.body;
     if (!DoctorId || !LicenseCode || !String(LicenseCode).trim()) {
       return res.send(
-        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмч болон зөвшөөрлийн кодыг заана уу'))
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult('Эмч болон зөвшөөрлийн кодыг заана уу')
+        )
       );
     }
 
     const Code = String(LicenseCode).trim();
     if (Code.length > 50) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Код хэт урт байна')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Код хэт урт байна'))
+      );
     }
 
     const Doctor = await Models.DoctorsProfile.findOne({
@@ -477,7 +481,10 @@ async function SetLicense(req, res) {
     if (Clash) {
       console.error(
         '[DoctorProfile/SetLicense] duplicate licence code on doctors ' +
-          DoctorId + ' and ' + Clash.id_data + ' - uniqueness is unconfirmed, allowing'
+          DoctorId +
+          ' and ' +
+          Clash.id_data +
+          ' - uniqueness is unconfirmed, allowing'
       );
     }
 
@@ -532,7 +539,9 @@ async function GetLicenseStatus(req, res) {
   try {
     const LogedUser = req.LogedUser;
     if (!MayAdministerLicences(LogedUser)) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна'))
+      );
     }
 
     const where = { rec_status: { [Op.ne]: 2 } };
@@ -547,9 +556,21 @@ async function GetLicenseStatus(req, res) {
 
     const rows = await Models.DoctorsProfile.findAll({
       where,
-      attributes: ['id_data', 'lastname', 'firstname', 'OrganizationId', 'LicenseCode', 'LicenseExpireDate'],
+      attributes: [
+        'id_data',
+        'lastname',
+        'firstname',
+        'OrganizationId',
+        'LicenseCode',
+        'LicenseExpireDate',
+      ],
       include: [
-        { model: Models.Organization, as: 'Organization', attributes: ['Id', 'Name'], required: false },
+        {
+          model: Models.Organization,
+          as: 'Organization',
+          attributes: ['Id', 'Name'],
+          required: false,
+        },
       ],
       order: [['lastname', 'ASC']],
     });
@@ -598,7 +619,9 @@ async function ClearLicense(req, res) {
   try {
     const LogedUser = req.LogedUser;
     if (!LogedUser || String(LogedUser.RoleId) !== '1') {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Хандах эрхгүй байна'))
+      );
     }
 
     const { DoctorId, Reason } = req.body;

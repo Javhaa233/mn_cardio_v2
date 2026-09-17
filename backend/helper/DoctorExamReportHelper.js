@@ -186,7 +186,7 @@ async function BuildQuery({ LogedUser, Filter }) {
     // хөрвүүлэгдэхгүй утгыг NULL болгоно. WHERE нь түүхий багана дээрээ үлдэж
     // байгаа тул индекс ашиглах чадвар алдагдахгүй.
     return (
-      "SELECT [" +
+      'SELECT [' +
       s.UserCol +
       "] AS UserId, '" +
       s.Bucket +

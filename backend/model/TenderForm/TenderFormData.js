@@ -34,8 +34,16 @@ TenderFormData.init(
 );
 
 TenderFormData.SearchField = [
-  'Id', 'FormCode', 'PatRegNo', 'PatientId', 'FormDate',
-  'DoctorId', 'OrganizationId', 'Status', 'rec_status', 'CreateDate',
+  'Id',
+  'FormCode',
+  'PatRegNo',
+  'PatientId',
+  'FormDate',
+  'DoctorId',
+  'OrganizationId',
+  'Status',
+  'rec_status',
+  'CreateDate',
   // The answers themselves, so the unified search can look inside a form
   // without the caller having to know which field code holds what. It is a
   // LIKE over NVARCHAR(MAX), so it is a scan - fine at present volumes, and
@@ -61,7 +69,8 @@ TenderFormData.SetFunctions = (Models) => {
     // generic finder never filters it, so without this the unified register -
     // and its exports - would keep listing records the user had deleted.
     const NotDeleted = { rec_status: { [Sequelize.Op.ne]: 2 } };
-    const Where = Option && Option.where ? { [Sequelize.Op.and]: [Option.where, NotDeleted] } : NotDeleted;
+    const Where =
+      Option && Option.where ? { [Sequelize.Op.and]: [Option.where, NotDeleted] } : NotDeleted;
 
     return await TenderFormData.findAll({
       ...Option,

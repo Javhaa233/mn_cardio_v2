@@ -148,7 +148,9 @@ export default function BaseInputMask(props) {
     }
   };
 
-  const errorBorderStyle = hasError ? "1px solid #f44336" : `1px solid ${FIELD.rowBorder}`;
+  const errorBorderStyle = hasError
+    ? "1px solid #f44336"
+    : `1px solid ${FIELD.rowBorder}`;
 
   const { HideLabel } = props;
 

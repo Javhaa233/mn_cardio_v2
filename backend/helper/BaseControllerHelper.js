@@ -27,6 +27,47 @@ const translate = require('../reports/translate.js');
 const EXPORT_ROW_CAP =
   Number(process.env.EXPORT_MAX_ROWS) > 0 ? Number(process.env.EXPORT_MAX_ROWS) : 20000;
 
+/**
+ * Option-list cache.
+ *
+ * GetConfigData runs on essentially every list, detail and save endpoint, and
+ * it used to issue ONE query per field per call: a SELECT against OptionTypes
+ * for each field carrying an OptionType, plus a findAll() for each select or
+ * checkbox backed by a Model. A config like VisitConfig has dozens of those, so
+ * a single page load cost dozens of round trips. It was the highest-volume
+ * query source in the backend and the most likely thing to threaten the
+ * tender's 3-second search criterion.
+ *
+ * All of it is REFERENCE data - dico rows, the organization directory, ICD -
+ * and none of the lookups take a user, an organization or any request value, so
+ * one process-wide cache is correct. Nothing downstream mutates the arrays:
+ * every consumer in ModelHelper and this file reads them with .filter(), which
+ * returns a new array.
+ *
+ * TTL rather than permanent, so an OptionTypes row edited in the database
+ * appears without a restart. Set OPTION_CACHE_TTL_SEC=0 to disable entirely.
+ */
+const OPTION_CACHE_TTL_MS =
+  (process.env.OPTION_CACHE_TTL_SEC === undefined
+    ? 300
+    : Number(process.env.OPTION_CACHE_TTL_SEC)) * 1000;
+
+const OptionCache = new Map();
+
+async function CachedOptions(Key, Load) {
+  if (!(OPTION_CACHE_TTL_MS > 0)) return Load();
+  const Hit = OptionCache.get(Key);
+  if (Hit && Hit.Expires > Date.now()) return Hit.Data;
+  const Data = await Load();
+  OptionCache.set(Key, { Data, Expires: Date.now() + OPTION_CACHE_TTL_MS });
+  return Data;
+}
+
+/** Drop the cache - for a script that has just changed OptionTypes. */
+function ClearOptionCache() {
+  OptionCache.clear();
+}
+
 class BaseControllerHelper {
   translateLabel = function (word) {
     return translate(word, 'mn');
@@ -39,12 +80,17 @@ class BaseControllerHelper {
         for (var j = 0; j < ModelConfig.Fields[i].length; j++) {
           var Field = ModelConfig.Fields[i][j];
           if (Field.OptionType) {
-            var [OptionData] = await sequelize.query(
-              "SELECT label AS Label, value AS [Value] FROM OptionTypes WHERE dico=N'" +
-                Field.OptionType +
-                "'"
-            );
-            Field.Data = OptionData;
+            Field.Data = await CachedOptions('dico:' + Field.OptionType, async () => {
+              // Parameterised while here. Field.OptionType comes from the
+              // ModelConfig, not the request, so this was never injectable -
+              // but there is no reason for the one remaining concatenated
+              // OptionTypes query to stay concatenated.
+              const [Rows] = await sequelize.query(
+                'SELECT label AS Label, value AS [Value] FROM OptionTypes WHERE dico = :Dico',
+                { replacements: { Dico: Field.OptionType } }
+              );
+              return Rows;
+            });
           }
           if (
             (Field.Type === 'SingleSelect' ||
@@ -53,18 +99,17 @@ class BaseControllerHelper {
             Field.OptionType === undefined
           ) {
             if (Field.Config && Field.Config.Model) {
-              var OptionData = [];
-              if (Field.Config.SearchType && Field.Config.SearchType === 'AllData') {
-                if (Field.Config.Model.findAllNew) {
-                  OptionData = await Field.Config.Model.findAllNew();
-                } else {
-                  OptionData = await Field.Config.Model.findAll();
+              const ModelName = Field.Config.Model.name || String(Field.Name);
+              const UseAll = Field.Config.SearchType === 'AllData' && Field.Config.Model.findAllNew;
+              Field.Data = await CachedOptions(
+                'model:' + ModelName + ':' + (UseAll ? 'new' : 'all'),
+                async () => {
+                  const Rows = UseAll
+                    ? await Field.Config.Model.findAllNew()
+                    : await Field.Config.Model.findAll();
+                  return JSON.parse(JSON.stringify(Rows));
                 }
-              } else {
-                OptionData = await Field.Config.Model.findAll();
-              }
-              OptionData = JSON.parse(JSON.stringify(OptionData));
-              Field.Data = OptionData;
+              );
             }
           }
           if (
@@ -73,9 +118,11 @@ class BaseControllerHelper {
             Field.Config &&
             Field.Config.Model
           ) {
-            var OptionData = await Field.Config.Model.findAll();
-            OptionData = JSON.parse(JSON.stringify(OptionData));
-            Field.Data = OptionData;
+            const CheckBoxModelName = Field.Config.Model.name || String(Field.Name);
+            Field.Data = await CachedOptions('model:' + CheckBoxModelName + ':all', async () => {
+              const Rows = await Field.Config.Model.findAll();
+              return JSON.parse(JSON.stringify(Rows));
+            });
           }
         }
       }
@@ -1497,3 +1544,6 @@ class BaseControllerHelper {
 }
 
 module.exports = new BaseControllerHelper();
+// Exposed so a script that edits OptionTypes (see scripts/*.sql) can drop the
+// cache without restarting, and so the TTL is not the only way back.
+module.exports.ClearOptionCache = ClearOptionCache;

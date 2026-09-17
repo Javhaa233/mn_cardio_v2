@@ -86,7 +86,10 @@ class ChatHelper {
     return await Models.ChatRoomTooUsers.findAll({
       attributes: ['ChatRoomId', 'UserId', 'UserType', 'LastReadMessageId'],
       where: { ChatRoomId: { [Op.in]: ChatRoomIds }, IsActive: LIVE },
-      order: [['ChatRoomId', 'ASC'], ['Id', 'ASC']],
+      order: [
+        ['ChatRoomId', 'ASC'],
+        ['Id', 'ASC'],
+      ],
       raw: true,
     });
   };
@@ -220,8 +223,7 @@ class ChatHelper {
 
     // A room with a patient on either side is DP, which the member routes then
     // refuse to add anyone to.
-    const RoomType =
-      ChatIdentity.IsPatient(Me) || ChatIdentity.IsPatient(Target) ? 'DP' : 'DD';
+    const RoomType = ChatIdentity.IsPatient(Me) || ChatIdentity.IsPatient(Target) ? 'DP' : 'DD';
 
     try {
       const ChatRoomId = await sequelize.transaction(async (Tx) => {

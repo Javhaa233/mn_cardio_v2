@@ -1,7 +1,3 @@
-// TODO: DevExtreme not installed - commenting out theme files
-// import "styles/themes/generated/theme.base.css";
-// import "styles/themes/generated/theme.additional.css";
-
 import "overlayscrollbars/styles/overlayscrollbars.css";
 import "./assets/scss/material-dashboard-pro-react.scss?v=1.8.0";
 
@@ -13,6 +9,14 @@ import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ThemeProvider, StyledEngineProvider } from "@mui/material/styles";
 import GlobalStyles from "@mui/material/GlobalStyles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+
+// Catches what never reaches a React boundary - throws outside render, and
+// rejected promises nobody handled. Installed here so it is live before the
+// first component mounts. See helper/ErrorReporter.js: there was no client-side
+// error capture of any kind before this.
+import Report from "helper/ErrorReporter";
+
+Report.Install();
 
 // Only the auth layout is eager - it renders the login page, which is the
 // first thing every visitor sees. The other four layouts are behind a login

@@ -6,7 +6,9 @@
     "helper/**/*.js",
     "services/**/*.js",
     "WebSockets/**/*.js",
-    "config/**/*.env"
+    "config/**/*.env",
+    "model/**/*.js",
+    "ModelConfigs/**/*.js"
   ],
   "ext": "js,json,env",
   "ignore": [

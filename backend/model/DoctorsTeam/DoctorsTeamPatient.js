@@ -77,16 +77,20 @@ DoctorsTeamPatient.SetFunctions = (Models) => {
       });
       if (!check) throw { Message: 'Иргэнийг багт нэмсэн байна' };
 
-      await DoctorsTeamPatient.create(Data);
-      const [ReturnData] = await sequelize.query(
-        'SELECT TOP 1  ' +
-          ReturnIdField +
-          ' FROM [DoctorsTeamPatient] ORDER BY ' +
-          ReturnIdField +
-          ' DESC '
-      );
+      // The id comes from the INSERT, not from a follow-up query.
+      //
+      // This used to be `SELECT TOP 1 <pk> FROM [DoctorsTeamPatient] ORDER BY <pk> DESC` run
+      // immediately after the create. Two concurrent creates both read the HIGHER
+      // id, so the loser returned the winner's row and attached its child rows -
+      // files, lookups, many-to-many links - to the wrong record. Reproduced
+      // against the database: two creates in one transaction returned 5 and 6,
+      // while the old query returned 6 for both.
+      //
+      // create() already carries the generated key: ReturnIdField is declared
+      // autoIncrement, and Sequelize reads it back through OUTPUT INSERTED.
+      const Created = await DoctorsTeamPatient.create(Data);
 
-      return ReturnData[0][ReturnIdField];
+      return Created[ReturnIdField];
     } else {
       throw { Message: 'Information is missing' };
     }

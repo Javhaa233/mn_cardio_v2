@@ -623,7 +623,9 @@ async function CustomSave(req, res) {
           SurgeryId: SurgeryId || null,
           DoctorId: LogedUser.Id || null,
           OrganizationId:
-            LogedUser.OrganizationId || (LogedUser.Doctor && LogedUser.Doctor.OrganizationId) || null,
+            LogedUser.OrganizationId ||
+            (LogedUser.Doctor && LogedUser.Doctor.OrganizationId) ||
+            null,
           Data: JSON.stringify(Clean),
           Status: 0,
           rec_status: 1,

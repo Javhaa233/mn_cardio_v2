@@ -90,10 +90,30 @@ router.get('/visits/:id/print', gate, may('Visit', 'read'), c.printVisit);
 // 29 Миний хяналт
 router.get('/monitoring', gate, may('PatientMonitoring', 'read'), c.listMonitoring);
 router.post('/monitoring', gate, may('PatientMonitoring', 'create'), c.addMonitoring);
-router.delete('/monitoring/:patientId', gate, may('PatientMonitoring', 'delete'), c.removeMonitoring);
-router.get('/monitoring/:patientId/journal', gate, may('PatientMonitoring', 'read'), c.getMonitoringJournal);
-router.get('/monitoring/:patientId/questions', gate, may('PatientMonitoring', 'read'), c.listPatientQuestions);
-router.post('/monitoring/:patientId/questions', gate, may('PatientMonitoring', 'update'), c.replyPatientQuestion);
+router.delete(
+  '/monitoring/:patientId',
+  gate,
+  may('PatientMonitoring', 'delete'),
+  c.removeMonitoring
+);
+router.get(
+  '/monitoring/:patientId/journal',
+  gate,
+  may('PatientMonitoring', 'read'),
+  c.getMonitoringJournal
+);
+router.get(
+  '/monitoring/:patientId/questions',
+  gate,
+  may('PatientMonitoring', 'read'),
+  c.listPatientQuestions
+);
+router.post(
+  '/monitoring/:patientId/questions',
+  gate,
+  may('PatientMonitoring', 'update'),
+  c.replyPatientQuestion
+);
 
 // 30 Миний зөвлөгөө
 router.get('/advice', gate, may('Advice', 'read'), c.listAdvice);
@@ -147,7 +167,12 @@ router.get('/patients/:id/rehab', gate, may('Rehab', 'read'), c.getPatientRehab)
 // The assessment history, newest first
 router.get('/patients/:id/rehab/assessment', gate, may('Rehab', 'read'), c.listPatientAssessments);
 // Record an assessment. Nothing is scored - the methodology is a ЗСҮТ deliverable
-router.post('/patients/:id/rehab/assessment', gate, may('Rehab', 'create'), c.createPatientAssessment);
+router.post(
+  '/patients/:id/rehab/assessment',
+  gate,
+  may('Rehab', 'create'),
+  c.createPatientAssessment
+);
 
 // §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the
 // request BODY; these resolve it from the patient id after checking access, so

@@ -90,7 +90,8 @@ class FcmV1Driver {
       return { ok: true, driver: 'fcm' };
     } catch (ex) {
       const status = ex.response ? ex.response.status : 0;
-      const detail = ex.response && ex.response.data ? JSON.stringify(ex.response.data) : ex.message;
+      const detail =
+        ex.response && ex.response.data ? JSON.stringify(ex.response.data) : ex.message;
 
       // UNREGISTERED / INVALID_ARGUMENT on the token means the app was
       // uninstalled or the token rotated. Reported as `gone` so PushHelper

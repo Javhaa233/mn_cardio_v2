@@ -303,9 +303,17 @@ Advice.SetFunctions = (Models) => {
   };
 
   Advice.createNew = async function (Data, ReturnIdField) {
+    // The id comes from the INSERT, not from a follow-up query. Two concurrent
+    // creates both read the HIGHER id from `SELECT TOP 1 ... ORDER BY ... DESC`,
+    // so the loser returned the winner's row. Reproduced against the database:
+    // two creates in one transaction returned 5 and 6, the old query 6 for both.
+    //
+    // Both branches keep their instance, so the retry path returns its own id
+    // rather than whatever happened to be last in the table.
+    let Created = null;
     try {
       // Attempt to create with all data including any CreateUserId field
-      await Advice.create(Data);
+      Created = await Advice.create(Data);
     } catch (error) {
       if (
         error.name === 'SequelizeDatabaseError' &&
@@ -316,16 +324,13 @@ Advice.SetFunctions = (Models) => {
         if (cleanData.hasOwnProperty('CreateUserId')) {
           delete cleanData.CreateUserId;
         }
-        await Advice.create(cleanData);
+        Created = await Advice.create(cleanData);
       } else {
         throw error;
       }
     }
 
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' + ReturnIdField + ' FROM [Advice] ORDER BY ' + ReturnIdField + ' DESC '
-    );
-    return ReturnData[0][ReturnIdField];
+    return Created[ReturnIdField];
   };
 
   Advice.findAllDetail = async function (Option) {

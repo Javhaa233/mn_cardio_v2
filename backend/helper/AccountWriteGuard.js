@@ -83,8 +83,23 @@ function CheckCreate(ObjectName, LogedUser) {
   }
 }
 
+/*
+ * Objects the generic delete path may not touch AT ALL, admin or not.
+ *
+ * A sign-up request may only be deleted once it has been decided - a pending
+ * one has to be approved or declined first, so nobody's application disappears
+ * without them being told. /BaseObject/destroy takes an arbitrary DeleteOption
+ * and cannot be told that rule: as an admin,
+ * {ObjectName:'UserRequests', DeleteOption:{IsActive:'0'}} would empty the
+ * pending queue in one call. So deletion has exactly one door,
+ * POST /UserRequest/DeleteMany, which filters on the status inside the
+ * statement and writes a UserActionHistory row per request it removes.
+ */
+const DELETE_NEVER = ['UserRequests'];
+
 /** BaseDelete reports a refusal as null, so this answers rather than throws. */
 function MayDelete(ObjectName, LogedUser) {
+  if (DELETE_NEVER.includes(ObjectName)) return false;
   return !ACCOUNT_OBJECTS.includes(ObjectName) || IsAdmin(LogedUser);
 }
 

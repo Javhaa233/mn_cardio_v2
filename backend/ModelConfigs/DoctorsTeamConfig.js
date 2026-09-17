@@ -140,30 +140,30 @@ function DoctorsTeamConfig() {
       },
     ],
     [
-        {
-          Name: 'DoctorTeamPatient',
-          Label: 'Иргэн',
-          Type: 'ListView',
-          HideNew: false,
-          Config: { ObjectName: 'DoctorsTeamPatient', ForiegnKey: 'team_id' },
-          md: 12,
-          Position: 1,
-          GridField: false,
-          EditField: true,
-        },
-        {
-          Name: 'LookupDoctorTeam',
-          Label: 'Эмч',
-          Type: 'ListView',
-          HideNew: false,
-          Config: { ObjectName: 'LookupDoctorTeam', ForiegnKey: 'team_id' },
-          md: 12,
-          Position: 1,
-          GridField: false,
-          EditField: true,
-        },
-      ],
-    ];
+      {
+        Name: 'DoctorTeamPatient',
+        Label: 'Иргэн',
+        Type: 'ListView',
+        HideNew: false,
+        Config: { ObjectName: 'DoctorsTeamPatient', ForiegnKey: 'team_id' },
+        md: 12,
+        Position: 1,
+        GridField: false,
+        EditField: true,
+      },
+      {
+        Name: 'LookupDoctorTeam',
+        Label: 'Эмч',
+        Type: 'ListView',
+        HideNew: false,
+        Config: { ObjectName: 'LookupDoctorTeam', ForiegnKey: 'team_id' },
+        md: 12,
+        Position: 1,
+        GridField: false,
+        EditField: true,
+      },
+    ],
+  ];
 
   this.ObjectName = 'DoctorsTeam';
   this.Model = Model;

@@ -67,11 +67,11 @@ async function CustomSave(req, res) {
       // Extract base64 data from data URL (e.g., "data:image/png;base64,...")
       const base64Data = Data.Logo.split(',')[1];
       Data.Logo = Buffer.from(base64Data, 'base64');
-      console.log("Converted Logo to Buffer, length:", Data.Logo.length);
+      console.log('Converted Logo to Buffer, length:', Data.Logo.length);
     } else if (Data.Logo === undefined || Data.Logo === null) {
       // Remove Logo from Data so the existing value in the database is preserved
       delete Data.Logo;
-      console.log("Logo not provided, preserving existing value");
+      console.log('Logo not provided, preserving existing value');
     }
 
     const ObjectName = 'Organization';
@@ -135,7 +135,12 @@ async function GetOne(req, res) {
       const header = organization.Logo.slice(0, 8);
       if (header[0] === 0xff && header[1] === 0xd8) {
         mimeType = 'image/jpeg';
-      } else if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47) {
+      } else if (
+        header[0] === 0x89 &&
+        header[1] === 0x50 &&
+        header[2] === 0x4e &&
+        header[3] === 0x47
+      ) {
         mimeType = 'image/png';
       } else if (header[0] === 0x47 && header[1] === 0x49 && header[2] === 0x46) {
         mimeType = 'image/gif';
@@ -146,12 +151,14 @@ async function GetOne(req, res) {
       };
     }
 
-    return res.send(JSON.stringify({
-      Success: true,
-      success: true,
-      Data: organization,
-      data: organization,
-    }));
+    return res.send(
+      JSON.stringify({
+        Success: true,
+        success: true,
+        Data: organization,
+        data: organization,
+      })
+    );
   } catch (ex) {
     console.error(ex);
     const errorResult = BaseControllerHelper.GetDefaultErrorResult();
@@ -223,9 +230,7 @@ async function MergePreview(req, res) {
       TargetName: Checked.Target.Name,
     };
 
-    return res.send(
-      JSON.stringify({ Success: true, success: true, Data, data: Data })
-    );
+    return res.send(JSON.stringify({ Success: true, success: true, Data, data: Data }));
   } catch (ex) {
     console.error(ex);
     const errorResult = BaseControllerHelper.GetDefaultErrorResult();

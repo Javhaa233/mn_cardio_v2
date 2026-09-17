@@ -1,6 +1,7 @@
 import React from "react";
 import { withTranslation } from "react-i18next";
 import LoadError from "customComponents/LoadError";
+import Report from "helper/ErrorReporter";
 
 /**
  * One boundary per tab panel.
@@ -19,8 +20,11 @@ class TabErrorBoundary extends React.Component {
     return { failed: true };
   }
 
-  componentDidCatch(error) {
-    process.env.NODE_ENV === "development" && console.log(error);
+  componentDidCatch(error, errorInfo) {
+    // Was `NODE_ENV === "development" && console.log(error)`, which meant every
+    // crashed tab in production was discarded: the doctor saw the panel below
+    // and nobody could find out what had thrown.
+    Report.Capture(error, { source: "TabErrorBoundary", info: errorInfo });
   }
 
   render() {

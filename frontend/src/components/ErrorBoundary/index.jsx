@@ -4,6 +4,8 @@ import { Box, Button, Typography, Paper } from "@mui/material";
 import ErrorOutlineIcon from "@mui/icons-material/ErrorOutline";
 import RefreshIcon from "@mui/icons-material/Refresh";
 
+import Report from "helper/ErrorReporter";
+
 /**
  * Error Boundary Component
  * Catches JavaScript errors anywhere in the child component tree,
@@ -25,8 +27,9 @@ class ErrorBoundary extends Component {
   }
 
   componentDidCatch(error, errorInfo) {
-    // Log error details for debugging
-    console.error("Error Boundary caught an error:", error, errorInfo);
+    // Through the reporter, so this lands in the same place as everything else
+    // and reaches a sink if one is ever configured.
+    Report.Capture(error, { source: "ErrorBoundary", info: errorInfo });
 
     this.setState({
       error,

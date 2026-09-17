@@ -381,9 +381,7 @@ class Authorization {
     const fullUser = await this.fetchFullUserData(Id, RoleId);
     if (!fullUser) return null;
 
-    const token = await new Promise((resolve) =>
-      this.login(fullUser, (t) => resolve(t))
-    );
+    const token = await new Promise((resolve) => this.login(fullUser, (t) => resolve(t)));
     if (!token) return null;
 
     const refreshToken = await new Promise((resolve) =>

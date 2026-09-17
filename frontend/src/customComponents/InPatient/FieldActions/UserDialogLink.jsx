@@ -37,7 +37,10 @@ export default function UserDialogLink(props) {
           alignItems: "center",
           gap: "4px",
           cursor: "pointer",
-          "&:hover": { color: colors.brand.cyanInk, textDecoration: "underline" },
+          "&:hover": {
+            color: colors.brand.cyanInk,
+            textDecoration: "underline",
+          },
         }}
         onClick={() => UserId && SetInsertForm()}
       >

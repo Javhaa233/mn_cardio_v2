@@ -31,7 +31,9 @@ const Title = arg('title', 'MnCardio');
 const Body = arg('body', 'Туршилтын мэдэгдэл');
 
 if (!['P', 'S'].includes(UserType) || !UserId) {
-  console.error('usage: node scripts/send_test_push.js --type P|S --id <userId> [--title X] [--body Y]');
+  console.error(
+    'usage: node scripts/send_test_push.js --type P|S --id <userId> [--title X] [--body Y]'
+  );
   console.error('  P = patient (Patient.id_data), S = staff (Users.Id)');
   process.exit(2);
 }
@@ -44,7 +46,12 @@ const Flags = require('../helper/FeatureFlags');
   await SchemaProbe.Warm();
 
   console.log('driver setting : ' + Flags.PushDriver);
-  console.log('PushDevice     : ' + (SchemaProbe.HasTable('PushDevice') ? 'present' : 'MISSING - run scripts/add_push_device_tokens.sql'));
+  console.log(
+    'PushDevice     : ' +
+      (SchemaProbe.HasTable('PushDevice')
+        ? 'present'
+        : 'MISSING - run scripts/add_push_device_tokens.sql')
+  );
   console.log('FCM configured : ' + (process.env.FCM_PROJECT_ID ? 'yes' : 'no'));
   console.log('APNs configured: ' + (process.env.APNS_KEY_ID ? 'yes' : 'no'));
   console.log('');
@@ -57,7 +64,9 @@ const Flags = require('../helper/FeatureFlags');
 
   if (!devices.length) {
     console.log('');
-    console.log('Nothing to send to. Register one from the app first, or via POST /api/patient/devices.');
+    console.log(
+      'Nothing to send to. Register one from the app first, or via POST /api/patient/devices.'
+    );
     process.exit(0);
   }
 

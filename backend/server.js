@@ -12,32 +12,15 @@ dotenv.config({ path: './config/Config.env' });
 // Environment detection
 const isDevelopment = process.env.NODE_ENV !== 'production';
 
-// PROD LOGGING OPTIMIZATION: Override console.log to only print errors/warnings in production
-if (!isDevelopment) {
-  const originalError = console.error;
-
-  console.log = function (...args) {
-    if (args.length > 0) {
-      const first = args[0];
-      // If it's an Error, print it as an error
-      if (first instanceof Error) {
-        originalError.apply(console, args);
-        return;
-      }
-      // If it looks like an error message, print it as an error
-      if (
-        typeof first === 'string' &&
-        (first.toLowerCase().includes('error') ||
-          first.toLowerCase().includes('exception') ||
-          first.toLowerCase().includes('fail'))
-      ) {
-        originalError.apply(console, args);
-        return;
-      }
-    }
-    // Otherwise, silence the log
-  };
-}
+// Levelled logging. This replaces a console.log patch that classified lines by
+// looking for the substrings "error"/"exception"/"fail" and silently dropped
+// everything else in production - which both promoted innocent lines to stderr
+// and threw away the boot record. See helper/Logger.js for the full note.
+//
+// Required and installed BEFORE any controller is required, so every console.*
+// call in the app is routed through it.
+const Logger = require('./helper/Logger');
+Logger.CaptureConsole();
 
 // Platform-based ALLFILE_DIR configuration
 if (process.platform === 'win32') {
@@ -351,7 +334,7 @@ const registerRoutes = (routes, secure = false) => {
       : [controller];
     const fullPath = `/api${path}`;
     app.use(fullPath, ...handlers);
-    console.log(`\u2713 Registered route: ${fullPath} ${secure ? '(protected)' : '(public)'}`);
+    Logger.info(`\u2713 Registered route: ${fullPath} ${secure ? '(protected)' : '(public)'}`);
   });
 };
 
@@ -423,10 +406,10 @@ console.log('\n=== Registering Routes ===');
  * further down, which carries no authentication at all.
  */
 app.use('/api/patient', require('./api/patient'));
-console.log('✓ Registered route: /api/patient (protected, patient only)');
+Logger.info('✓ Registered route: /api/patient (protected, patient only)');
 
 app.use('/api/doctor', require('./api/doctor'));
-console.log('✓ Registered route: /api/doctor (protected, staff only)');
+Logger.info('✓ Registered route: /api/doctor (protected, staff only)');
 
 /*
  * Mobile app configuration — the forced-update check and the terms text.
@@ -441,7 +424,7 @@ console.log('✓ Registered route: /api/doctor (protected, staff only)');
  * what to upgrade to.
  */
 app.use('/api/mobile', require('./api/mobile'));
-console.log('✓ Registered route: /api/mobile (version check public, config token-gated)');
+Logger.info('✓ Registered route: /api/mobile (version check public, config token-gated)');
 
 /*
  * Улсын цагийн эталон (§1.3). UNAUTHENTICATED: a clock is not a secret, and a
@@ -450,20 +433,20 @@ console.log('✓ Registered route: /api/mobile (version check public, config tok
  * the NTP host itself is a ЗСҮТ deliverable. See api/time/index.js.
  */
 app.use('/api/time', require('./api/time'));
-console.log('✓ Registered route: /api/time (public)');
+Logger.info('✓ Registered route: /api/time (public)');
 
 /*
  * Operational endpoints for roles 1 and 6. Gated inside api/admin/index.js by a
  * stricter rule than RequireDoctor, which also admits roles 2 and 3.
  */
 app.use('/api/admin', require('./api/admin'));
-console.log('✓ Registered route: /api/admin (roles 1, 6)');
+Logger.info('✓ Registered route: /api/admin (roles 1, 6)');
 
 // Session lifecycle — token refresh. Deliberately NOT behind verifyToken: a
 // client refreshes precisely when its access token has expired, and these
 // handlers verify strictly for themselves.
 app.use('/api/auth', require('./api/auth'));
-console.log('✓ Registered route: /api/auth (self-authenticating)');
+Logger.info('✓ Registered route: /api/auth (self-authenticating)');
 
 /*
  * Streaming media. Mounted HERE rather than in routeGroups.protected, and the
@@ -508,15 +491,15 @@ app.use('/api/Media', require('./helper/VerifyTokenJson'), controllers.system.Me
  * it on publishes an interface somebody will integrate against.
  */
 app.use('/api/fhir', require('./api/fhir'));
-console.log('✓ Registered route: /api/fhir (read-only projection)');
-console.log('✓ Registered route: /api/Media (streaming, json envelope)');
+Logger.info('✓ Registered route: /api/fhir (read-only projection)');
+Logger.info('✓ Registered route: /api/Media (streaming, json envelope)');
 
 registerRoutes(routeGroups.public);
 registerRoutes(routeGroups.protected, true);
 
 // API routes
 app.use('/api', require('./api'));
-console.log('✓ Registered route: /api');
+Logger.info('✓ Registered route: /api');
 
 // Health check. The version is READ, not written here: it used to be the
 // literal 'MnCardio API v2.0', which every release since has quietly falsified.
@@ -598,20 +581,25 @@ async function startServer() {
     // In production, bind to localhost only (Nginx proxies external requests)
     const HOST = isDevelopment ? '0.0.0.0' : '127.0.0.1';
     const server = http.createServer(app).listen(PORT, HOST, () => {
-      console.log('\n=== Server Started Successfully ===');
-      console.log(`✓ Environment: ${isDevelopment ? 'Development' : 'Production'}`);
-      console.log(`✓ MnCardio Server running on http://${HOST}:${PORT}`);
-      console.log(`✓ Access from this machine: http://localhost:${PORT}`);
+      // Logger.info, not console.log: this banner is the record of what the
+      // process came up as, and under the old console patch none of it
+      // survived in production.
+      Logger.info('=== Server Started Successfully ===');
+      Logger.info(`✓ Environment: ${isDevelopment ? 'Development' : 'Production'}`);
+      Logger.info(`✓ Log level: ${Logger.Level()}`);
+      Logger.info(`✓ MnCardio Server running on http://${HOST}:${PORT}`);
+      Logger.info(`✓ Access from this machine: http://localhost:${PORT}`);
       if (HOST === '0.0.0.0') {
-        console.log(`✓ Access from network: http://<your-ip>:${PORT}`);
+        Logger.info(`✓ Access from network: http://<your-ip>:${PORT}`);
       }
-      console.log(
-        `✓ CORS: ${isDevelopment ? 'Enabled for all origins (dev mode)' : 'Enabled for specific origins'}`
+      Logger.info(
+        `✓ CORS: ${isDevelopment ? 'allowlist + any loopback port (dev)' : 'allowlist only'}`
       );
-      console.log(`\nTest the server:`);
-      console.log(`  curl http://localhost:${PORT}/health`);
-      console.log(`  curl -X POST http://localhost:${PORT}/api/User/Login`);
-      console.log('=================================\n');
+      if (isDevelopment) {
+        Logger.debug(`  curl http://localhost:${PORT}/health`);
+        Logger.debug(`  curl -X POST http://localhost:${PORT}/api/User/Login`);
+      }
+      Logger.info('=================================');
     });
 
     // WebSockets
@@ -627,6 +615,33 @@ async function startServer() {
     process.exit(1);
   }
 }
+
+/**
+ * Last-resort process handlers.
+ *
+ * There were none, and Node's default for an unhandled rejection is to throw -
+ * which ends the process. That turned any un-awaited, un-caught async call in a
+ * request path into a server restart: a DB hiccup while writing one audit row
+ * could take down every in-flight request, and PM2 gives up after
+ * `max_restarts` (10). Two such calls were found in this audit.
+ *
+ * These log loudly and KEEP RUNNING. That is the right trade for a clinical
+ * system mid-shift: a dropped background write is better than dropping every
+ * open form in the hospital. A crash that genuinely corrupts state will still
+ * surface through the error handler and the logs.
+ *
+ * They are registered here, after startServer() is defined and before it runs,
+ * so they also cover failures during startup.
+ */
+process.on('unhandledRejection', (reason) => {
+  console.error('UNHANDLED REJECTION - the process stayed up, but something was not awaited:');
+  console.error(reason instanceof Error ? reason.stack || reason.message : reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('UNCAUGHT EXCEPTION - the process stayed up, but this needs fixing:');
+  console.error(err && err.stack ? err.stack : err);
+});
 
 // Start the server
 startServer();

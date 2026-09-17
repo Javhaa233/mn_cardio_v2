@@ -819,7 +819,10 @@ async function NotifyMembersInBell(Members, Payload) {
         });
       }
     } catch (ex) {
-      console.log('NotifyMembersInBell error for ' + M.UserType + ':' + M.UserId + ' -', ex.message);
+      console.log(
+        'NotifyMembersInBell error for ' + M.UserType + ':' + M.UserId + ' -',
+        ex.message
+      );
     }
   }
 }

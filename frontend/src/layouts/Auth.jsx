@@ -8,6 +8,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 // core components
 import AuthNavbar from "components/Navbars/AuthNavbar.jsx";
 import BaseLoading from "customComponents/BaseLoading.jsx";
+import ErrorBoundary from "components/ErrorBoundary";
 // routes
 // authRoutes.js already holds EVERY route this layout can render - the filter
 // below keeps only `prop.layout === "/auth"`, and all of those live here.
@@ -87,13 +88,24 @@ export default function Auth() {
       <AuthNavbar />
       <AuthWrapper>
         <FullPage>
-          <Suspense fallback={<BaseLoading />}>
-            <Routes>
-              {getRoutes(routes)}
-              <Route path="/" element={<Navigate to="/auth/login" replace />} />
-              <Route path="*" element={<Navigate to="/auth/login" replace />} />
-            </Routes>
-          </Suspense>
+          {/* No error boundary existed on the sign-in screens: a render throw
+            here blanked the login page, which is the worst place in the app to
+            lose with no message. See the same note in layouts/Patient.jsx. */}
+          <ErrorBoundary showHomeButton={false}>
+            <Suspense fallback={<BaseLoading />}>
+              <Routes>
+                {getRoutes(routes)}
+                <Route
+                  path="/"
+                  element={<Navigate to="/auth/login" replace />}
+                />
+                <Route
+                  path="*"
+                  element={<Navigate to="/auth/login" replace />}
+                />
+              </Routes>
+            </Suspense>
+          </ErrorBoundary>
         </FullPage>
       </AuthWrapper>
     </div>

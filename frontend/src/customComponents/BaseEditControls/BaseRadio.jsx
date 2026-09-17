@@ -125,8 +125,7 @@ export default function BaseRadio(props) {
                         width: "0px",
                         height: "0px",
                         padding: "7px",
-                        border:
-                          `1px solid ${FIELD.unchecked}`,
+                        border: `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -196,8 +195,7 @@ export default function BaseRadio(props) {
                         width: "0px",
                         height: "0px",
                         padding: "7px",
-                        border:
-                          `1px solid ${FIELD.unchecked}`,
+                        border: `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />
@@ -276,7 +274,10 @@ export default function BaseRadio(props) {
     return (
       <GridContainer
         sx={(theme) =>
-          fieldRowSx(theme, { borderColor: FIELD.rowBorder, fixedHeight: false })
+          fieldRowSx(theme, {
+            borderColor: FIELD.rowBorder,
+            fixedHeight: false,
+          })
         }
       >
         <GridItem

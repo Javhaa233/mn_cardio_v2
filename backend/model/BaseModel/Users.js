@@ -94,10 +94,7 @@ Users.SetFunctions = (Models) => {
     const Email = Data.Email ? String(Data.Email).trim() : '';
     if (Email) {
       const emailCount = await Users.count({
-        where: Sequelize.where(
-          Sequelize.fn('LOWER', Sequelize.col('Email')),
-          Email.toLowerCase()
-        ),
+        where: Sequelize.where(Sequelize.fn('LOWER', Sequelize.col('Email')), Email.toLowerCase()),
       });
       if (emailCount > 0) throw { Success: false, Message: 'The email address is a duplicate' };
     }
@@ -124,13 +121,19 @@ Users.SetFunctions = (Models) => {
     //   }
     // }
 
-    await Users.create(Data);
+    // The id comes from the INSERT, not from a follow-up query.
+    //
+    // This used to be `SELECT TOP 1 <pk> FROM [Users] ORDER BY <pk> DESC` run
+    // immediately after the create. Two concurrent creates both read the HIGHER
+    // id, so the loser returned the winner's row. Reproduced against the
+    // database: two creates in one transaction returned 5 and 6, while the old
+    // query returned 6 for both.
+    //
+    // create() already carries the generated key - the PK is declared
+    // autoIncrement and Sequelize reads it back through OUTPUT INSERTED.
+    const Created = await Users.create(Data);
 
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' + ReturnIdField + ' FROM [Users] ORDER BY ' + ReturnIdField + ' DESC '
-    );
-
-    return ReturnData[0][ReturnIdField];
+    return Created[ReturnIdField];
   };
 
   Users.updateNew = async function (Data, DataId, PK) {

@@ -160,9 +160,10 @@ function ShapeListRow(type, row) {
     type,
     id: row[T.PK],
     date: row[T.Date] || null,
-    title: type === 'cathlab' && row.cath_lab_operation_procedure
-      ? String(row.cath_lab_operation_procedure).trim()
-      : T.TitleMn,
+    title:
+      type === 'cathlab' && row.cath_lab_operation_procedure
+        ? String(row.cath_lab_operation_procedure).trim()
+        : T.TitleMn,
     summary: summary ? (summary.length > 200 ? summary.slice(0, 199) + '…' : summary) : null,
     organization: T.Org ? row[T.Org] || null : null,
     PatientId: row.PatientId,

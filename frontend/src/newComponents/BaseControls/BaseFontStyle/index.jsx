@@ -1,7 +1,6 @@
 // DevExtreme stub components (package not installed)
 const Button = () => <div>Button not available</div>;
 
-import { useTranslation } from "react-i18next";
 import React, { useState, useEffect } from "react";
 // TODO: DevExtreme not installed
 // // TODO: DevExtreme not installed
@@ -27,7 +26,6 @@ export default ({ ...props }) => {
   }, [loading, value]);
 
   const clickStyle = (style) => {
-    const { t } = useTranslation();
     if (style) {
       const isHave = Array.isArray(valueArray) && valueArray.includes(style);
       if (!isHave) {

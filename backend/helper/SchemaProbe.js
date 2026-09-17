@@ -25,6 +25,7 @@
  */
 
 const sequelize = require('../config/DbConnection');
+const Logger = require('./Logger');
 
 let Columns = null; // Set of 'table.column', both lowercased
 let Tables = null; // Set of 'table', lowercased
@@ -60,7 +61,7 @@ async function Warm() {
   } catch (ex) {
     // console.error, not console.log: server.js silences console.log in
     // production and a dark feature set is exactly what you want to see there.
-    console.error('[SchemaProbe] could not read INFORMATION_SCHEMA: ' + ex.message);
+    Logger.warn('[SchemaProbe] could not read INFORMATION_SCHEMA: ' + ex.message);
     Columns = null;
     Tables = null;
     Failed = true;
@@ -93,23 +94,61 @@ function IsReady() {
  * creates. Extend this as scripts are added, not as tables are.
  */
 const PENDING = [
-  { Feature: 'rehabilitation (2.7)', Table: 'RehabExercise', Script: 'add_rehabilitation_tables.sql' },
-  { Feature: 'e-visit booking (2.6)', Table: 'RemoteVisit', Column: 'Status', Script: 'add_remotevisit_booking_columns.sql' },
-  { Feature: 'patient notifications', Table: 'Notification', Column: 'ToPatientId', Script: 'add_notification_patient_recipient.sql' },
+  {
+    Feature: 'rehabilitation (2.7)',
+    Table: 'RehabExercise',
+    Script: 'add_rehabilitation_tables.sql',
+  },
+  {
+    Feature: 'e-visit booking (2.6)',
+    Table: 'RemoteVisit',
+    Column: 'Status',
+    Script: 'add_remotevisit_booking_columns.sql',
+  },
+  {
+    Feature: 'patient notifications',
+    Table: 'Notification',
+    Column: 'ToPatientId',
+    Script: 'add_notification_patient_recipient.sql',
+  },
   { Feature: 'push devices', Table: 'PushDevice', Script: 'add_push_device_tokens.sql' },
   { Feature: 'reminders', Table: 'PatientReminder', Script: 'add_patient_reminders.sql' },
-  { Feature: 'login lockout persistence', Table: 'LoginAttempt', Script: 'add_login_attempt_tracking.sql' },
-  { Feature: 'access audit forensics', Table: 'UserActionHistory', Column: 'IpAddress', Script: 'add_access_audit.sql' },
+  {
+    Feature: 'login lockout persistence',
+    Table: 'LoginAttempt',
+    Script: 'add_login_attempt_tracking.sql',
+  },
+  {
+    Feature: 'access audit forensics',
+    Table: 'UserActionHistory',
+    Column: 'IpAddress',
+    Script: 'add_access_audit.sql',
+  },
   { Feature: 'token revocation', Table: 'UserSession', Script: 'add_token_revocation.sql' },
-  { Feature: 'doctor licence', Table: 'DoctorsProfile', Column: 'LicenseCode', Script: 'add_doctor_licence_code.sql' },
+  {
+    Feature: 'doctor licence',
+    Table: 'DoctorsProfile',
+    Column: 'LicenseCode',
+    Script: 'add_doctor_licence_code.sql',
+  },
   { Feature: 'consent capture', Table: 'PatientConsent', Script: 'add_consent_tables.sql' },
-  { Feature: 'confidentiality', Table: 'Patient', Column: 'ConfidentialityLevel', Script: 'add_confidentiality_flag.sql' },
-  { Feature: 'chat media duration (47)', Table: 'File', Column: 'duration_ms', Script: 'add_file_media_columns.sql' },
+  {
+    Feature: 'confidentiality',
+    Table: 'Patient',
+    Column: 'ConfidentialityLevel',
+    Script: 'add_confidentiality_flag.sql',
+  },
+  {
+    Feature: 'chat media duration (47)',
+    Table: 'File',
+    Column: 'duration_ms',
+    Script: 'add_file_media_columns.sql',
+  },
 ];
 
 function LogPending() {
   if (!IsReady()) {
-    console.error('[SchemaProbe] not ready - every optional feature will read as dark');
+    Logger.warn('[SchemaProbe] not ready - every optional feature will read as dark');
     return;
   }
 
@@ -118,11 +157,15 @@ function LogPending() {
   );
 
   if (!Dark.length) {
-    console.error('[SchemaProbe] all pending-DDL features have their schema');
+    Logger.info('[SchemaProbe] all pending-DDL features have their schema');
     return;
   }
 
-  console.error(
+  // warn, not error: a feature whose DDL has not been applied on this box is an
+  // expected state (PRODUCTION-CHECKLIST.md lists which scripts are pending
+  // where), not a failure. Logging it as ERROR made every healthy boot look
+  // broken in api-error.log.
+  Logger.warn(
     '[SchemaProbe] dark, schema not present: ' +
       Dark.map((p) => p.Feature + ' (' + p.Script + ')').join(', ')
   );

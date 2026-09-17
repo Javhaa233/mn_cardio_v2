@@ -46,7 +46,9 @@ const disabled = (res) =>
  * be putting a claim in the record that nobody made.
  */
 function genderOf(code) {
-  const v = String(code === null || code === undefined ? '' : code).trim().toLowerCase();
+  const v = String(code === null || code === undefined ? '' : code)
+    .trim()
+    .toLowerCase();
   if (['1', 'm', 'male', 'эр'].includes(v)) return 'male';
   if (['2', 'f', 'female', 'эм'].includes(v)) return 'female';
   return undefined;
@@ -208,7 +210,14 @@ exports.searchCondition = async (req, res) => {
         PatientId: id,
         [Op.or]: [NonEmpty('icd10'), NonEmpty('main_diagnosis')],
       },
-      attributes: ['id_data', 'PatientId', 'visit_date', 'icd10', 'main_diagnosis', 'main_diagnosis_mn'],
+      attributes: [
+        'id_data',
+        'PatientId',
+        'visit_date',
+        'icd10',
+        'main_diagnosis',
+        'main_diagnosis_mn',
+      ],
       order: [['visit_date', 'DESC']],
       limit: count,
       raw: true,
@@ -276,7 +285,6 @@ exports.metadata = async (req, res) => {
 /* ======================================================================
  * Encounter and Observation — mobile tender §1.4.
  * ====================================================================== */
-
 
 /**
  * A Visit as a FHIR R4 Encounter.
@@ -446,7 +454,15 @@ exports.searchObservation = async (req, res) => {
     const VITALS = ['blood_pressure', 'blood_pressure2', 'pulse', 'weight', 'inr'];
     const pm = await Models.PatientMonitoring.findAll({
       where: { patient_id: id },
-      attributes: ['id_data', 'date', 'blood_pressure', 'blood_pressure2', 'pulse', 'weight', 'inr'],
+      attributes: [
+        'id_data',
+        'date',
+        'blood_pressure',
+        'blood_pressure2',
+        'pulse',
+        'weight',
+        'inr',
+      ],
       order: [['date', 'DESC']],
       limit: count,
       raw: true,

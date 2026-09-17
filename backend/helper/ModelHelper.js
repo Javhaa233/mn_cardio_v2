@@ -139,7 +139,10 @@ ModelHelper.prototype.GetFindOption = async function (Option) {
       const AndParts = Object.keys(where).length > 0 ? [where].concat(VirtualWhere) : VirtualWhere;
       FindOption['where'] = { ...FindOption['where'], [Op.and]: AndParts };
       // DEBUG: Log final where clause
-      console.log('[ModelHelper] Final WHERE clause:', JSON.stringify(FindOption['where'], null, 2));
+      console.log(
+        '[ModelHelper] Final WHERE clause:',
+        JSON.stringify(FindOption['where'], null, 2)
+      );
     }
   }
 
@@ -527,11 +530,11 @@ ModelHelper.prototype.GetInfoData = async function (Data, ModelConfig) {
         if (Field.Config) {
           const [Temp] = await sequelize.query(
             'SELECT * FROM ' +
-            Field.Config.ObjectName +
-            ' WHERE ' +
-            Field.Config.IdField +
-            '=' +
-            Data[Field.Name]
+              Field.Config.ObjectName +
+              ' WHERE ' +
+              Field.Config.IdField +
+              '=' +
+              Data[Field.Name]
           );
           if (Temp.length === 1) {
             Data[Field.Name + 'Obj'] = { ...Temp[0], Password: null };

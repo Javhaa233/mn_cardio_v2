@@ -27,3 +27,6 @@ id_rsa*
 # Generated output
 reportPDF/*
 logs/
+
+# macOS finder junk - five of these were tracked.
+.DS_Store

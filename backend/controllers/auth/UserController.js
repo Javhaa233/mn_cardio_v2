@@ -290,8 +290,7 @@ async function Login(req, res) {
   // was not exactly that string - a test host, a machine with NODE_ENV unset,
   // a container someone forgot to configure - issued a token for whoever you
   // named, with no password. Opting out is now explicit and defaults to off.
-  const UseInsecureDevLogin =
-    process.env.NODE_ENV !== 'production' && Flags.AllowInsecureDevAuth;
+  const UseInsecureDevLogin = process.env.NODE_ENV !== 'production' && Flags.AllowInsecureDevAuth;
 
   try {
     if (!UseInsecureDevLogin) {
@@ -492,14 +491,28 @@ async function Login(req, res) {
       // the "who is actually affected" answer from real logins.
       if (Licence.Reason && Licence.Reason !== 'exempt' && Licence.Reason !== 'CHECK_FAILED') {
         userData.LicenseWarning = LicenceGate.WarningFor(Licence);
-        BaseControllerHelper.CreateUserActionHistory({
-          LinkObjectName: 'DoctorsProfile',
-          LinkObjectId: userData.Id,
-          Action: 'LoginNoLicense',
-          LogedUser: userData,
-          Notes: 'Login without a practice licence code',
-          NotesMn: 'Зөвшөөрлийн кодгүй нэвтэрлээ',
-        });
+        // Awaited, and caught. CreateUserActionHistory has no try/catch of its
+        // own - it awaits GetConfigData and SaveRoot, both of which throw on any
+        // DB error - and this was the one call site in the repo that neither
+        // awaited it nor attached a .catch(). With no unhandledRejection handler
+        // registered, a DB hiccup here terminated the process, on the staff
+        // login path.
+        //
+        // The catch is deliberate: this row is a record of a licence warning,
+        // and failing to write it must not stop a doctor with a correct password
+        // from logging in.
+        try {
+          await BaseControllerHelper.CreateUserActionHistory({
+            LinkObjectName: 'DoctorsProfile',
+            LinkObjectId: userData.Id,
+            Action: 'LoginNoLicense',
+            LogedUser: userData,
+            Notes: 'Login without a practice licence code',
+            NotesMn: 'Зөвшөөрлийн кодгүй нэвтэрлээ',
+          });
+        } catch (ex) {
+          console.error('Failed to record LoginNoLicense audit row:', ex);
+        }
       }
 
       // The password was right and the account is usable: end the episode, so

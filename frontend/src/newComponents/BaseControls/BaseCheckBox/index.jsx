@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import React from "react";
 import { Checkbox, FormControlLabel } from "@mui/material";
 
@@ -8,7 +7,6 @@ export default ({ config, ...props }) => {
   const { value, changeValue, validatorRef } = useInput(props);
 
   const handleChange = (event) => {
-    const { t } = useTranslation();
     changeValue(event.target.checked);
   };
 

@@ -17,7 +17,11 @@ const addOrgFilter = async (req) => {
   if (!OrganizationId) return;
 
   // Show user's own organization and its child organizations
-  const orgFilter = [['Id', '=', OrganizationId], 'or', ['ParentOrganizationId', '=', OrganizationId]];
+  const orgFilter = [
+    ['Id', '=', OrganizationId],
+    'or',
+    ['ParentOrganizationId', '=', OrganizationId],
+  ];
 
   if (req.filter) {
     req.filter = [req.filter, 'and', orgFilter];

@@ -18,7 +18,9 @@ async function CustomSave(req, res) {
     const LogedUser = req.LogedUser;
     const Doctor = LogedUser.Doctor;
     if (!Doctor) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй'))
+      );
     }
 
     const FromOrganization = await Models.Organization.findOne({

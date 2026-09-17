@@ -53,9 +53,9 @@ async function CheckPatient(req, res) {
       // herev uilchluulegchiin burtgel baigaa bol shuud hyanaltiin idevhgui burtgel uusgene
       if (PatientData) {
         const [CVDMonitoringData, data] = await sequelize.query(
-        'SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo AND Status <> \'inactive\' ORDER BY m.Id DESC',
-        { replacements: { PatRegNo } }
-      );
+          "SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo AND Status <> 'inactive' ORDER BY m.Id DESC",
+          { replacements: { PatRegNo } }
+        );
         if (CVDMonitoringData.length > 0) {
           Id = CVDMonitoringData[0].Id;
           if (Id) {
@@ -145,7 +145,9 @@ async function CheckLastData({ LogedUser, ObjectName, PatRegNo, AppId }) {
       if (!ModelConfig) return null;
 
       const [LastData, data] = await sequelize.query(
-        'SELECT TOP 1 * FROM [' + ModelConfig.ObjectName + '] WHERE PatRegNo = :PatRegNo' +
+        'SELECT TOP 1 * FROM [' +
+          ModelConfig.ObjectName +
+          '] WHERE PatRegNo = :PatRegNo' +
           ' ORDER BY Id DESC',
         { replacements: { PatRegNo } }
       );

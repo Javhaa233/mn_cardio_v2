@@ -1,11 +1,8 @@
-const puppeteer = require('puppeteer');
-const fs = require('fs');
 const express = require('express');
 const router = express.Router();
-const os = require('os');
-const path = require('path');
 
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
+const PrintHelper = require('../../helper/PrintHelper');
 
 const { Models, sequelize } = require('../../config/DB');
 
@@ -45,47 +42,26 @@ async function PrintReport(req, res) {
     const Id = req.body.Id;
     const LogedUser = req.LogedUser;
     if (LogedUser && Id) {
-      const options = {
-        format: 'a4',
-        header: { height: '8mm' },
-        footer: { height: '8mm' },
-
-        width: '216mm', // allowed units: mm, cm, in, px
-        height: '279mm', // allowed units: mm, cm, in, px
-
-        // File options
-        type: 'pdf', // allowed file types: png, jpeg, pdf
-        quality: '100', // only used for types png & jpeg
-      };
-
       const Data = await GetReportData(Id, LogedUser);
       const html = CardiacRhythm(Data);
-      const reportDir = process.env.REPORT_DIR;
-      if (!fs.existsSync(reportDir)) {
-        fs.mkdirSync(reportDir, { recursive: true });
-      }
-      const filePath = path.join(reportDir, 'CardiacRhythm.pdf');
-      const browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+
+      // Was: a fixed path, REPORT_DIR + 'CardiacRhythm.pdf', for EVERY request.
+      // Two clinicians printing at the same time overwrote each other's file
+      // between page.pdf() and res.download(), so one of them downloaded the
+      // other patient's report. It also launched a whole Chromium per request
+      // instead of using the pool, and closed it in `finally` while
+      // res.download was still streaming.
+      //
+      // PrintHelper.SendPdf is the house version of all of this: BrowserPool,
+      // a unique filename, the page closed in a finally, and the file streamed
+      // then deleted.
+      return await PrintHelper.SendPdf({
+        res,
+        html,
+        namePrefix: 'CardiacRhythm',
+        downloadName: 'CardiacRhythm.pdf',
+        margin: { top: '8mm', bottom: '8mm' },
       });
-      try {
-        const page = await browser.newPage();
-        await page.setContent(html, { waitUntil: 'networkidle0' });
-        await page.pdf({
-          path: filePath,
-          format: 'A4',
-          printBackground: true,
-          margin: {
-            top: options.header.height,
-            bottom: options.footer.height,
-          },
-        });
-        res.set('Content-Type', 'application/pdf');
-        return res.download(filePath);
-      } finally {
-        await browser.close();
-      }
     } else {
       return res.send(
         JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
@@ -104,7 +80,7 @@ async function GetLastData(req, res) {
     const { PatientId, PatientRegNo, AppId } = req.body;
     if (LogedUser && PatientId && PatientRegNo) {
       const [LastData, data] = await sequelize.query(
-        'SELECT TOP 1 Id FROM CardiacRhythm WHERE PatRegNo=:PatientRegNo AND (is_confirm=\'no\' OR is_confirm IS NULL) ORDER BY Id DESC',
+        "SELECT TOP 1 Id FROM CardiacRhythm WHERE PatRegNo=:PatientRegNo AND (is_confirm='no' OR is_confirm IS NULL) ORDER BY Id DESC",
         { replacements: { PatientRegNo } }
       );
       if (LastData.length === 1) {

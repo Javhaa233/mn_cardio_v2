@@ -5,6 +5,7 @@ import Box from "@mui/material/Box";
 import { useTheme } from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import BaseLoading from "customComponents/BaseLoading.jsx";
+import ErrorBoundary from "components/ErrorBoundary";
 
 // core components
 
@@ -47,19 +48,24 @@ export default function PatientAuth() {
   return (
     <Box sx={styles.wrapper}>
       <Box sx={styles.fullPage}>
-        <Suspense fallback={<BaseLoading />}>
-          <Routes>
-            {getRoutes(routes)}
-            <Route
-              path="/"
-              element={<Navigate to="/patientAuth/login" replace />}
-            />
-            <Route
-              path="*"
-              element={<Navigate to="/patientAuth/login" replace />}
-            />
-          </Routes>
-        </Suspense>
+        {/* No error boundary existed on the sign-in screens: a render throw
+            here blanked the login page, which is the worst place in the app to
+            lose with no message. See the same note in layouts/Patient.jsx. */}
+        <ErrorBoundary showHomeButton={false}>
+          <Suspense fallback={<BaseLoading />}>
+            <Routes>
+              {getRoutes(routes)}
+              <Route
+                path="/"
+                element={<Navigate to="/patientAuth/login" replace />}
+              />
+              <Route
+                path="*"
+                element={<Navigate to="/patientAuth/login" replace />}
+              />
+            </Routes>
+          </Suspense>
+        </ErrorBoundary>
       </Box>
     </Box>
   );

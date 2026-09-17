@@ -57,8 +57,7 @@ export default function CustomRadio(props) {
                         width: "0px",
                         height: "0px",
                         padding: "7px",
-                        border:
-                          `1px solid ${FIELD.unchecked}`,
+                        border: `1px solid ${FIELD.unchecked}`,
                         borderRadius: "50%",
                       }}
                     />

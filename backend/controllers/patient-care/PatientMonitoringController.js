@@ -73,7 +73,6 @@ async function GetList(req, res) {
   }
 }
 
-
 /**
  * The three things a doctor actually scans this list for.
  *
@@ -118,17 +117,19 @@ async function AttachRosterColumns(Rows, PatientIds) {
      * reply - the case that matters most - would drop out entirely.
      */
     const [Thread] = await sequelize.query(
-      "SELECT v.patient_id AS PatientId, MAX(v.date_creation) AS LastContact, " +
+      'SELECT v.patient_id AS PatientId, MAX(v.date_creation) AS LastContact, ' +
         "  SUM(CASE WHEN ISNULL(CAST(v.is_doctor AS nvarchar(5)), '0') <> '1' " +
         "            AND v.date_creation > ISNULL(d.LastDoctor, '1900-01-01') " +
-        "           THEN 1 ELSE 0 END) AS AwaitingReply " +
-        "FROM [VisitComments] v " +
-        "LEFT JOIN (SELECT patient_id, MAX(date_creation) AS LastDoctor FROM [VisitComments] " +
+        '           THEN 1 ELSE 0 END) AS AwaitingReply ' +
+        'FROM [VisitComments] v ' +
+        'LEFT JOIN (SELECT patient_id, MAX(date_creation) AS LastDoctor FROM [VisitComments] ' +
         "            WHERE ISNULL(CAST(is_doctor AS nvarchar(5)), '0') = '1' " +
-        "              AND ISNULL(rec_status, 0) <> 2 GROUP BY patient_id) d " +
-        "       ON d.patient_id = v.patient_id " +
-        "WHERE v.patient_id IN (" + InList + ") AND ISNULL(v.rec_status, 0) <> 2 " +
-        "GROUP BY v.patient_id"
+        '              AND ISNULL(rec_status, 0) <> 2 GROUP BY patient_id) d ' +
+        '       ON d.patient_id = v.patient_id ' +
+        'WHERE v.patient_id IN (' +
+        InList +
+        ') AND ISNULL(v.rec_status, 0) <> 2 ' +
+        'GROUP BY v.patient_id'
     );
     ThreadBy = new Map((Thread || []).map((r) => [r.PatientId, r]));
   } catch (ex) {
@@ -157,17 +158,19 @@ async function AttachRosterColumns(Rows, PatientIds) {
      * been delivered to anyone yet, so it must not count as waiting.
      */
     const [Chat] = await sequelize.query(
-      "SELECT m.UserId AS PatientId, MAX(m.CreateDate) AS LastContact, " +
+      'SELECT m.UserId AS PatientId, MAX(m.CreateDate) AS LastContact, ' +
         "  SUM(CASE WHEN m.CreateDate > ISNULL(s.LastStaff, '1900-01-01') THEN 1 ELSE 0 END) " +
-        "    AS AwaitingReply " +
-        "FROM [ChatMessages] m " +
+        '    AS AwaitingReply ' +
+        'FROM [ChatMessages] m ' +
         "JOIN [ChatRooms] r ON r.Id = m.ChatRoomId AND r.RoomType = 'DP' " +
-        "LEFT JOIN (SELECT m2.ChatRoomId, MAX(m2.CreateDate) AS LastStaff FROM [ChatMessages] m2 " +
+        'LEFT JOIN (SELECT m2.ChatRoomId, MAX(m2.CreateDate) AS LastStaff FROM [ChatMessages] m2 ' +
         "            WHERE m2.UserType = 'S' AND ISNULL(m2.IsDelete, '0') <> '1' " +
-        "            GROUP BY m2.ChatRoomId) s ON s.ChatRoomId = m.ChatRoomId " +
-        "WHERE m.UserType = 'P' AND m.UserId IN (" + InList + ") " +
+        '            GROUP BY m2.ChatRoomId) s ON s.ChatRoomId = m.ChatRoomId ' +
+        "WHERE m.UserType = 'P' AND m.UserId IN (" +
+        InList +
+        ') ' +
         "  AND ISNULL(m.IsDelete, '0') <> '1' AND ISNULL(m.Status, 'S') <> 'P' " +
-        "GROUP BY m.UserId"
+        'GROUP BY m.UserId'
     );
     ChatBy = new Map((Chat || []).map((r) => [r.PatientId, r]));
   } catch (ex) {
@@ -180,13 +183,15 @@ async function AttachRosterColumns(Rows, PatientIds) {
     // correlated MAX so one pass over the window gives the whole row, not just
     // its date - the same shape AdviceController uses for preview comments.
     const [Reading] = await sequelize.query(
-      "SELECT PatientId, blood_pressure, blood_pressure2, pulse, weight, ReadingDate FROM (" +
-        "  SELECT patient_id AS PatientId, blood_pressure, blood_pressure2, pulse, weight, " +
-        "         ISNULL([date], date_creation) AS ReadingDate, " +
-        "         ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY id_data DESC) AS rn " +
-        "    FROM [PatientMonitoring] " +
-        "   WHERE patient_id IN (" + InList + ") AND ISNULL(rec_status, 0) <> 2" +
-        ") x WHERE x.rn = 1"
+      'SELECT PatientId, blood_pressure, blood_pressure2, pulse, weight, ReadingDate FROM (' +
+        '  SELECT patient_id AS PatientId, blood_pressure, blood_pressure2, pulse, weight, ' +
+        '         ISNULL([date], date_creation) AS ReadingDate, ' +
+        '         ROW_NUMBER() OVER (PARTITION BY patient_id ORDER BY id_data DESC) AS rn ' +
+        '    FROM [PatientMonitoring] ' +
+        '   WHERE patient_id IN (' +
+        InList +
+        ') AND ISNULL(rec_status, 0) <> 2' +
+        ') x WHERE x.rn = 1'
     );
     ReadingBy = new Map((Reading || []).map((r) => [r.PatientId, r]));
   } catch (ex) {
@@ -262,7 +267,6 @@ async function CheckPatientMonitoring(req, res) {
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
   }
 }
-
 
 /**
  * Whose monitoring list a write may touch.

@@ -91,7 +91,15 @@ const readDateRange = (req, field) => {
  * team is normal, not an error: an unassigned request is exactly what the
  * doctor triage queue's ?scope=unassigned exists to show.
  */
-const NotifyCareTeam = async ({ PatientId, Action, LinkObjectName, LinkObjectId, NotesMn, Notes, LogedUser }) => {
+const NotifyCareTeam = async ({
+  PatientId,
+  Action,
+  LinkObjectName,
+  LinkObjectId,
+  NotesMn,
+  Notes,
+  LogedUser,
+}) => {
   try {
     const UserIds = await CareTeam.GetCareTeamUserIds(PatientId);
     if (!UserIds.length) return 0;
@@ -415,7 +423,14 @@ exports.listAdvice = async (req, res) => {
 
     const { rows, count } = await Models.Advice.findAndCountAll({
       where: { adv_id_patient: req.Patient.PatientId },
-      attributes: ['id_data', 'Body', 'ticket_type', 'adv_ticket_closed', 'date_creation', 'date_modif'],
+      attributes: [
+        'id_data',
+        'Body',
+        'ticket_type',
+        'adv_ticket_closed',
+        'date_creation',
+        'date_modif',
+      ],
       include: [
         {
           model: Models.AdviceComment,
@@ -452,7 +467,10 @@ exports.listAdvice = async (req, res) => {
       }),
       AttachmentIntake.ListFor({
         LinkedObjectName: 'AdviceComment',
-        Ids: plain.reduce((acc, r) => acc.concat((r.AdviceComment || []).map((c) => c.id_data)), []),
+        Ids: plain.reduce(
+          (acc, r) => acc.concat((r.AdviceComment || []).map((c) => c.id_data)),
+          []
+        ),
       }),
     ]);
 
@@ -547,7 +565,11 @@ exports.listEvisits = async (req, res) => {
     });
 
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
-    return ok(res, rows.map((r) => shapeEvisit(r, labels)), { total: count, limit, offset });
+    return ok(
+      res,
+      rows.map((r) => shapeEvisit(r, labels)),
+      { total: count, limit, offset }
+    );
   } catch (ex) {
     return serverError(res, ex, 'listEvisits');
   }
@@ -676,12 +698,7 @@ exports.cancelEvisit = async (req, res) => {
     if (!row) return fail(res, 'NOT_FOUND', 'Хүсэлт олдсонгүй', 404);
 
     if (!RemoteVisitFlow.CanTransition(row.Status, RemoteVisitFlow.STATUS.CANCELLED)) {
-      return fail(
-        res,
-        'INVALID_TRANSITION',
-        'Энэ хүсэлтийг цуцлах боломжгүй байна',
-        409
-      );
+      return fail(res, 'INVALID_TRANSITION', 'Энэ хүсэлтийг цуцлах боломжгүй байна', 409);
     }
 
     const Now = ObjectHelper.getDateYMDHMS();
@@ -803,10 +820,7 @@ exports.exportJournal = async (req, res) => {
       return fail(res, 'INVALID_FORMAT', 'format нь ' + Export.FORMATS.join(', ') + ' байна');
     }
 
-    const where = Object.assign(
-      { patient_id: req.Patient.PatientId },
-      readDateRange(req, 'date')
-    );
+    const where = Object.assign({ patient_id: req.Patient.PatientId }, readDateRange(req, 'date'));
 
     const rows = await Models.PatientMonitoring.findAll({
       where,
@@ -846,7 +860,9 @@ exports.exportJournal = async (req, res) => {
     }).concat([
       'Үйлчлүүлэгч: ' +
         [me && me.p_lastname, me && me.p_firstname].filter(Boolean).join(' ') +
-        ' (' + ((me && me.p_registration) || '') + ')',
+        ' (' +
+        ((me && me.p_registration) || '') +
+        ')',
     ]);
 
     return await Export.Send({
@@ -854,16 +870,7 @@ exports.exportJournal = async (req, res) => {
       format,
       fileName: 'journal_' + ((me && me.p_registration) || req.Patient.PatientId),
       sheetName: 'Тэмдэглэл',
-      headers: [
-        'Огноо',
-        'Цаг',
-        'Даралт дээд',
-        'Даралт доод',
-        'Судас',
-        'Жин',
-        'INR',
-        'Тайлбар',
-      ],
+      headers: ['Огноо', 'Цаг', 'Даралт дээд', 'Даралт доод', 'Судас', 'Жин', 'INR', 'Тайлбар'],
       rows: rows.map((r) => [
         r.date,
         // PatientMonitoring.time is a TIME column, which tedious hands back as a
@@ -1220,7 +1227,10 @@ exports.listNotifications = async (req, res) => {
         'SeenDate',
         'CreateDate',
       ],
-      order: [['CreateDate', 'DESC'], ['Id', 'DESC']],
+      order: [
+        ['CreateDate', 'DESC'],
+        ['Id', 'DESC'],
+      ],
       limit,
       offset,
       raw: true,
@@ -1488,11 +1498,15 @@ exports.listReminders = async (req, res) => {
       DicoLabels.GetLabelMap('patient_reminder_freq'),
     ]);
 
-    return ok(res, rows.map((r) => shapeReminder(r, typeLabels, freqLabels)), {
-      total: count,
-      limit,
-      offset,
-    });
+    return ok(
+      res,
+      rows.map((r) => shapeReminder(r, typeLabels, freqLabels)),
+      {
+        total: count,
+        limit,
+        offset,
+      }
+    );
   } catch (ex) {
     return serverError(res, ex, 'listReminders');
   }
@@ -1515,11 +1529,19 @@ exports.createReminder = async (req, res) => {
     // endpoint behaves the same on a database without it - the fail-soft rule
     // DicoLabels follows everywhere.
     const typeLabels = await DicoLabels.GetLabelMap('patient_reminder_type');
-    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+    if (
+      parsed.Data.ReminderType &&
+      typeLabels.size &&
+      !typeLabels.has(String(parsed.Data.ReminderType))
+    ) {
       return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
     }
     const freqLabels = await DicoLabels.GetLabelMap('patient_reminder_freq');
-    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+    if (
+      parsed.Data.Frequency &&
+      freqLabels.size &&
+      !freqLabels.has(String(parsed.Data.Frequency))
+    ) {
       return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
     }
 
@@ -1566,10 +1588,18 @@ exports.updateReminder = async (req, res) => {
       DicoLabels.GetLabelMap('patient_reminder_type'),
       DicoLabels.GetLabelMap('patient_reminder_freq'),
     ]);
-    if (parsed.Data.ReminderType && typeLabels.size && !typeLabels.has(String(parsed.Data.ReminderType))) {
+    if (
+      parsed.Data.ReminderType &&
+      typeLabels.size &&
+      !typeLabels.has(String(parsed.Data.ReminderType))
+    ) {
       return fail(res, 'INVALID_TYPE', 'Сануулгын төрөл буруу байна');
     }
-    if (parsed.Data.Frequency && freqLabels.size && !freqLabels.has(String(parsed.Data.Frequency))) {
+    if (
+      parsed.Data.Frequency &&
+      freqLabels.size &&
+      !freqLabels.has(String(parsed.Data.Frequency))
+    ) {
       return fail(res, 'INVALID_FREQUENCY', 'Давтамж буруу байна');
     }
 
@@ -1633,12 +1663,7 @@ exports.deleteReminder = async (req, res) => {
 exports.listAccessLog = async (req, res) => {
   try {
     if (!Flags.AccessLogApi) {
-      return fail(
-        res,
-        'FEATURE_DISABLED',
-        'Хандалтын түүх одоогоор идэвхгүй байна',
-        503
-      );
+      return fail(res, 'FEATURE_DISABLED', 'Хандалтын түүх одоогоор идэвхгүй байна', 503);
     }
 
     await SchemaProbe.Warm();
@@ -1714,7 +1739,11 @@ exports.listConsents = async (req, res) => {
       Models.ConsentDocument.findAll({
         where: { IsActive: true },
         attributes: ['Id', 'PurposeCode', 'Version', 'TitleMn', 'EffectiveFrom'],
-        order: [['PurposeCode', 'ASC'], ['EffectiveFrom', 'DESC'], ['Id', 'DESC']],
+        order: [
+          ['PurposeCode', 'ASC'],
+          ['EffectiveFrom', 'DESC'],
+          ['Id', 'DESC'],
+        ],
         raw: true,
       }),
       Consent.CurrentStates(req.Patient.PatRegNo),

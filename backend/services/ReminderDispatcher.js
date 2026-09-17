@@ -31,6 +31,7 @@
  */
 
 const schedule = require('node-schedule');
+const Logger = require('../helper/Logger');
 
 const { Models, Op } = require('../config/DB');
 const SchemaProbe = require('../helper/SchemaProbe');
@@ -107,7 +108,7 @@ function IsDue(r, Local) {
 
 async function Tick() {
   if (IsRunning) {
-    console.error('[ReminderDispatcher] previous tick still running, skipping this minute');
+    Logger.warn('[ReminderDispatcher] previous tick still running, skipping this minute');
     return;
   }
   IsRunning = true;
@@ -224,7 +225,9 @@ async function Tick() {
  */
 function Start() {
   schedule.scheduleJob('0 * * * * *', Tick);
-  console.error('[ReminderDispatcher] started, timezone ' + TIMEZONE);
+  // info, not error: this is a startup confirmation. It used console.error only
+  // to survive the old console.log patch, which is gone.
+  Logger.info('[ReminderDispatcher] started, timezone ' + TIMEZONE);
 }
 
 module.exports = { Start, Tick, LocalNow, IsDue };

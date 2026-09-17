@@ -19,9 +19,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 function RequireAdmin(req, res, next) {
   const LogedUser = req.LogedUser;
   if (!LogedUser || String(LogedUser.RoleId) !== '1') {
-    return res.send(
-      JSON.stringify({ Success: false, Message: 'Хандах эрхгүй байна', Data: null })
-    );
+    return res.send(JSON.stringify({ Success: false, Message: 'Хандах эрхгүй байна', Data: null }));
   }
   return next();
 }

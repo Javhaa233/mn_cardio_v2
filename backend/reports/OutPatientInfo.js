@@ -3,7 +3,14 @@ const ObjectHelper = require('../helper/ObjectHelper');
 // Default logo as base64 (placeholder - can be updated with actual default logo)
 const DEFAULT_LOGO = null;
 
-function OutPatientInfo(Data, PatientData, InPatientInfo, Password, DischargeDate, OrganizationLogo) {
+function OutPatientInfo(
+  Data,
+  PatientData,
+  InPatientInfo,
+  Password,
+  DischargeDate,
+  OrganizationLogo
+) {
   const LifeAdviceList = Data.LifeAdviceSelectObj || [];
   const MonitoringList = Data.MonitoringSelectObj || [];
 

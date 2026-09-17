@@ -60,9 +60,9 @@ Visit.init(
 
     // Form АМ-1Б (А/611, appendix 11) — the register columns this table did
     // not have. See scripts/add_visit_am1b_columns.sql.
-    exam_type_icd: { type: Sequelize.STRING },    // 14 Үзлэгийн төрөл /Z00-Z40/
-    cause_icd10: { type: Sequelize.STRING },      // 16 Өвчний шалтгаан /ӨОУА-10/
-    procedure_icd9: { type: Sequelize.STRING },   // 20 Хийгдсэн ажилбар /ҮОУА-9/
+    exam_type_icd: { type: Sequelize.STRING }, // 14 Үзлэгийн төрөл /Z00-Z40/
+    cause_icd10: { type: Sequelize.STRING }, // 16 Өвчний шалтгаан /ӨОУА-10/
+    procedure_icd9: { type: Sequelize.STRING }, // 20 Хийгдсэн ажилбар /ҮОУА-9/
     has_complication: { type: Sequelize.STRING }, // 21 Хүндрэлтэй эсэх
     incapacity_days: { type: Sequelize.INTEGER }, // 22 Хөдөлмөрийн чадвар алдалт
   },
@@ -276,11 +276,20 @@ Visit.SetFunctions = (Models) => {
   };
 
   Visit.createNew = async function (Data, ReturnIdField) {
-    await Visit.create(Data);
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' + ReturnIdField + ' FROM [Visit] ORDER BY ' + ReturnIdField + ' DESC '
-    );
-    return ReturnData[0][ReturnIdField];
+    // The id comes from the INSERT, not from a follow-up query.
+    //
+    // This used to be `SELECT TOP 1 <pk> FROM [Visit] ORDER BY <pk> DESC` run
+    // immediately after the create. Two concurrent creates both read the HIGHER
+    // id, so the loser returned the winner's row and attached its child rows -
+    // files, lookups, many-to-many links - to the wrong record. Reproduced
+    // against the database: two creates in one transaction returned 5 and 6,
+    // while the old query returned 6 for both.
+    //
+    // create() already carries the generated key: ReturnIdField is declared
+    // autoIncrement, and Sequelize reads it back through OUTPUT INSERTED.
+    const Created = await Visit.create(Data);
+
+    return Created[ReturnIdField];
   };
 };
 module.exports = Visit;

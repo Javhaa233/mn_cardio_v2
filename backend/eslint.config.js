@@ -25,6 +25,22 @@ module.exports = [
         clearInterval: 'readonly',
         setImmediate: 'readonly',
         clearImmediate: 'readonly',
+        // Node globals the list was missing. URLSearchParams is used by
+        // services/push/FcmV1Driver.js and has been global since Node 10, so
+        // the `no-undef` it raised was a gap in this list, not a bug in the
+        // code. The rest are here so the next one does not look like a defect
+        // either - this list is hand-maintained because there is no `globals`
+        // package installed.
+        URL: 'readonly',
+        URLSearchParams: 'readonly',
+        TextEncoder: 'readonly',
+        TextDecoder: 'readonly',
+        AbortController: 'readonly',
+        AbortSignal: 'readonly',
+        fetch: 'readonly',
+        structuredClone: 'readonly',
+        queueMicrotask: 'readonly',
+        globalThis: 'readonly',
       },
     },
     plugins: {

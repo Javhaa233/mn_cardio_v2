@@ -35,10 +35,9 @@ async function GetAdviceCommentPoint(req, res) {
     var result = { Success: true, Message: '', Data: [] };
     const LogedUser = req.LogedUser;
     if (LogedUser) {
-      var [Data, data] = await sequelize.query(
-        'EXEC spAdviceCommentPoints @UserId = :UserId;',
-        { replacements: { UserId: LogedUser.Id } }
-      );
+      var [Data, data] = await sequelize.query('EXEC spAdviceCommentPoints @UserId = :UserId;', {
+        replacements: { UserId: LogedUser.Id },
+      });
       result.Data = Data;
       console.log('GetAdviceCommentPoint SUCCESS response:', JSON.stringify(result));
       return res.send(JSON.stringify(result));
@@ -1082,18 +1081,7 @@ async function GetFeedPreviewComments(AdviceIds, Take) {
  * The extension list mirrors frontend mediaUtils.js IMAGE_EXTENSIONS - the two
  * ends must agree on what a photo is or the grid and the chip row disagree.
  */
-const IMAGE_ROW_EXT = [
-  'jpg',
-  'jpeg',
-  'png',
-  'gif',
-  'bmp',
-  'webp',
-  'svg',
-  'ico',
-  'tiff',
-  'tif',
-];
+const IMAGE_ROW_EXT = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico', 'tiff', 'tif'];
 const IsImageRow = (F) => IMAGE_ROW_EXT.includes(String((F && F.ext) || '').toLowerCase());
 const CapPhotos = (Files, PhotoLimit) =>
   Files.filter(IsImageRow)

@@ -65,7 +65,12 @@ function ReadChrony() {
       // Stratum 0 or 16, or a reference of 00000000, means chrony is running but
       // has not locked onto anything. Running is not the same as synchronised.
       const locked =
-        leap && /Normal/i.test(leap[1]) && st !== null && st > 0 && st < 16 && !/^00000000/.test(source || '');
+        leap &&
+        /Normal/i.test(leap[1]) &&
+        st !== null &&
+        st > 0 &&
+        st < 16 &&
+        !/^00000000/.test(source || '');
 
       resolve({
         synced: !!locked,

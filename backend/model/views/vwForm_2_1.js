@@ -48,6 +48,46 @@ vwForm_2_1.init(
   { sequelize, tableName: 'vwForm_2_1', modelName: 'vwForm_2_1', timestamps: false }
 );
 
-vwForm_2_1.SearchField = ['Id', 'FormCode', 'PatRegNo', 'PatientId', 'FormDate', 'DoctorId', 'OrganizationId', 'Status', 'rec_status', 'CreateDate', 'CreateUserId', 'UpdateDate', 'Ognoo', 'Tsag', 'UvchniiOnosh', 'AjilbarTurul', 'EfshOnosh', 'AblatsiArga', 'ChiglvvlegchArteri', 'ChiglvvlegchVen1', 'ChiglvvlegchVen2', 'cSNRT', 'CL', 'AH', 'HV', 'His', 'QRS', 'AVNERP', 'EfshTemdeglel', 'PviArga', 'TuyaaniiTun', 'AjilbarHugatsaa', 'GeparinHiisen', 'GeparinTun', 'DaraaZhash', 'Temdeglel', 'MesZaslynEmch', 'Inzhener', 'Suvilagch'];
+vwForm_2_1.SearchField = [
+  'Id',
+  'FormCode',
+  'PatRegNo',
+  'PatientId',
+  'FormDate',
+  'DoctorId',
+  'OrganizationId',
+  'Status',
+  'rec_status',
+  'CreateDate',
+  'CreateUserId',
+  'UpdateDate',
+  'Ognoo',
+  'Tsag',
+  'UvchniiOnosh',
+  'AjilbarTurul',
+  'EfshOnosh',
+  'AblatsiArga',
+  'ChiglvvlegchArteri',
+  'ChiglvvlegchVen1',
+  'ChiglvvlegchVen2',
+  'cSNRT',
+  'CL',
+  'AH',
+  'HV',
+  'His',
+  'QRS',
+  'AVNERP',
+  'EfshTemdeglel',
+  'PviArga',
+  'TuyaaniiTun',
+  'AjilbarHugatsaa',
+  'GeparinHiisen',
+  'GeparinTun',
+  'DaraaZhash',
+  'Temdeglel',
+  'MesZaslynEmch',
+  'Inzhener',
+  'Suvilagch',
+];
 
 module.exports = vwForm_2_1;

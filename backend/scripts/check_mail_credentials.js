@@ -70,7 +70,9 @@ socket.on('data', (chunk) => {
   if (last.startsWith('535')) {
     failed = true;
     console.error('\nAUTH FAILED: ' + last);
-    console.error('Generate a 16-character App Password at https://myaccount.google.com/apppasswords');
+    console.error(
+      'Generate a 16-character App Password at https://myaccount.google.com/apppasswords'
+    );
     console.error('and put it in MAIL_USER_PASS in config/Config.env.');
   } else if (last.startsWith('235')) {
     console.log('\nAUTH OK — credentials are valid.');
@@ -87,7 +89,9 @@ socket.on('error', (e) => {
   failed = true;
   console.error('Connection error:', e.message);
   if (/certificate/i.test(e.message)) {
-    console.error('Your network appears to intercept TLS. Re-run with --insecure to test auth anyway.');
+    console.error(
+      'Your network appears to intercept TLS. Re-run with --insecure to test auth anyway.'
+    );
   }
 });
 

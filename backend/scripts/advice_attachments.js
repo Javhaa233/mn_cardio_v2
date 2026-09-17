@@ -55,14 +55,16 @@ async function main() {
   const findAt = args.indexOf('--find');
 
   console.log('ALLFILE_DIR: ' + AllFileDir);
-  console.log('database:    ' + process.env.SQL_DB + ' @ ' + (process.env.SQL_SERVER || 'localhost'));
+  console.log(
+    'database:    ' + process.env.SQL_DB + ' @ ' + (process.env.SQL_SERVER || 'localhost')
+  );
   console.log('');
 
   if (findAt > -1) {
     const term = (args[findAt + 1] || '').replace(/'/g, "''");
     const rows = await query(
-      "SELECT id_data, generated_name, ext, rec_status, LinkedObjectName, LinkedObjectId, size," +
-        " CONVERT(varchar(19), date_creation, 120) AS created" +
+      'SELECT id_data, generated_name, ext, rec_status, LinkedObjectName, LinkedObjectId, size,' +
+        ' CONVERT(varchar(19), date_creation, 120) AS created' +
         " FROM [File] WHERE original_name LIKE N'" +
         term +
         "%' ORDER BY id_data"
@@ -86,7 +88,7 @@ async function main() {
   }
 
   const byObject = await query(
-    "SELECT LinkedObjectName, COUNT(*) AS Rows_, SUM(CAST(size AS BIGINT)) AS Bytes" +
+    'SELECT LinkedObjectName, COUNT(*) AS Rows_, SUM(CAST(size AS BIGINT)) AS Bytes' +
       " FROM [File] WHERE rec_status <> '2' AND LinkedObjectName IN " +
       ADVICE_OBJECTS +
       ' GROUP BY LinkedObjectName'
@@ -123,7 +125,9 @@ async function main() {
   console.log('');
   console.log('distinct generated_name : ' + unique.size);
   console.log('present in ALLFILE_DIR  : ' + present);
-  console.log('missing from ALLFILE_DIR: ' + missing.length + ' (' + mb(missingBytes) + ' to copy)');
+  console.log(
+    'missing from ALLFILE_DIR: ' + missing.length + ' (' + mb(missingBytes) + ' to copy)'
+  );
   console.log('rows with empty ext     : ' + noExt + ' (these 404 even when the bytes exist)');
 
   if (listAt > -1) {

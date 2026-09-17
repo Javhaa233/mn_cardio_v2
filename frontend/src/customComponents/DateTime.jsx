@@ -112,7 +112,9 @@ export default function DateTime(props) {
               borderBottomColor: "#D2D2D2 !important",
               borderBottomWidth: "1px !important",
             },
-            "& .MuiInput-underline:after": { borderBottomColor: colors.brand.cyan },
+            "& .MuiInput-underline:after": {
+              borderBottomColor: colors.brand.cyan,
+            },
             "& .MuiInputBase-root": {
               minHeight: "32px !important",
               height: "32px !important",

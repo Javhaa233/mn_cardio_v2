@@ -1,4 +1,3 @@
-import { useTranslation } from "react-i18next";
 import React, { useEffect } from "react";
 import { useBaseForm } from "newComponents/BaseForm";
 import { getValue } from "utils/helper";
@@ -44,7 +43,6 @@ export default ({ saved, ...props }) => {
   });
 
   const hide = () => {
-    const { t } = useTranslation();
     dispatch(setVisible({ formName, visible: false }));
     dispatch(setEditDataAndModify({ formName, data: {} }));
   };

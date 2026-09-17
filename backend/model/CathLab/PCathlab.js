@@ -94,11 +94,20 @@ PCathlab.SetFunctions = (Models) => {
     if (cleanData.hasOwnProperty('CreateUserId')) {
       delete cleanData.CreateUserId;
     }
-    await PCathlab.create(cleanData);
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' + ReturnIdField + ' FROM [PCathlab] ORDER BY ' + ReturnIdField + ' DESC '
-    );
-    return ReturnData[0][ReturnIdField];
+    // The id comes from the INSERT, not from a follow-up query.
+    //
+    // This used to be `SELECT TOP 1 <pk> FROM [PCathlab] ORDER BY <pk> DESC` run
+    // immediately after the create. Two concurrent creates both read the HIGHER
+    // id, so the loser returned the winner's row and attached its child rows -
+    // files, lookups, many-to-many links - to the wrong record. Reproduced
+    // against the database: two creates in one transaction returned 5 and 6,
+    // while the old query returned 6 for both.
+    //
+    // create() already carries the generated key: ReturnIdField is declared
+    // autoIncrement, and Sequelize reads it back through OUTPUT INSERTED.
+    const Created = await PCathlab.create(cleanData);
+
+    return Created[ReturnIdField];
   };
 
   PCathlab.updateNew = async function (Data, Id, PK) {

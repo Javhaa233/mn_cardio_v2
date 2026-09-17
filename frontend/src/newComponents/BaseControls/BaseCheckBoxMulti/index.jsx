@@ -2,7 +2,6 @@
 const CheckBox = ({ children, ...props }) => <div>CheckBox not available</div>;
 const Validator = ({ children }) => null;
 
-import { useTranslation } from "react-i18next";
 import React from "react";
 // TODO: DevExtreme not installed
 // // TODO: DevExtreme not installed
@@ -17,7 +16,6 @@ export default ({ config, ...props }) => {
   const { value, changeValue, dataSource, validatorRef } = useSelect(props);
 
   const changeValueLocal = (val, check) => {
-    const { t } = useTranslation();
     let newValue = value ? Object.assign() : [];
     if (check) {
       if (!newValue.includes(val)) newValue.push(val);

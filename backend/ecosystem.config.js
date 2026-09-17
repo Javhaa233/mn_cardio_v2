@@ -25,6 +25,20 @@
 module.exports = {
   apps: [
     {
+      /*
+       * PRODUCTION ALREADY RUNS A PM2 APP UNDER A DIFFERENT NAME.
+       *
+       * smr.telemedicine.mn was started by hand, before this file existed, as
+       * `mn-cardio-backend` (PRODUCTION-CHECKLIST.md). PM2 keys apps by name, so
+       * `pm2 start ecosystem.config.js` there does NOT adopt that process - it
+       * starts a SECOND one, and the two fight over port 5001.
+       *
+       * The name is left as `mncardio-api` because that is what the customer's
+       * own handover document uses throughout (docs/handover/admin-guide.md, 11
+       * places). Reconciling them is a deployment decision, not a code change:
+       * either `pm2 delete mn-cardio-backend` before the first start from this
+       * file, or rename here and in the admin guide together.
+       */
       name: 'mncardio-api',
       script: 'server.js',
       cwd: __dirname,

@@ -152,17 +152,17 @@ DoctorsProfile.SetAssocations = (Models) => {
 
 DoctorsProfile.SetFunctions = (Models) => {
   DoctorsProfile.createNew = async function (Data, ReturnIdField) {
-    await DoctorsProfile.create(Data);
+    // The id comes from the INSERT, not from a follow-up query. Two concurrent
+    // creates both read the HIGHER id from `SELECT TOP 1 ... ORDER BY ... DESC`,
+    // so the loser returned the winner's row. Reproduced against the database:
+    // two creates in one transaction returned 5 and 6, the old query 6 for both.
+    //
+    // The old query also selected `id AS UserId`, but its only consumer is the
+    // block commented out below, so nothing reads it. The created instance
+    // carries `id` too if that is ever revived.
+    const Created = await DoctorsProfile.create(Data);
 
-    const [ReturnData] = await sequelize.query(
-      'SELECT TOP 1  ' +
-        ReturnIdField +
-        ',id AS UserId FROM [DoctorsProfile] ORDER BY ' +
-        ReturnIdField +
-        ' DESC '
-    );
-
-    const DoctorId = ReturnData[0][ReturnIdField];
+    const DoctorId = Created[ReturnIdField];
     // const UserId = ReturnData[0]["UserId"];
     // if (DoctorId && UserId) {
     //   const User = await Models.Users.createNew({

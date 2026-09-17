@@ -561,10 +561,7 @@ exports.addMonitoring = async (req, res) => {
     let Id;
     if (existing) {
       Id = existing.id_data;
-      await Models.PatientMonitoringDoctor.update(
-        { is_active: '1' },
-        { where: { id_data: Id } }
-      );
+      await Models.PatientMonitoringDoctor.update({ is_active: '1' }, { where: { id_data: Id } });
     } else {
       Id = await BaseControllerHelper.BaseCreate({
         ObjectName: 'PatientMonitoringDoctor',
@@ -667,10 +664,7 @@ exports.getMonitoringJournal = async (req, res) => {
       Action: 'ViewJournal',
     });
 
-    const where = Object.assign(
-      { patient_id: PatientId },
-      readDateRange(req, 'date')
-    );
+    const where = Object.assign({ patient_id: PatientId }, readDateRange(req, 'date'));
 
     const rows = await Models.PatientMonitoring.findAll({
       where,
@@ -817,7 +811,8 @@ exports.replyPatientQuestion = async (req, res) => {
       Data: { user_id: D.UserId, patient_id: PatientId, comment, is_doctor: 1 },
       LogedUser: req.LogedUser,
     });
-    if (!Id) return serverError(res, new Error('BaseCreate returned no id'), 'replyPatientQuestion');
+    if (!Id)
+      return serverError(res, new Error('BaseCreate returned no id'), 'replyPatientQuestion');
 
     // After the create, because a File row needs a LinkedObjectId that does not
     // exist until now. A rejection here costs an attachment, never the reply.
@@ -1019,10 +1014,7 @@ exports.reportSummary = async (req, res) => {
       }),
       Models.Visit.findAll({
         where: Object.assign({ id: D.UserId }, window),
-        attributes: [
-          'main_diagnosis_mn',
-          [Models.Visit.sequelize.literal('COUNT(*)'), 'Total'],
-        ],
+        attributes: ['main_diagnosis_mn', [Models.Visit.sequelize.literal('COUNT(*)'), 'Total']],
         group: ['main_diagnosis_mn'],
         order: [[Models.Visit.sequelize.literal('COUNT(*)'), 'DESC']],
         limit: 10,
@@ -1142,7 +1134,11 @@ exports.createPatientConsent = async (req, res) => {
       return fail(res, 'GUARDIAN_NAME_REQUIRED', 'Асран хамгаалагчийн нэрийг заана уу');
     }
     if (!guardianRegNo || !String(guardianRegNo).trim()) {
-      return fail(res, 'GUARDIAN_REGNO_REQUIRED', 'Асран хамгаалагчийн регистрийн дугаарыг заана уу');
+      return fail(
+        res,
+        'GUARDIAN_REGNO_REQUIRED',
+        'Асран хамгаалагчийн регистрийн дугаарыг заана уу'
+      );
     }
     if (!guardianRelation || !String(guardianRelation).trim()) {
       return fail(res, 'GUARDIAN_RELATION_REQUIRED', 'Төрөл садангийн холбоог заана уу');
@@ -1235,7 +1231,10 @@ exports.exportVisits = async (req, res) => {
       return fail(
         res,
         'EXPORT_TOO_LARGE',
-        'Экспортын мөрийн тоо хэтэрсэн: ' + count + '. Дээд хязгаар ' + EXPORT_MAX_ROWS +
+        'Экспортын мөрийн тоо хэтэрсэн: ' +
+          count +
+          '. Дээд хязгаар ' +
+          EXPORT_MAX_ROWS +
           '. Огнооны шүүлтүүр нэмнэ үү.',
         400
       );
@@ -1396,7 +1395,11 @@ exports.printVisit = async (req, res) => {
       'th{width:38mm;background:#eaf2f8;font-weight:600}' +
       '</style></head><body>' +
       '<p class="t">Үзлэгийн тэмдэглэл</p>' +
-      '<p class="s">Дугаар: ' + E(v.id_data) + ' · Огноо: ' + E(v.visit_date || '') + '</p>' +
+      '<p class="s">Дугаар: ' +
+      E(v.id_data) +
+      ' · Огноо: ' +
+      E(v.visit_date || '') +
+      '</p>' +
       '<table>' +
       Row('Овог, нэр', [P.p_lastname, P.p_firstname].filter(Boolean).join(' ')) +
       Row('Регистр', P.p_registration || v.PatRegNo) +
@@ -1932,12 +1935,16 @@ exports.listDoctorEvisits = async (req, res) => {
     });
 
     const labels = await DicoLabels.GetLabelMap('remotevisit_status');
-    return ok(res, rows.map((r) => shapeDoctorEvisit(r, labels)), {
-      total: count,
-      limit,
-      offset,
-      scope,
-    });
+    return ok(
+      res,
+      rows.map((r) => shapeDoctorEvisit(r, labels)),
+      {
+        total: count,
+        limit,
+        offset,
+        scope,
+      }
+    );
   } catch (ex) {
     return serverError(res, ex, 'listDoctorEvisits');
   }
@@ -2378,7 +2385,10 @@ exports.getPatientRehab = async (req, res) => {
     const [assessment, progress, vitals] = await Promise.all([
       Models.RehabAssessment.findOne({
         where: { PatRegNo },
-        order: [['AssessmentDate', 'DESC'], ['Id', 'DESC']],
+        order: [
+          ['AssessmentDate', 'DESC'],
+          ['Id', 'DESC'],
+        ],
         raw: true,
       }),
       Models.RehabProgress.findAll({
@@ -2443,7 +2453,10 @@ exports.listPatientAssessments = async (req, res) => {
     const { limit, offset } = readPaging(req);
     const { rows, count } = await Models.RehabAssessment.findAndCountAll({
       where: { PatRegNo },
-      order: [['AssessmentDate', 'DESC'], ['Id', 'DESC']],
+      order: [
+        ['AssessmentDate', 'DESC'],
+        ['Id', 'DESC'],
+      ],
       limit,
       offset,
       raw: true,
@@ -2823,7 +2836,9 @@ exports.emdDrugs = async (req, res) => {
       return fail(res, 'EMD_UNAVAILABLE', 'ЭМД-ын үйлчилгээнд холбогдож чадсангүй', 502);
     }
 
-    const search = String(req.query.search || '').trim().toLowerCase();
+    const search = String(req.query.search || '')
+      .trim()
+      .toLowerCase();
     if (search) {
       drugs = drugs.filter((t) =>
         [t.tabletName, t.internationalName, t.tabletCode]
@@ -2862,9 +2877,15 @@ exports.emdServices = async (req, res) => {
       return fail(res, 'EMD_UNAVAILABLE', 'ЭМД-ын үйлчилгээнд холбогдож чадсангүй', 502);
     }
 
-    let rows = Array.isArray(list) ? list : list && list.listTabletModel ? list.listTabletModel : [];
+    let rows = Array.isArray(list)
+      ? list
+      : list && list.listTabletModel
+        ? list.listTabletModel
+        : [];
 
-    const search = String(req.query.search || '').trim().toLowerCase();
+    const search = String(req.query.search || '')
+      .trim()
+      .toLowerCase();
     if (search) {
       rows = rows.filter((t) =>
         Object.values(t || {})

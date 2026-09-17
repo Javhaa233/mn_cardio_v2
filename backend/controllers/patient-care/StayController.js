@@ -19,7 +19,9 @@ async function GetDepartments(req, res) {
     const LogedUser = req.LogedUser;
 
     if (!LogedUser) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
+      );
     }
 
     const RoleId = parseInt(LogedUser.RoleId);
@@ -58,7 +60,9 @@ async function CustomSave(req, res) {
 
     const Doctor = LogedUser.Doctor;
     if (!Doctor) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй'))
+      );
     }
     const OrderHospitalizationObj =
       await Models.OrderHospitalization.findByPk(OrderHospitalizationId);
@@ -133,7 +137,9 @@ async function LeavePatient(req, res) {
     const LogedUser = req.LogedUser;
     const Doctor = LogedUser.Doctor;
     if (!Doctor) {
-      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй')));
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Эмчийн мэдээлэл олдсонгүй'))
+      );
     }
 
     if (!Data) {

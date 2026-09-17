@@ -23,10 +23,13 @@ const LogUpstream = (Where, ex) => {
   const Status = ex && ex.response ? ex.response.status : null;
   const Code = ex && ex.code ? ex.code : null;
   console.log(
-    '[EMDService/' + Where + '] upstream failed' +
+    '[EMDService/' +
+      Where +
+      '] upstream failed' +
       (Status ? ' status=' + Status : '') +
       (Code ? ' code=' + Code : '') +
-      ' msg=' + ((ex && ex.message) || 'unknown')
+      ' msg=' +
+      ((ex && ex.message) || 'unknown')
   );
 };
 

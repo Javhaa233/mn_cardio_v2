@@ -113,9 +113,18 @@ const customFormStyles = {
     },
     "& > thead > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
     "& > tbody > tr": { border: `1px solid ${colors.brand.hairlineStrong}` },
-    "& > tbody > tr > td": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
-    "& > tbody > tr > th": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
-    "& > thead > tr > th": { padding: "2px 4px", border: `1px solid ${colors.brand.hairlineStrong}` },
+    "& > tbody > tr > td": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& > tbody > tr > th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
+    "& > thead > tr > th": {
+      padding: "2px 4px",
+      border: `1px solid ${colors.brand.hairlineStrong}`,
+    },
   },
 };
 

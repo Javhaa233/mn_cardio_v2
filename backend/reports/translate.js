@@ -2109,8 +2109,10 @@ const words = {
   Unsuccessfully: 'Амжилтгүй',
   'The user name is a duplicate': 'Хэрэглэгчийн нэр давхардаж байна',
   'The email address is a duplicate': 'И-мэйл хаяг давхардаж байна',
-  'The email address is already registered': 'Энэ и-мэйл хаягаар хэрэглэгч аль хэдийн бүртгэгдсэн байна',
-  'A registration request with this email already exists': 'Энэ и-мэйл хаягаар бүртгүүлэх хүсэлт аль хэдийн бүртгэгдсэн байна',
+  'The email address is already registered':
+    'Энэ и-мэйл хаягаар хэрэглэгч аль хэдийн бүртгэгдсэн байна',
+  'A registration request with this email already exists':
+    'Энэ и-мэйл хаягаар бүртгүүлэх хүсэлт аль хэдийн бүртгэгдсэн байна',
   'The email address is invalid': 'И-мэйл хаяг буруу байна',
   'Successfully created a user login': 'Хэрэглэгчийн нэвтрэх эрх үүсгэлээ',
   'An error occurred while sending email': 'Е-мэйл илгээхэд алдаа гарлаа',

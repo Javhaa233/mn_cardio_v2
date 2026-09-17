@@ -30,7 +30,10 @@ export default function ShowPatient(props) {
           e.currentTarget.style.textDecoration = "none";
         }}
       >
-        <VisibilityIcon fontSize="small" style={{ color: colors.brand.cyanInk }} />
+        <VisibilityIcon
+          fontSize="small"
+          style={{ color: colors.brand.cyanInk }}
+        />
         {rowdata.Patient ? rowdata.Patient.p_registration : null}
       </a>
     );

@@ -125,7 +125,10 @@ async function Send({ res, format, fileName, headers, rows, provenance, sheetNam
   const delimiter = fmt === 'csv' ? ',' : '\t';
   const body = Delimited({ headers, rows, provenance, delimiter });
 
-  res.setHeader('Content-Type', fmt === 'csv' ? 'text/csv; charset=utf-8' : 'text/plain; charset=utf-8');
+  res.setHeader(
+    'Content-Type',
+    fmt === 'csv' ? 'text/csv; charset=utf-8' : 'text/plain; charset=utf-8'
+  );
   res.setHeader('Content-Disposition', 'attachment; filename="' + base + '.' + fmt + '"');
   return res.end(body);
 }

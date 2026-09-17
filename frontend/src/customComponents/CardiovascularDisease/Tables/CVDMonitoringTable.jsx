@@ -148,9 +148,7 @@ class CVDMonitoringTable extends BaseList {
     return (
       <div style={this.props.style}>
         {!WithoutCard ? (
-          <UniCard
-            title={t(Title || "CVD Monitoring")}
-          >
+          <UniCard title={t(Title || "CVD Monitoring")}>
             <div style={{ position: "relative" }}>
               {DialogData}
               {isLoading ? <DivLoading /> : null}

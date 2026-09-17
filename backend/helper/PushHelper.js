@@ -266,7 +266,15 @@ class PushHelper {
     if (!(await this.Available())) return [];
     const rows = await Models.PushDevice.findAll({
       where: { UserType: String(UserType), UserId, IsActive: true },
-      attributes: ['Id', 'Platform', 'DeviceId', 'AppVersion', 'Locale', 'LastSeenDate', 'CreateDate'],
+      attributes: [
+        'Id',
+        'Platform',
+        'DeviceId',
+        'AppVersion',
+        'Locale',
+        'LastSeenDate',
+        'CreateDate',
+      ],
       order: [['LastSeenDate', 'DESC']],
       raw: true,
     });

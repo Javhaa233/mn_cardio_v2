@@ -234,8 +234,12 @@ async function PrintReport(req, res) {
       ? path.join(reportDir, fileName)
       : path.resolve(process.cwd(), reportDir, fileName);
 
+    // `page` is hoisted so the finally below can always close it. It used to be
+    // declared inside the try and never closed on ANY path, including the catch
+    // that re-throws - one leaked Chromium tab per print, until the pool ran out.
+    let page = null;
     try {
-      const page = await newPage();
+      page = await newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
       await page.pdf({
         path: filePath,
@@ -277,6 +281,14 @@ async function PrintReport(req, res) {
     } catch (puppeteerError) {
       console.error('Puppeteer error:', puppeteerError);
       throw puppeteerError;
+    } finally {
+      if (page) {
+        try {
+          await page.close();
+        } catch (ex) {
+          console.error('Failed to close Puppeteer page:', ex);
+        }
+      }
     }
   } catch (ex) {
     console.error('PrintReport error:', ex);
@@ -481,8 +493,12 @@ async function PrintByStayId(req, res) {
       ? path.join(reportDir, fileName)
       : path.resolve(process.cwd(), reportDir, fileName);
 
+    // `page` is hoisted so the finally below can always close it. It used to be
+    // declared inside the try and never closed on ANY path, including the catch
+    // that re-throws - one leaked Chromium tab per print, until the pool ran out.
+    let page = null;
     try {
-      const page = await newPage();
+      page = await newPage();
       await page.setContent(html, { waitUntil: 'networkidle0' });
       await page.pdf({
         path: filePath,
@@ -524,6 +540,14 @@ async function PrintByStayId(req, res) {
     } catch (puppeteerError) {
       console.error('Puppeteer error:', puppeteerError);
       throw puppeteerError;
+    } finally {
+      if (page) {
+        try {
+          await page.close();
+        } catch (ex) {
+          console.error('Failed to close Puppeteer page:', ex);
+        }
+      }
     }
   } catch (ex) {
     console.error('PrintByStayId error:', ex);

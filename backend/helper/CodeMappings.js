@@ -35,7 +35,17 @@ async function All() {
   const map = new Map();
   try {
     const rows = await Models.CodeMapping.findAll({
-      attributes: ['LocalObject', 'LocalCode', 'System', 'Code', 'Display', 'Unit', 'RefLow', 'RefHigh', 'Verified'],
+      attributes: [
+        'LocalObject',
+        'LocalCode',
+        'System',
+        'Code',
+        'Display',
+        'Unit',
+        'RefLow',
+        'RefHigh',
+        'Verified',
+      ],
       raw: true,
     });
     rows.forEach((r) => {

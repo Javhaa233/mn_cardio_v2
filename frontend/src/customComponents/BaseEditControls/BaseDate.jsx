@@ -114,7 +114,9 @@ export default function BaseDate(props) {
   }
 
   return (
-    <GridContainer sx={(theme) => fieldRowSx(theme, { borderColor: FIELD.rowBorder })}>
+    <GridContainer
+      sx={(theme) => fieldRowSx(theme, { borderColor: FIELD.rowBorder })}
+    >
       <GridItem
         {...labelSize(effectiveMd)}
         sx={(theme) => ({

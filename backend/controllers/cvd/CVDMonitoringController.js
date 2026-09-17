@@ -439,13 +439,17 @@ async function CheckPatient(req, res) {
         };
 
         const [CVDMonitoringData, data] = await sequelize.query(
-        'SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo ORDER BY m.Id DESC',
-        { replacements: { PatRegNo } }
-      );
+          'SELECT TOP 1 m.Id, m.IsActive, m.Status FROM CVDMonitoring m INNER JOIN Patient p ON m.PatRegNo=p.p_registration WHERE m.PatRegNo=:PatRegNo AND p.p_registration=:PatRegNo ORDER BY m.Id DESC',
+          { replacements: { PatRegNo } }
+        );
         console.log(
           '[CVDMonitoring/CheckPatient] CVDMonitoringRows=%o',
           CVDMonitoringData && CVDMonitoringData.length > 0
-            ? { Id: CVDMonitoringData[0].Id, IsActive: CVDMonitoringData[0].IsActive, Status: CVDMonitoringData[0].Status }
+            ? {
+                Id: CVDMonitoringData[0].Id,
+                IsActive: CVDMonitoringData[0].IsActive,
+                Status: CVDMonitoringData[0].Status,
+              }
             : null
         );
 
@@ -1187,7 +1191,7 @@ async function CreatePatient(req, res) {
     return res.send(JSON.stringify(result));
   } catch (ex) {
     console.error('[CVDMonitoring/CreatePatient] error:', ex);
-    const message = ex && (ex.Message || ex.message) ? (ex.Message || ex.message) : null;
+    const message = ex && (ex.Message || ex.message) ? ex.Message || ex.message : null;
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(message)));
   }
 }

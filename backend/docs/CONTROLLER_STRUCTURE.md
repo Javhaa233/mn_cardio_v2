@@ -4,19 +4,30 @@ The Express controllers are now grouped by clinical or operational domain inside
 
 | Folder                      | Focus                                                  | Controllers                                                                                                                                                                                                                        |
 | --------------------------- | ------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `controllers/system`        | Platform-level schedulers, base CRUD layers, utilities | `AppController`, `BaseController`, `BaseControllerNew`, `BaseCustomController`, `CustomDataApiController`, `ExportExcelOld`, `TestController`                                                                                      |
+| `controllers/system`        | Platform-level schedulers, base CRUD layers, utilities | `AppController`, `BaseController`, `CustomDataApiController`, `MediaController`, `MediaTicketController`, `TestController`                                                                                      |
 | `controllers/auth`          | Identity and access flows for staff and patients       | `UserController`, `UserRequestController`, `PatientUserController`                                                                                                                                                                 |
 | `controllers/organization`  | Staffing, org structure, dashboards, collaboration     | `AdviceController`, `DashboardController`, `DoctorProfileController`, `DoctorsTeamController`, `OrganizationController`                                                                                                            |
-| `controllers/patient-care`  | Core inpatient/outpatient workflows                    | `VisitController`, `StayController`, `FollowUpController`, `OrderHospitalizationController`, `PatientController`, `PatientMonitoringController`, `PatientTransferController`, `PatientSendPageController`, `RemoteVisitController`, `TenderFormController` |
+| `controllers/patient-care`  | Core inpatient/outpatient workflows                    | `VisitController`, `StayController`, `FollowUpController`, `OrderHospitalizationController`, `OutPatientInfoController`, `PatientController`, `PatientMonitoringController`, `PatientTransferController`, `PatientSendPageController`, `RemoteVisitController`, `TenderFormController` |
 | `controllers/heart-failure` | Heart failure care-path specific logic                 | `HfAmbulanceController`, `HfHospitalizationController`, `HfStayController`                                                                                                                                                         |
 | `controllers/cvd`           | Cardiovascular-disease registry + analytics            | `CVDMonitoringController`, `CVDMonitoringPatientController`, `CVDAnalysisController`, `CVDDrugController`, `CVDHunAmController`, `CVDReportController`, `RiskScoresController`                                                     |
 | `controllers/devices`       | Device & implant management                            | `PacemakerOneController`, `PacemakerTwoController`, `PacemakerThreeController`, `PaceMakerRhythmController`, `ICDRhythmController`                                                                                                 |
 | `controllers/rhythm`        | Rhythm diagnostics independent of device type          | `AtrialRhythmController`, `AtrialRhythmNewController`, `CardiacRhythmController`, `MonitoringRhythmController`                                                                                                                     |
-| `controllers/diagnostics`   | Imaging / procedure booking                            | `CathLabController`, `EchoController`, `SurgeryPlansController`                                                                                                                                                                    |
+| `controllers/diagnostics`   | Imaging / procedure booking                            | `CathLabController`, `EchoController`, `LaboratoryTestController`, `SurgeryPlansController`                                                                                                                                                                    |
 | `controllers/vascular`      | Structural / vascular disease programs                 | `VascularDiseaseController`, `ValveDiseasesController`, `ValveDiseasesEndoController`, `CongenitalMalformationsController`                                                                                                         |
 | `controllers/reporting`     | Generalized reporting endpoints                        | `ReportController`                                                                                                                                                                                                                 |
 | `controllers/communication` | Real-time collaboration                                | `ChatController`, `NotificationController`                                                                                                                                                                                         |
 | `controllers/integrations`  | External agency & government integrations              | `EMDServiceController`, `XypServiceController`                                                                                                                                                                                     |
+
+> **Kept current on 2026-09-16.** This table had drifted: it listed
+> `BaseControllerNew`, `BaseCustomController` and `ExportExcelOld`, all three of
+> which were unmounted and have since been deleted, and it omitted
+> `MediaController`, `MediaTicketController`, `OutPatientInfoController` and
+> `LaboratoryTestController`. The two Media ones matter most - they are the
+> delivery path for chat voice notes and the rehabilitation videos.
+>
+> `backend/docs/API-WEB.md` is generated (`node scripts/generate_api_reference.js`)
+> and will not drift the same way. This file is hand-maintained, so step 4 below
+> is the only thing keeping it honest.
 
 ## How to add a new controller
 

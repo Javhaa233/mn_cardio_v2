@@ -33,13 +33,13 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 
 | Бүлэг | Тайлбар | Угтвар | Endpoint |
 |---|---|---|---|
-| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 5 | 26 |
-| — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 13 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 49 | 258 |
+| public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 4 | 30 |
+| — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 50 | 259 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
-| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 102 |
+| api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 108 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **388** |
+| **Нийт** |  |  | **399** |
 
 api-layer задаргаа: `/api/patient` 39 · `/api/doctor` 42 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
@@ -70,24 +70,24 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 |---|---|---|---|---|
 | `POST` | `/api/Test/CheckRegisterRegex` | public | `TestController.js:46` |  |
 | `POST` | `/api/Test/RegexTest` | public | `TestController.js:47` |  |
-| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:38` |  |
-| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:39` |  |
-| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:40` |  |
-| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:41` |  |
-| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:42` |  |
-| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:43` |  |
-| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:44` |  |
-| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:45` |  |
-| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:46` |  |
-| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:47` |  |
-| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:48` |  |
-| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:49` |  |
-| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:50` | The same export as tab-separated text. |
+| `POST` | `/api/BaseObject/getData` | token + patient allowed | `BaseController.js:49` |  |
+| `POST` | `/api/BaseObject/` | token + patient allowed | `BaseController.js:50` |  |
+| `POST` | `/api/BaseObject/getListInfo` | token + patient allowed | `BaseController.js:51` |  |
+| `POST` | `/api/BaseObject/getDetail` | token + patient allowed | `BaseController.js:52` |  |
+| `POST` | `/api/BaseObject/getDetailInfo` | token + patient allowed | `BaseController.js:53` |  |
+| `POST` | `/api/BaseObject/create` | token + patient allowed | `BaseController.js:54` |  |
+| `POST` | `/api/BaseObject/update` | token + patient allowed | `BaseController.js:55` |  |
+| `POST` | `/api/BaseObject/destroy` | token + patient allowed | `BaseController.js:56` |  |
+| `POST` | `/api/BaseObject/uploadFile` | token + patient allowed | `BaseController.js:57` |  |
+| `POST` | `/api/BaseObject/downloadFile` | token + patient allowed | `BaseController.js:58` |  |
+| `POST` | `/api/BaseObject/deleteFile` | token + patient allowed | `BaseController.js:59` |  |
+| `POST` | `/api/BaseObject/ExportExcel` | token + patient allowed | `BaseController.js:60` |  |
+| `POST` | `/api/BaseObject/ExportText` | token + patient allowed | `BaseController.js:61` | The same export as tab-separated text. |
 | `POST` | `/api/CustomDataApi/GetJournalRefData` | token | `CustomDataApiController.js:9` |  |
 
 ### 4.2. Нэвтрэлт, хэрэглэгчийн бүртгэл — `controllers/auth/`
 
-Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 23 endpoint.
+Угтвар: `/api/User`, `/api/UserRequest`, `/api/PatientUser` · 28 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -103,10 +103,15 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/User/UpdateMyContact` | token (route-level) | `UserController.js:32` | Writes ONLY the caller's own account - the target is req.LogedUser, never the body. |
 | `POST` | `/api/UserRequest/CheckUserName` | public | `UserRequestController.js:133` |  |
 | `POST` | `/api/UserRequest/GetProvinceData` | public | `UserRequestController.js:134` | Public, so it reads only the three address dictionaries, filtered only on the column the cascade… |
-| `POST` | `/api/UserRequest/GetOrganizations` | public | `UserRequestController.js:135` | Public organization picker for the sign-up form: names only. |
+| `POST` | `/api/UserRequest/GetOrganizations` | public | `UserRequestController.js:135` | Public organization picker for the sign-up form: names, plus the hospital's own address so… |
 | `POST` | `/api/UserRequest/Register` | public | `UserRequestController.js:136` |  |
-| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:137` |  |
-| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:138` |  |
+| `POST` | `/api/UserRequest/Review` | token (route-level) | `UserRequestController.js:137` | What an administrator should know BEFORE approving one request. |
+| `POST` | `/api/UserRequest/Confirm` | token (route-level) | `UserRequestController.js:138` |  |
+| `POST` | `/api/UserRequest/Decline` | token (route-level) | `UserRequestController.js:139` |  |
+| `POST` | `/api/UserRequest/ConfirmMany` | token (route-level) | `UserRequestController.js:140` |  |
+| `POST` | `/api/UserRequest/DeclineMany` | token (route-level) | `UserRequestController.js:141` |  |
+| `POST` | `/api/UserRequest/DeleteMany` | token (route-level) | `UserRequestController.js:142` |  |
+| `POST` | `/api/UserRequest/PendingCount` | token (route-level) | `UserRequestController.js:143` | How many requests are waiting - for the sidebar badge. |
 | `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:17` |  |
 | `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:18` |  |
 | `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:19` |  |
@@ -243,7 +248,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/XypService/testCall` | public | `XypServiceController.js:8` |  |
+| `POST` | `/api/XypService/testCall` | token + `RequireAdmin` | `XypServiceController.js:31` |  |
 | `POST` | `/api/EMDService/getTablet` | token | `EMDServiceController.js:8` | Buh emiin jagsaalt |
 | `POST` | `/api/EMDService/getTabletByDiagnosis` | token | `EMDServiceController.js:9` | Onoshd hamaarah emiin jagsaalt |
 
@@ -286,8 +291,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/RiskScores/CalculateRisk` | token + patient allowed | `RiskScoresController.js:30` |  |
-| `POST` | `/api/RiskScores/CreateFromExcel` | token + patient allowed + `RequireAdmin` | `RiskScoresController.js:31` | RiskScores insert into from Excel |
+| `POST` | `/api/RiskScores/CalculateRisk` | token + patient allowed | `RiskScoresController.js:28` |  |
+| `POST` | `/api/RiskScores/CreateFromExcel` | token + patient allowed + `RequireAdmin` | `RiskScoresController.js:29` | RiskScores insert into from Excel |
 | `POST` | `/api/CVDMonitoring/CheckPatient` | token | `CVDMonitoringController.js:118` |  |
 | `POST` | `/api/CVDMonitoring/CreateMonitoring` | token | `CVDMonitoringController.js:119` |  |
 | `POST` | `/api/CVDMonitoring/GetLastHistoryData` | token | `CVDMonitoringController.js:120` | Get CVDHistory Last data |
@@ -336,9 +341,9 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/CVDReport/SoumReportExportExcel` | token | `CVDReportController.js:21` | Soum Data |
 | `POST` | `/api/CVDReport/MonthNewsExportExcel` | token | `CVDReportController.js:22` | Month news |
 | `POST` | `/api/CVDReport/UnitExportExcel` | token | `CVDReportController.js:23` | Unit data |
-| `POST` | `/api/CVDMonitoringPatient/CheckPatient` | token + patient allowed | `CVDMonitoringPatientController.js:13` |  |
-| `POST` | `/api/CVDMonitoringPatient/GetLastData` | token + patient allowed | `CVDMonitoringPatientController.js:14` |  |
-| `POST` | `/api/CVDMonitoringPatient/CreateAndUpdateMonitoring` | token + patient allowed | `CVDMonitoringPatientController.js:15` |  |
+| `POST` | `/api/CVDMonitoringPatient/CheckPatient` | token + patient allowed | `CVDMonitoringPatientController.js:14` |  |
+| `POST` | `/api/CVDMonitoringPatient/GetLastData` | token + patient allowed | `CVDMonitoringPatientController.js:15` |  |
+| `POST` | `/api/CVDMonitoringPatient/CreateAndUpdateMonitoring` | token + patient allowed | `CVDMonitoringPatientController.js:16` |  |
 
 ### 4.10. Зүрхний төхөөрөмж (пейсмейкер, ICD) — `controllers/devices/`
 
@@ -369,11 +374,11 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/CardiacRhythm/GetLastData` | token | `CardiacRhythmController.js:15` |  |
-| `POST` | `/api/CardiacRhythm/CustomSave` | token | `CardiacRhythmController.js:16` |  |
-| `POST` | `/api/CardiacRhythm/Confirm` | token | `CardiacRhythmController.js:17` |  |
-| `POST` | `/api/CardiacRhythm/PrintReport` | token | `CardiacRhythmController.js:18` |  |
-| `POST` | `/api/CardiacRhythm/GetList` | token | `CardiacRhythmController.js:19` |  |
+| `POST` | `/api/CardiacRhythm/GetLastData` | token | `CardiacRhythmController.js:12` |  |
+| `POST` | `/api/CardiacRhythm/CustomSave` | token | `CardiacRhythmController.js:13` |  |
+| `POST` | `/api/CardiacRhythm/Confirm` | token | `CardiacRhythmController.js:14` |  |
+| `POST` | `/api/CardiacRhythm/PrintReport` | token | `CardiacRhythmController.js:15` |  |
+| `POST` | `/api/CardiacRhythm/GetList` | token | `CardiacRhythmController.js:16` |  |
 | `POST` | `/api/AtrialRhythm/GetLastData` | token | `AtrialRhythmController.js:10` |  |
 | `POST` | `/api/AtrialRhythm/CustomSave` | token | `AtrialRhythmController.js:11` |  |
 | `POST` | `/api/AtrialRhythm/PrintReport` | token | `AtrialRhythmController.js:12` |  |
@@ -522,39 +527,39 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `GET` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:91` | 29 Миний хяналт |
 | `POST` | `/api/doctor/monitoring` | token (staff only) | `api/doctor/index.js:92` | Take a patient into personal monitoring. |
 | `DELETE` | `/api/doctor/monitoring/:patientId` | token (staff only) | `api/doctor/index.js:93` |  |
-| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:94` | A monitored patient's journal, as rows plus the chart series. |
-| `GET` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:95` | The question thread of a patient this doctor monitors. |
-| `POST` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:96` | A doctor's answer. |
-| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:99` | 30 Миний зөвлөгөө |
-| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:100` | One of the doctor's own tickets, with its replies. |
-| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:103` | 31 Миний тайлан |
-| `GET` | `/api/doctor/reports/summary/export` | token (staff only) | `api/doctor/index.js:107` | The same report as xlsx / csv / txt, with the source stamp the tender requires. |
-| `GET` | `/api/doctor/icd10` | token (staff only) | `api/doctor/index.js:111` | Онош, ICD-ээр хайх (§1.3) - autocomplete for the diagnosis box. |
-| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:115` | 32 Read access to the patient side. |
-| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:116` | A patient card: profile, recent examinations, journal series, monitoring state. |
-| `GET` | `/api/doctor/patients/:id/risk` | token (staff only) | `api/doctor/index.js:118` | §2.1 - the doctor's view of the patient's own risk screen, same rows |
-| `GET` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:122` | §1.2 Асран хамгаалагчийн зөвшөөрөл - the patient records their own at /api/patient/consents; a… |
-| `POST` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:123` | Record a consent given by the patient's guardian. |
-| `GET` | `/api/doctor/patients/:id/diagnostics` | token (staff only) | `api/doctor/index.js:128` | §3.1 Шинжилгээ, оношлогоо - lab, echo, cathlab and ECG as one list. |
-| `GET` | `/api/doctor/diagnostics/:type/:id` | token (staff only) | `api/doctor/index.js:129` | One investigation in full. |
-| `GET` | `/api/doctor/evisits` | token (staff only) | `api/doctor/index.js:133` | 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request Queue of requests… |
-| `GET` | `/api/doctor/evisits/:id` | token (staff only) | `api/doctor/index.js:135` | One request with the patient's card and their latest reading |
-| `POST` | `/api/doctor/evisits/:id/schedule` | token (staff only) | `api/doctor/index.js:137` | Confirm or move a slot, and assign it to the calling doctor |
-| `POST` | `/api/doctor/evisits/:id/complete` | token (staff only) | `api/doctor/index.js:139` | Mark the examination done. |
-| `POST` | `/api/doctor/evisits/:id/cancel` | token (staff only) | `api/doctor/index.js:141` | Refuse or withdraw a request |
-| `GET` | `/api/doctor/rehab/exercises` | token (staff only) | `api/doctor/index.js:144` | 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets |
-| `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:146` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
-| `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:148` | The assessment history, newest first |
-| `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:150` | Record an assessment. |
-| `GET` | `/api/doctor/emd/drugs` | token (staff only) | `api/doctor/index.js:155` | §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the request BODY; these… |
-| `GET` | `/api/doctor/emd/services` | token (staff only) | `api/doctor/index.js:156` | The insurance service catalogue. |
-| `GET` | `/api/doctor/notifications` | token (staff only) | `api/doctor/index.js:161` | Мэдэгдэл - the same four the patient app has, addressed by ToUserId. |
-| `GET` | `/api/doctor/notifications/unread-count` | token (staff only) | `api/doctor/index.js:163` | The badge count on its own, so the app is not paging a list to count |
-| `POST` | `/api/doctor/notifications/:id/read` | token (staff only) | `api/doctor/index.js:164` | Ownership lives in the WHERE clause, never in a check beforehand. |
-| `POST` | `/api/doctor/notifications/read-all` | token (staff only) | `api/doctor/index.js:165` |  |
-| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:169` | Push registration, identical in shape to the patient app's. |
-| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:170` | POST, not DELETE /:token - see the patient equivalent for why. |
-| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:171` |  |
+| `GET` | `/api/doctor/monitoring/:patientId/journal` | token (staff only) | `api/doctor/index.js:99` | A monitored patient's journal, as rows plus the chart series. |
+| `GET` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:105` | The question thread of a patient this doctor monitors. |
+| `POST` | `/api/doctor/monitoring/:patientId/questions` | token (staff only) | `api/doctor/index.js:111` | A doctor's answer. |
+| `GET` | `/api/doctor/advice` | token (staff only) | `api/doctor/index.js:119` | 30 Миний зөвлөгөө |
+| `GET` | `/api/doctor/advice/:id` | token (staff only) | `api/doctor/index.js:120` | One of the doctor's own tickets, with its replies. |
+| `GET` | `/api/doctor/reports/summary` | token (staff only) | `api/doctor/index.js:123` | 31 Миний тайлан |
+| `GET` | `/api/doctor/reports/summary/export` | token (staff only) | `api/doctor/index.js:127` | The same report as xlsx / csv / txt, with the source stamp the tender requires. |
+| `GET` | `/api/doctor/icd10` | token (staff only) | `api/doctor/index.js:131` | Онош, ICD-ээр хайх (§1.3) - autocomplete for the diagnosis box. |
+| `GET` | `/api/doctor/patients` | token (staff only) | `api/doctor/index.js:135` | 32 Read access to the patient side. |
+| `GET` | `/api/doctor/patients/:id` | token (staff only) | `api/doctor/index.js:136` | A patient card: profile, recent examinations, journal series, monitoring state. |
+| `GET` | `/api/doctor/patients/:id/risk` | token (staff only) | `api/doctor/index.js:138` | §2.1 - the doctor's view of the patient's own risk screen, same rows |
+| `GET` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:142` | §1.2 Асран хамгаалагчийн зөвшөөрөл - the patient records their own at /api/patient/consents; a… |
+| `POST` | `/api/doctor/patients/:id/consents` | token (staff only) | `api/doctor/index.js:143` | Record a consent given by the patient's guardian. |
+| `GET` | `/api/doctor/patients/:id/diagnostics` | token (staff only) | `api/doctor/index.js:148` | §3.1 Шинжилгээ, оношлогоо - lab, echo, cathlab and ECG as one list. |
+| `GET` | `/api/doctor/diagnostics/:type/:id` | token (staff only) | `api/doctor/index.js:149` | One investigation in full. |
+| `GET` | `/api/doctor/evisits` | token (staff only) | `api/doctor/index.js:153` | 2.6 Цахим үзлэг - the triage side of the patient's remote-examination request Queue of requests… |
+| `GET` | `/api/doctor/evisits/:id` | token (staff only) | `api/doctor/index.js:155` | One request with the patient's card and their latest reading |
+| `POST` | `/api/doctor/evisits/:id/schedule` | token (staff only) | `api/doctor/index.js:157` | Confirm or move a slot, and assign it to the calling doctor |
+| `POST` | `/api/doctor/evisits/:id/complete` | token (staff only) | `api/doctor/index.js:159` | Mark the examination done. |
+| `POST` | `/api/doctor/evisits/:id/cancel` | token (staff only) | `api/doctor/index.js:161` | Refuse or withdraw a request |
+| `GET` | `/api/doctor/rehab/exercises` | token (staff only) | `api/doctor/index.js:164` | 2.7 Сэргээн засах - the exercise catalogue, same shape the patient app gets |
+| `GET` | `/api/doctor/patients/:id/rehab` | token (staff only) | `api/doctor/index.js:166` | Everything rehabilitation knows about one patient: assessment, progress, vitals |
+| `GET` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:168` | The assessment history, newest first |
+| `POST` | `/api/doctor/patients/:id/rehab/assessment` | token (staff only) | `api/doctor/index.js:170` | Record an assessment. |
+| `GET` | `/api/doctor/emd/drugs` | token (staff only) | `api/doctor/index.js:180` | §1.6 ЭМД кодчилол - the legacy /api/EMDService/* takes PatRegNo from the request BODY; these… |
+| `GET` | `/api/doctor/emd/services` | token (staff only) | `api/doctor/index.js:181` | The insurance service catalogue. |
+| `GET` | `/api/doctor/notifications` | token (staff only) | `api/doctor/index.js:186` | Мэдэгдэл - the same four the patient app has, addressed by ToUserId. |
+| `GET` | `/api/doctor/notifications/unread-count` | token (staff only) | `api/doctor/index.js:188` | The badge count on its own, so the app is not paging a list to count |
+| `POST` | `/api/doctor/notifications/:id/read` | token (staff only) | `api/doctor/index.js:189` | Ownership lives in the WHERE clause, never in a check beforehand. |
+| `POST` | `/api/doctor/notifications/read-all` | token (staff only) | `api/doctor/index.js:190` |  |
+| `POST` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:194` | Push registration, identical in shape to the patient app's. |
+| `POST` | `/api/doctor/devices/unregister` | token (staff only) | `api/doctor/index.js:195` | POST, not DELETE /:token - see the patient equivalent for why. |
+| `GET` | `/api/doctor/devices` | token (staff only) | `api/doctor/index.js:196` |  |
 | `POST` | `/api/auth/refresh` | self-authenticating | `api/auth/index.js:16` |  |
 | `GET` | `/api/auth/session` | self-authenticating | `api/auth/index.js:17` |  |
 | `POST` | `/api/auth/logout` | self-authenticating | `api/auth/index.js:21` | End this session. |
@@ -583,8 +588,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:505` |
-| `GET` | `/health` | public | `server.js:509` |
+| `GET` | `/` | public | `server.js:507` |
+| `GET` | `/health` | public | `server.js:511` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
@@ -613,7 +618,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 > Socket.IO-ийн процесс доторх тархалт) тендерт заасан мэдээллийн аюулгүй байдлын аудитад
 > хамаарна (ажлын жагсаалтын №136, №138).
 >
-> Нийтийн бүлгийн бусад угтвар — `/api/User`, `/api/UserRequest`, `/api/PatientUser`, `/api/XypService` — нэвтрэх, бүртгүүлэх, нууц үг сэргээх, ХУР-ын сервер хоорондын дуудлага зэрэг токен
+> Нийтийн бүлгийн бусад угтвар — `/api/User`, `/api/UserRequest`, `/api/PatientUser` — нэвтрэх, бүртгүүлэх, нууц үг сэргээх, ХУР-ын сервер хоорондын дуудлага зэрэг токен
 > авахаас өмнөх урсгалд зориулагдсан;
 > тэдгээрийн зарим маршрут маршрут түвшинд токен шаарддаг (§4-ийн `token (route-level)`).
 
@@ -625,12 +630,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | Файл | Маршрутын зарлалт | Тайлбар |
 |---|---|---|
 | `controllers/system/AppController.js` | 0 | `server.js`-д require хийсэн, router биш (жишээ нь хуваарьт ажил). |
-| `controllers/system/BaseControllerNew.js` | 10 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
-| `controllers/system/BaseCustomController.js` | 0 | Маршрутгүй туслах файл. |
-| `controllers/system/ExportExcelOld.js` | 0 | Маршрутгүй туслах файл. |
-| `controllers/system/MediaController.js` | 2 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
-| `controllers/system/MediaTicketController.js` | 1 | Router зарласан боловч хаана ч холбогдоогүй — хүрэх боломжгүй. |
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-16. Нийт endpoint: 388._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-16. Нийт endpoint: 399._

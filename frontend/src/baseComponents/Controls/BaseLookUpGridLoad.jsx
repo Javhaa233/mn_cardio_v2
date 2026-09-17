@@ -295,7 +295,9 @@ export default function BaseLookUpGridLoad(props) {
                       onChangeValue(null);
                     }}
                   >
-                    <CloseIcon sx={{ color: FIELD.placeholder, fontSize: "12px" }} />
+                    <CloseIcon
+                      sx={{ color: FIELD.placeholder, fontSize: "12px" }}
+                    />
                   </IconButton>
                 )}
                 <IconButton
@@ -305,7 +307,9 @@ export default function BaseLookUpGridLoad(props) {
                   sx={{ padding: "1px", ml: "-2px" }}
                 >
                   {anchorEl ? (
-                    <ArrowDropUpIcon sx={{ color: FIELD.placeholder, fontSize: "16px" }} />
+                    <ArrowDropUpIcon
+                      sx={{ color: FIELD.placeholder, fontSize: "16px" }}
+                    />
                   ) : (
                     <ArrowDropDownIcon
                       sx={{ color: FIELD.placeholder, fontSize: "16px" }}

@@ -41,7 +41,11 @@ const AllowedOrigins = () =>
  * "Not allowed by CORS" on login — which looks like bad credentials rather than
  * a configuration mismatch. Cost an afternoon on mncardio.itsystem.mn.
  */
-const Normalize = (value) => String(value || '').trim().replace(/\/+$/, '').toLowerCase();
+const Normalize = (value) =>
+  String(value || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .toLowerCase();
 
 /**
  * Loopback, on any port.
@@ -57,14 +61,14 @@ const Normalize = (value) => String(value || '').trim().replace(/\/+$/, '').toLo
  * ports. Allowing any localhost port keeps that working without opening the
  * door to the internet.
  */
-const IsLoopback = (origin) => /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(
-  String(origin || '').trim()
-);
+const IsLoopback = (origin) =>
+  /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i.test(String(origin || '').trim());
 
 // The escape hatch, for the rare case that needs a genuinely foreign origin
 // (an external tool, a demo from another host). Defaults OFF, and read lazily
 // for the same reason as IsDevelopment.
-const AllowAnyOrigin = () => String(process.env.CORS_ALLOW_ANY_ORIGIN || '').toLowerCase() === 'true';
+const AllowAnyOrigin = () =>
+  String(process.env.CORS_ALLOW_ANY_ORIGIN || '').toLowerCase() === 'true';
 
 const originCallback = function (origin, callback) {
   // No origin: same-origin, a mobile app, or a tool like Postman.

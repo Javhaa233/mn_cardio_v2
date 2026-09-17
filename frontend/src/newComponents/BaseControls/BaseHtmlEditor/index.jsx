@@ -1,81 +1,49 @@
-import { useTranslation } from "react-i18next";
 import React from "react";
-
-// TODO: DevExtreme not installed
-// import HtmlEditor, {
-const Item = () => null;
+import ReactQuill from "react-quill";
 
 import useInput from "newComponents/BaseControls/useInput";
 
-const sizeValues = ["8pt", "10pt", "12pt", "14pt", "18pt", "24pt", "36pt"];
-const fontValues = [
-  "Arial",
-  "Courier New",
-  "Georgia",
-  "Impact",
-  "Lucida Console",
-  "Tahoma",
-  "Times New Roman",
-  "Verdana",
+import "react-quill/dist/quill.snow.css";
+
+/**
+ * Rich-text control for the `htmlEditor` field type.
+ *
+ * This file used to render <HtmlEditor>, <MediaResizing> and <Toolbar> with
+ * none of the three defined: the DevExtreme import was commented out during the
+ * abandoned migration and only `const Item = () => null` was stubbed back in.
+ * It is reachable from BaseControls/BaseField, so the first ModelConfig or
+ * TenderFormField asking for a rich-text field would have thrown
+ * `ReferenceError: HtmlEditor is not defined` and taken the surrounding tree
+ * down. Nothing selected `htmlEditor` yet, which is the only reason it never
+ * fired - it was a landmine, not a live fault.
+ *
+ * Backed by react-quill, which is already a dependency and already used by
+ * customComponents/BaseEditControls/BaseRichText.jsx. The toolbar mirrors the
+ * set the DevExtreme version declared, minus the table and media-resize tools
+ * Quill has no equivalent for.
+ */
+const TOOLBAR = [
+  [{ size: ["small", false, "large", "huge"] }],
+  [{ header: [1, 2, 3, 4, 5, false] }],
+  ["bold", "italic", "underline", "strike"],
+  [{ align: [] }],
+  [{ list: "ordered" }, { list: "bullet" }],
+  [{ color: [] }, { background: [] }],
+  ["link", "image"],
+  ["blockquote", "code-block"],
+  ["clean"],
 ];
-const headerValues = [false, 1, 2, 3, 4, 5];
 
 export default ({ valueSelector, config, ...props }) => {
-  const { t } = useTranslation();
-  const { value, changeValue, validate } = useInput({
-    valueSelector,
-    ...props,
-  });
+  const { value, changeValue } = useInput({ valueSelector, ...props });
 
   return (
-    <HtmlEditor
-      height="320px"
-      value={value}
-      onValueChanged={(v) => changeValue(v.value)}
+    <ReactQuill
+      theme="snow"
+      value={value || ""}
+      onChange={(html) => changeValue(html)}
+      modules={{ toolbar: TOOLBAR }}
       {...config}
-    >
-      <MediaResizing enabled={true} />
-      <Toolbar multiline={true}>
-        <Item name="undo" />
-        <Item name="redo" />
-        <Item name="separator" />
-        <Item name="size" acceptedValues={sizeValues} />
-        <Item name="font" acceptedValues={fontValues} />
-        <Item name="separator" />
-        <Item name="bold" />
-        <Item name="italic" />
-        <Item name="strike" />
-        <Item name="underline" />
-        <Item name="separator" />
-        <Item name="alignLeft" />
-        <Item name="alignCenter" />
-        <Item name="alignRight" />
-        <Item name="alignJustify" />
-        <Item name="separator" />
-        <Item name="orderedList" />
-        <Item name="bulletList" />
-        <Item name="separator" />
-        <Item name="header" acceptedValues={headerValues} />
-        <Item name="separator" />
-        <Item name="color" />
-        <Item name="background" />
-        <Item name="separator" />
-        <Item name="link" />
-        <Item name="image" />
-        <Item name="separator" />
-        <Item name="clear" />
-        <Item name="codeBlock" />
-        <Item name="blockquote" />
-        <Item name="separator" />
-        <Item name="insertTable" />
-        <Item name="deleteTable" />
-        <Item name="insertRowAbove" />
-        <Item name="insertRowBelow" />
-        <Item name="deleteRow" />
-        <Item name="insertColumnLeft" />
-        <Item name="insertColumnRight" />
-        <Item name="deleteColumn" />
-      </Toolbar>
-    </HtmlEditor>
+    />
   );
 };

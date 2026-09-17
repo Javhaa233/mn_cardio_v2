@@ -7,6 +7,7 @@ import PatientNavbar from "components/Navbars/PatientNavbar.jsx";
 import Sidebar from "components/Sidebar/Sidebar.jsx";
 import BaseLoading from "customComponents/BaseLoading.jsx";
 import NotFound from "view/NotFound.jsx";
+import ErrorBoundary from "components/ErrorBoundary";
 // import FixedPlugin from "components/FixedPlugin/FixedPlugin.jsx";
 
 import routes from "routes/index.js";
@@ -188,16 +189,27 @@ export default function Patient(props) {
         <MainPanel miniActive={miniActive} ref={mainPanel}>
           <PatientNavbar handleDrawerToggle={handleDrawerToggle} {...rest} />
           <Content>
-            <Suspense fallback={<BaseLoading />}>
-              <Routes>
-                {getRoutes(routes)}
-                <Route
-                  path="/"
-                  element={<Navigate to="/patient/PatientHome" replace />}
-                />
-                <Route path="*" element={<NotFound HomePath="/patient" />} />
-              </Routes>
-            </Suspense>
+            {/* The patient portal and the sign-in screens had no error
+                  boundary at all. A render-time throw anywhere below here
+                  unmounted the whole tree and left a blank page with no
+                  message. The doctor layout has been protected all along -
+                  every page there goes through PageTabs -> TabPanel ->
+                  TabErrorBoundary - so this was the citizen-facing half of the
+                  app, which is an explicit tender deliverable.
+                  components/ErrorBoundary already existed, fully written and
+                  in Mongolian; it just had no callers. */}
+            <ErrorBoundary>
+              <Suspense fallback={<BaseLoading />}>
+                <Routes>
+                  {getRoutes(routes)}
+                  <Route
+                    path="/"
+                    element={<Navigate to="/patient/PatientHome" replace />}
+                  />
+                  <Route path="*" element={<NotFound HomePath="/patient" />} />
+                </Routes>
+              </Suspense>
+            </ErrorBoundary>
           </Content>
         </MainPanel>
         <Chat />

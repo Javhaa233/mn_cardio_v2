@@ -78,8 +78,7 @@ function Stamp({ LogedUser, Register, From, To }) {
     register: Register || null,
     from: ToDateOrNull(From),
     to: ToDateOrNull(To),
-    generatedBy:
-      (LogedUser && (LogedUser.FullName || LogedUser.UserName)) || null,
+    generatedBy: (LogedUser && (LogedUser.FullName || LogedUser.UserName)) || null,
     generatedAt: new Date().toISOString(),
   };
 }

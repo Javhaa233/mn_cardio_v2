@@ -1,3 +1,4 @@
+const Logger = require('./Logger');
 /**
  * One place that reads process.env for behaviour switches, so a feature is
  * never half-on because two files disagreed about a default.
@@ -94,7 +95,11 @@ const Flags = {
    */
   AccessAuditEnabled: Bool('FEATURE_ACCESS_AUDIT', true),
   AccessAuditDedupeMin: Int('ACCESS_AUDIT_DEDUPE_MIN', 10),
-  AccessNotifyPolicy: Enum('ACCESS_NOTIFY_POLICY', ['none', 'every', 'digest', 'nontreating'], 'none'),
+  AccessNotifyPolicy: Enum(
+    'ACCESS_NOTIFY_POLICY',
+    ['none', 'every', 'digest', 'nontreating'],
+    'none'
+  ),
 
   /** off | warn | enforce. enforce can lock doctors out - read LicenceGate first. */
   DoctorLicence: Enum('FEATURE_DOCTOR_LICENCE', ['off', 'warn', 'enforce'], 'off'),
@@ -172,7 +177,7 @@ function LogResolved() {
   };
   // console.error, not console.log: server.js silences console.log in
   // production, and this line matters most in production.
-  console.error('[FeatureFlags] ' + JSON.stringify(Summary));
+  Logger.info('[FeatureFlags] ' + JSON.stringify(Summary));
 
   if (Flags.AllowInsecureDevAuth) {
     console.error(
