@@ -1,7 +1,7 @@
 name: mncardio
 description: МнКардио — Зүрх судасны үндэсний төвийн гар утасны хувилбар (үйлчлүүлэгчийн модуль).
 publish_to: "none"
-version: 0.1.0+1
+version: 0.2.0+2
 
 # Доод хязгаарыг Flutter 3.27 гэж тавьсан нь санаатай: код нь `Color.withValues`,
 # `CardThemeData`, `DialogThemeData` зэрэг тэр хувилбараас нэвтэрсэн API
