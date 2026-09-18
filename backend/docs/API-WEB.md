@@ -35,11 +35,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 4 | 30 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 50 | 259 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 264 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 125 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **416** |
+| **Нийт** |  |  | **421** |
 
 api-layer задаргаа: `/api/patient` 46 · `/api/doctor` 46 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
 
@@ -170,7 +170,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.4. Өвчтөний тусламж үйлчилгээ — `controllers/patient-care/`
 
-Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 42 endpoint.
+Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 47 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -207,6 +207,11 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/TenderForm/Delete` | token | `TenderFormController.js:28` | Soft delete: rec_status = 2, the house convention. |
 | `POST` | `/api/TenderForm/PrintHtml` | token | `TenderFormController.js:29` | The sheet as HTML, for the on-screen preview. |
 | `POST` | `/api/TenderForm/PrintReport` | token | `TenderFormController.js:30` | The same sheet as an A4 PDF. |
+| `POST` | `/api/RehabContent/GetList` | token | `RehabContentController.js:67` | The whole gallery in one read: exercises, their movements, and whether a photo/clip is attached. |
+| `POST` | `/api/RehabContent/Reorder` | token | `RehabContentController.js:141` | Renumber after a drag (or an up/down tap): OrderNo = position in `Ids`. |
+| `POST` | `/api/RehabContent/GetMediaLink` | token | `RehabContentController.js:186` | A short-lived URL a browser can put straight into <img> or <video>. |
+| `POST` | `/api/RehabContent/SetMedia` | token | `RehabContentController.js:229` | Point a movement at a file that has just been uploaded through /BaseObject/uploadFile. |
+| `POST` | `/api/RehabContent/RemoveMovement` | token | `RehabContentController.js:275` | Delete a movement, and the exercise's own row count with it. |
 | `POST` | `/api/PatientTransfer/GetCustomFormData` | token | `PatientTransferController.js:10` |  |
 | `POST` | `/api/PatientTransfer/CustomSave` | token | `PatientTransferController.js:11` |  |
 | `POST` | `/api/PatientSendPage/GetCustomFormData` | token | `PatientSendPageController.js:10` |  |
@@ -599,8 +604,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 | Method | Path | Access | Эх файл |
 |---|---|---|---|
-| `GET` | `/` | public | `server.js:507` |
-| `GET` | `/health` | public | `server.js:511` |
+| `GET` | `/` | public | `server.js:510` |
+| `GET` | `/health` | public | `server.js:514` |
 
 ## 9. Аюулгүй байдлын тэмдэглэл
 
@@ -644,4 +649,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-17. Нийт endpoint: 416._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-18. Нийт endpoint: 421._

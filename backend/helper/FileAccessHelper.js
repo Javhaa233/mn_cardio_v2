@@ -104,7 +104,11 @@ async function MayAttachTo({ LinkedObjectName, LinkedObjectId, LogedUser, Mode }
    */
   if (SHARED_CONTENT.includes(LinkedObjectName)) {
     if (Mode === 'read') return true;
-    return String(LogedUser.RoleId) === '1';
+    // RoleId 6 is the settings administrator, who owns /admin/RehabContent - the
+    // screen where the customer enters the exercises and attaches the clips
+    // (2026-09-18). Without this they can edit every field of a movement except
+    // the video, which is the part that matters.
+    return ['1', '6'].includes(String(LogedUser.RoleId));
   }
 
   /*

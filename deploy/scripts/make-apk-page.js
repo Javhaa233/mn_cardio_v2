@@ -33,7 +33,11 @@ if (!apkPath || !version || !outDir) {
 const bytes = fs.readFileSync(apkPath);
 const sha256 = crypto.createHash('sha256').update(bytes).digest('hex');
 const megabytes = (bytes.length / (1024 * 1024)).toFixed(1);
-const apkName = path.basename(apkPath);
+// The button must link to what is ON THE SERVER, not to the local build's name:
+// the build lands as app-release.apk and is uploaded as mncardio-<version>.apk, so
+// linking basename(apkPath) gave a 404 and phones reported "download failed"
+// (2026-09-17). 20-publish-apk.sh always points this symlink at the newest build.
+const apkName = 'mncardio-latest.apk';
 const built = new Date().toISOString().slice(0, 16).replace('T', ' ') + ' UTC';
 
 const qr = fs.readFileSync(path.join(__dirname, '..', 'apk', 'qr.svg'), 'utf8')

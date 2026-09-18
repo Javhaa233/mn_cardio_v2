@@ -132,6 +132,7 @@ const controllers = {
     OrderHospitalizationController: require('./controllers/patient-care/OrderHospitalizationController'),
     RemoteVisitController: require('./controllers/patient-care/RemoteVisitController'),
     TenderFormController: require('./controllers/patient-care/TenderFormController'),
+    RehabContentController: require('./controllers/patient-care/RehabContentController'),
     PatientTransferController: require('./controllers/patient-care/PatientTransferController'),
     PatientSendPageController: require('./controllers/patient-care/PatientSendPageController'),
     OutPatientInfoController: require('./controllers/patient-care/OutPatientInfoController'),
@@ -250,6 +251,8 @@ const routeGroups = {
     { path: '/HfStay', controller: controllers.heartFailure.HfStayController },
     { path: '/RemoteVisit', controller: controllers.patientCare.RemoteVisitController },
     { path: '/TenderForm', controller: controllers.patientCare.TenderFormController },
+    // Сэргээн засах контентын веб админ (RoleId 1, 6 - шалгалт нь контроллерт)
+    { path: '/RehabContent', controller: controllers.patientCare.RehabContentController },
     { path: '/Report', controller: controllers.reporting.ReportController },
     { path: '/PatientTransfer', controller: controllers.patientCare.PatientTransferController },
     { path: '/PatientSendPage', controller: controllers.patientCare.PatientSendPageController },

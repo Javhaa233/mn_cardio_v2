@@ -2,6 +2,7 @@ import React from "react";
 import PageContainer from "customComponents/PageContainer";
 import BaseCrudManager from "baseComponents/BaseCrudManager";
 import BaseTab from "baseComponents/BaseTab";
+import ExerciseGallery from "customComponents/RehabContent/ExerciseGallery";
 
 /**
  * Сэргээн засах дасгалын контент (гар утасны тендер 2.7).
@@ -11,9 +12,12 @@ import BaseTab from "baseComponents/BaseTab";
  * backend ModelConfig (RehabProgram, RehabProgramBlock, RehabExercise,
  * RehabMovement, RehabPlan, RehabSession) - no bespoke form code.
  *
- * Programmes and blocks are clinical content: the rows on MnCardio_test are
- * DRAFT, transcribed from the rehab team's xlsx. Plans and sessions are patient
- * data written by the apps; they are listed here for review and export only.
+ * The exercises tab is the gallery (photos, drag to arrange, create with
+ * movements and clips - customComponents/RehabContent/). The rest stay on the
+ * generic CRUD: programmes and blocks are clinical content (the rows on
+ * MnCardio_test are DRAFT, transcribed from the rehab team's xlsx), and plans and
+ * sessions are patient data written by the apps, listed here for review and
+ * export only.
  */
 export default function RehabContent() {
   const crud = (ObjectName, extra = {}) => (
@@ -32,7 +36,7 @@ export default function RehabContent() {
         Tabss={[
           { Label: "Rehabilitation programmes", TabBody: crud("RehabProgram") },
           { Label: "Programme blocks", TabBody: crud("RehabProgramBlock") },
-          { Label: "Rehabilitation exercises", TabBody: crud("RehabExercise") },
+          { Label: "Rehabilitation exercises", TabBody: <ExerciseGallery /> },
           { Label: "Exercise movements", TabBody: crud("RehabMovement") },
           {
             Label: "Rehabilitation plans",
