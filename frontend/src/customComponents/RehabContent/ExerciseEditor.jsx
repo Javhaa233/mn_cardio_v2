@@ -185,6 +185,9 @@ export default function ExerciseEditor({ exercise, onClose, onSaved }) {
           fullWidth
           multiline
           minRows={2}
+          // Утгатай ч шошго буухгүй байсан (олон мөрт талбар дээрх MUI-гийн
+          // shrink таамаг), тиймээс үргэлж дээр нь суулгав.
+          slotProps={{ inputLabel: { shrink: true } }}
         />
 
         <Box>

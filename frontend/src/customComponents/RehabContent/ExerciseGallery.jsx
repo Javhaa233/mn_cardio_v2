@@ -193,6 +193,9 @@ function ExerciseCard({ exercise, index, total, onOpen, onMove }) {
         sx={{
           position: "relative",
           height: 150,
+          // Хатуу өндөр + overflow: зураг нь картын нэр, товчийг дарж болохгүй.
+          overflow: "hidden",
+          flex: "none",
           cursor: "pointer",
           background: colors.brand.canvas,
           display: "grid",
@@ -204,7 +207,14 @@ function ExerciseCard({ exercise, index, total, onOpen, onMove }) {
             component="img"
             src={cover}
             alt=""
-            sx={{ width: "100%", height: "100%", objectFit: "cover" }}
+            sx={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+            }}
           />
         ) : (
           <SelfImprovementIcon
