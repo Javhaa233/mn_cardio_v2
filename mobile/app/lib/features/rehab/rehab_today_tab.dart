@@ -50,7 +50,7 @@ class RehabTodayTab extends StatelessWidget {
               ),
             )
           else ...<Widget>[
-            _WeekStrip(today: today),
+            _StreakBanner(today: today),
             const SizedBox(height: 14),
             _PlanCard(today: today),
             const SizedBox(height: 14),
@@ -66,73 +66,46 @@ class RehabTodayTab extends StatelessWidget {
   }
 }
 
-class _WeekStrip extends StatelessWidget {
-  const _WeekStrip({required this.today});
+/// Цуваа: "5 өдөр дараалан хийлээ".
+///
+/// Долоо хоногийн тууз энд байсныг 2026-09-18-нд хэрэглэгч хассан: энэ хэсэгт
+/// зөвхөн цуваа харагдана. Доор нь ХООСОН ЗАЙ үлдээв — Duolingo маягийн жижиг
+/// анимацийг дараа тусад нь зохиож тавина (хэрэглэгчийн шийдвэр), тиймээс энд
+/// түр орлуулагч зураг ч тавиагүй.
+class _StreakBanner extends StatelessWidget {
+  const _StreakBanner({required this.today});
 
   final RehabToday today;
-
-  static const List<String> _names = <String>[
-    'Да',
-    'Мя',
-    'Лх',
-    'Пү',
-    'Ба',
-    'Бя',
-    'Ня'
-  ];
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final now = DateTime.now();
-    return Row(
-      children: today.week.map((RehabWeekDay d) {
-        final isToday = d.date.year == now.year &&
-            d.date.month == now.month &&
-            d.date.day == now.day;
-        final done = d.done;
-        return Expanded(
-          child: Semantics(
-            label: '${MnFormat.date(d.date)}${done ? ', хийсэн' : ''}',
-            child: Container(
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              decoration: BoxDecoration(
-                color: isToday ? AppColors.cyanInk : AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                    color: isToday ? AppColors.cyanInk : AppColors.hairline),
-              ),
-              child: Column(
-                children: <Widget>[
-                  Text(
-                    _names[d.date.weekday - 1],
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: isToday ? Colors.white : AppColors.inkMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${d.date.day}',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      color: isToday ? Colors.white : AppColors.ink,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Icon(
-                    done ? Icons.check_circle_rounded : Icons.circle_outlined,
-                    size: 16,
-                    color: done
-                        ? (isToday ? Colors.white : AppColors.success)
-                        : (isToday ? Colors.white70 : AppColors.hairlineStrong),
-                  ),
-                ],
+    final days = today.streak;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Row(
+          children: <Widget>[
+            const Icon(
+              Icons.local_fire_department_rounded,
+              color: AppColors.warning,
+              size: 30,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                days > 0
+                    ? '$days өдөр дараалан хийлээ'
+                    : 'Өнөөдрөөс цувааг эхлүүлье',
+                style: theme.textTheme.titleLarge
+                    ?.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
-          ),
-        );
-      }).toList(),
+          ],
+        ),
+        // Анимацийн зай. Дараа дүүргэнэ.
+        const SizedBox(height: 8),
+      ],
     );
   }
 }
