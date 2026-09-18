@@ -136,6 +136,12 @@ export default defineConfig({
             if (
               id.includes("react") ||
               id.includes("scheduler") ||
+              // @dnd-kit calls React hooks at module scope. In the catch-all
+              // "vendor" chunk it evaluated BEFORE vendor-react and the page
+              // died with "Cannot read properties of undefined (reading
+              // 'useLayoutEffect')" (2026-09-18). Anything that imports React
+              // belongs in this chunk.
+              id.includes("@dnd-kit") ||
               id.includes("@reduxjs/toolkit") ||
               id.includes("@tanstack/react-query") ||
               id.includes("use-sync-external-store") ||
