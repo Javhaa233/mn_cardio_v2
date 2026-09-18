@@ -10,8 +10,8 @@ import 'rehab_player_models.dart';
 import 'rehab_player_widgets.dart';
 import 'rehab_session_summary.dart';
 
-/// Дасгалын тоглуулагч (сонголтууд 2026-09-17):
-///  * бичлэг картан дотор, доор нь том цагираг цаг (§1, §2)
+/// Дасгалын тоглуулагч (сонголтууд 2026-09-17, засвар 2026-09-18):
+///  * бичлэг дэлгэцээ дүүргэж, нэр/цаг/товчнууд түүн дээр сууна
 ///  * хөдөлгөөн бүрийн өмнө бүтэн дэлгэцийн "Дараагийн дасгал" (§3)
 ///  * хаана ч дарж зогсоох, ⏮ ⏭, гарахад баталгаажуулах (§4)
 ///  * 3-2-1 дохио (§5), 2 минут тутам пульс + CR10 (§6), өнгөт бүс (§7)
@@ -154,52 +154,84 @@ class _RehabPlayerScreenState extends State<RehabPlayerScreen> {
       );
     }
     final step = c.step;
+    final steps = step.movement?.steps ?? step.block.guideLines;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (bool didPop, Object? _) {
         if (!didPop) _confirmExit();
       },
       child: Scaffold(
-        backgroundColor: AppColors.canvas,
-        body: SafeArea(
-          child: Column(
-            children: <Widget>[
-              _TopBar(controller: c, onClose: _confirmExit),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: KeyedSubtree(
-                    key: ValueKey<int>(c.index),
-                    child: switch (step.kind) {
-                      RehabStepKind.preview => _PreviewView(controller: c),
-                      RehabStepKind.movement => _MovementView(controller: c),
-                      RehabStepKind.timed => _TimedView(
-                          controller: c, onCheckin: () => _openCheckin()),
-                      RehabStepKind.vitals => _VitalsView(
-                          controller: c, onCheckin: () => _openCheckin()),
-                      RehabStepKind.guide => _GuideView(controller: c),
-                    },
+        // Бичлэг дэлгэцээ дүүргэдэг тул бүхэлдээ бараан: цагаан текст
+        // бичлэг дээр ч, хоосон дэвсгэр дээр ч ижил уншигдана.
+        backgroundColor: AppColors.ink,
+        body: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 250),
+              child: KeyedSubtree(
+                key: ValueKey<int>(c.index),
+                child: switch (step.kind) {
+                  RehabStepKind.preview => _PreviewView(controller: c),
+                  RehabStepKind.movement => _MovementView(controller: c),
+                  RehabStepKind.rest => _RestView(controller: c),
+                  RehabStepKind.timed =>
+                    _TimedView(controller: c, onCheckin: () => _openCheckin()),
+                  RehabStepKind.vitals =>
+                    _VitalsView(controller: c, onCheckin: () => _openCheckin()),
+                  RehabStepKind.guide => _GuideView(controller: c),
+                },
+              ),
+            ),
+            Align(
+              alignment: Alignment.topCenter,
+              child: SafeArea(
+                bottom: false,
+                child: _PlayerChrome(controller: c, onClose: _confirmExit),
+              ),
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: SafeArea(
+                top: false,
+                child: Container(
+                  decoration: _scrim(fromTop: false),
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: <Widget>[
+                      if (steps.isNotEmpty &&
+                          step.kind != RehabStepKind.preview)
+                        TextButton.icon(
+                          style: TextButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 44),
+                          ),
+                          onPressed: () =>
+                              _openSteps(context, steps, step.title),
+                          icon: const Icon(Icons.menu_book_outlined, size: 20),
+                          label: const Text('Заавар'),
+                        ),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.danger,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, 52),
+                          ),
+                          onPressed: _openStop,
+                          icon: const Icon(Icons.health_and_safety_outlined),
+                          label: const Text('Биеийн байдал муу байна'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: OutlinedButton.icon(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.danger,
-                      side: const BorderSide(color: AppColors.danger),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                    ),
-                    onPressed: _openStop,
-                    icon: const Icon(Icons.health_and_safety_outlined),
-                    label: const Text('Биеийн байдал муу байна'),
-                  ),
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );
@@ -207,9 +239,30 @@ class _RehabPlayerScreenState extends State<RehabPlayerScreen> {
 }
 
 // ---------------------------------------------------------------------------
+// Дэлгэцийн ерөнхий хэсгүүд
+//
+// Бүтэц (2026-09-18 сонголт): бичлэг дэлгэцээ дүүргэнэ, нэр ба товчнууд
+// бичлэг дээрээ хар налуу дэвсгэр дээр сууна. Тиймээс тоглуулагч бүхэлдээ
+// бараан — цагаан текст бичлэг дээр ч, дэвсгэр дээр ч уншигдана.
+// ---------------------------------------------------------------------------
 
-class _TopBar extends StatelessWidget {
-  const _TopBar({required this.controller, required this.onClose});
+/// Тоглуулагчийн бүх алхамд нийтлэг зай: дээд ба доод давхаргад эзлэгдсэн хэсэг.
+const double _kChromeTop = 92;
+const double _kChromeBottom = 132;
+const double _kTouch = 56;
+
+/// Бичлэг дээрх текст уншигдахуйц болгох налуу дэвсгэр.
+BoxDecoration _scrim({required bool fromTop}) => BoxDecoration(
+      gradient: LinearGradient(
+        begin: fromTop ? Alignment.topCenter : Alignment.bottomCenter,
+        end: fromTop ? Alignment.bottomCenter : Alignment.topCenter,
+        colors: const <Color>[Color(0xCC0C2233), Color(0x000C2233)],
+      ),
+    );
+
+/// Дээд мөр: гарах, хэсгүүдийн явц, хөдөлгөөний дугаар, дуу.
+class _PlayerChrome extends StatelessWidget {
+  const _PlayerChrome({required this.controller, required this.onClose});
 
   final RehabPlayerController controller;
   final VoidCallback onClose;
@@ -218,28 +271,55 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     final theme = Theme.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
+    final counted = c.step.kind == RehabStepKind.movement ||
+        c.step.kind == RehabStepKind.preview ||
+        c.step.kind == RehabStepKind.rest;
+    final label = counted && c.movementTotal > 0
+        ? '${c.movementOrdinal}/${c.movementTotal} хөдөлгөөн'
+        : c.step.block.title;
+
+    return Container(
+      decoration: _scrim(fromTop: true),
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 16),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           Row(
             children: <Widget>[
               IconButton(
                 tooltip: 'Дуусгах',
+                color: Colors.white,
+                iconSize: 28,
+                constraints: const BoxConstraints.tightFor(
+                    width: _kTouch, height: _kTouch),
                 onPressed: onClose,
                 icon: const Icon(Icons.close_rounded),
               ),
               Expanded(
-                child: Text(
-                  c.step.block.title,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.titleSmall,
+                child: Column(
+                  children: <Widget>[
+                    Text(
+                      c.step.block.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                      style: theme.textTheme.titleMedium
+                          ?.copyWith(color: Colors.white),
+                    ),
+                    Text(
+                      label,
+                      style: theme.textTheme.bodyMedium
+                          ?.copyWith(color: Colors.white70),
+                    ),
+                  ],
                 ),
               ),
               IconButton(
                 tooltip: c.muted ? 'Дуу асаах' : 'Дуу хаах',
+                color: Colors.white,
+                iconSize: 26,
+                constraints: const BoxConstraints.tightFor(
+                    width: _kTouch, height: _kTouch),
                 onPressed: c.toggleMute,
                 icon: Icon(c.muted
                     ? Icons.volume_off_rounded
@@ -247,11 +327,12 @@ class _TopBar extends StatelessWidget {
               ),
             ],
           ),
+          const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Row(
               children: List<Widget>.generate(c.blockCount, (int i) {
-                final on = i < c.currentBlockOrdinal;
+                final done = i < c.currentBlockOrdinal;
                 final now = i == c.currentBlockOrdinal;
                 return Expanded(
                   child: Container(
@@ -259,11 +340,11 @@ class _TopBar extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 2),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(4),
-                      color: on
-                          ? AppColors.cyanInk
+                      color: done
+                          ? Colors.white
                           : now
                               ? AppColors.cyan
-                              : AppColors.hairlineStrong,
+                              : Colors.white24,
                     ),
                   ),
                 );
@@ -276,8 +357,14 @@ class _TopBar extends StatelessWidget {
   }
 }
 
-class _Controls extends StatelessWidget {
-  const _Controls({required this.controller, this.center});
+/// ⏮ · дунд · ⏭.
+///
+/// Дунд нь өргөн товч ("Дууссан") байсан ч ⏭ хэзээ ч дэлгэцнээс гарахгүй:
+/// Expanded + FittedBox нь 320dp өргөнтэй утсанд ч гурвуулаа багтаана.
+/// (2026-09-18: өмнө нь төвлөрүүлсэн Row байсан тул давталттай дасгал дээр
+/// ⏭ товч дэлгэцийн гадна үлдэж, "дараагийн товч алга" болж харагдсан.)
+class _ControlRow extends StatelessWidget {
+  const _ControlRow({required this.controller, this.center});
 
   final RehabPlayerController controller;
   final Widget? center;
@@ -286,108 +373,136 @@ class _Controls extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
       children: <Widget>[
-        IconButton.filledTonal(
-          iconSize: 28,
+        _RoundControl(
+          icon: Icons.skip_previous_rounded,
           tooltip: 'Өмнөх',
           onPressed: c.index == 0 ? null : c.previous,
-          icon: const Icon(Icons.skip_previous_rounded),
         ),
-        const SizedBox(width: 18),
-        center ??
-            IconButton.filled(
-              iconSize: 40,
-              tooltip: c.paused ? 'Үргэлжлүүлэх' : 'Түр зогсоох',
-              style: IconButton.styleFrom(
-                backgroundColor: AppColors.cyanInk,
-                minimumSize: const Size(72, 72),
-              ),
-              onPressed: c.togglePause,
-              icon: Icon(
-                  c.paused ? Icons.play_arrow_rounded : Icons.pause_rounded),
+        Expanded(
+          child: Center(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: center ??
+                  _RoundControl(
+                    icon: c.paused
+                        ? Icons.play_arrow_rounded
+                        : Icons.pause_rounded,
+                    tooltip: c.paused ? 'Үргэлжлүүлэх' : 'Түр зогсоох',
+                    big: true,
+                    onPressed: c.togglePause,
+                  ),
             ),
-        const SizedBox(width: 18),
-        IconButton.filledTonal(
-          iconSize: 28,
+          ),
+        ),
+        _RoundControl(
+          icon: Icons.skip_next_rounded,
           tooltip: 'Алгасах',
           onPressed: c.next,
-          icon: const Icon(Icons.skip_next_rounded),
         ),
       ],
     );
   }
 }
 
-/// Бичлэгийн карт — хаана ч дарвал зогсоно / үргэлжилнэ.
-class _VideoCard extends StatelessWidget {
-  const _VideoCard(
-      {required this.controller,
-      required this.movement,
-      this.tapToPause = true});
+class _RoundControl extends StatelessWidget {
+  const _RoundControl({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+    this.big = false,
+  });
 
-  final RehabPlayerController controller;
-  final RehabMovement? movement;
-  final bool tapToPause;
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onPressed;
+  final bool big;
 
   @override
   Widget build(BuildContext context) {
-    final c = controller;
-    final m = movement;
-    final video = RehabLoopVideo(
-      file: m == null ? null : c.files[m.id],
-      loopStartMs: m?.loopStartMs,
-      loopEndMs: m?.loopEndMs,
-      paused: c.paused && tapToPause,
-    );
-    return GestureDetector(
-      onTap: tapToPause ? c.togglePause : null,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: AppColors.hairline),
-          boxShadow: const <BoxShadow>[
-            BoxShadow(
-                color: Color(0x140C2233), blurRadius: 18, offset: Offset(0, 6)),
-          ],
-        ),
-        padding: const EdgeInsets.all(6),
-        child: Stack(
-          fit: StackFit.expand,
-          children: <Widget>[
-            video,
-            if (c.paused && tapToPause)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(20),
-                child: ColoredBox(
-                  color: const Color(0x990C2233),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: <Widget>[
-                        const Icon(Icons.play_circle_fill_rounded,
-                            size: 72, color: Colors.white),
-                        const SizedBox(height: 8),
-                        Text(
-                          'Үргэлжлүүлэх',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleMedium
-                              ?.copyWith(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-          ],
+    final size = big ? 76.0 : _kTouch;
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: big ? AppColors.cyanInk : Colors.white24,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: Icon(
+              icon,
+              size: big ? 40 : 28,
+              color: onPressed == null ? Colors.white38 : Colors.white,
+            ),
+          ),
         ),
       ),
     );
   }
 }
 
+/// Бүтэн дэлгэцийн бичлэг. Хаана ч дарвал зогсоно / үргэлжилнэ.
+class _VideoLayer extends StatelessWidget {
+  const _VideoLayer({
+    required this.controller,
+    required this.movement,
+    this.tapToPause = true,
+    this.radius = 0,
+  });
+
+  final RehabPlayerController controller;
+  final RehabMovement? movement;
+  final bool tapToPause;
+  final double radius;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final m = movement;
+    return GestureDetector(
+      onTap: tapToPause ? c.togglePause : null,
+      child: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          RehabLoopVideo(
+            file: m == null ? null : c.files[m.id],
+            loopStartMs: m?.loopStartMs,
+            loopEndMs: m?.loopEndMs,
+            paused: c.paused && tapToPause,
+            borderRadius: radius,
+            background: AppColors.ink,
+          ),
+          if (c.paused && tapToPause)
+            ColoredBox(
+              color: const Color(0x990C2233),
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    const Icon(Icons.play_circle_fill_rounded,
+                        size: 84, color: Colors.white),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Үргэлжлүүлэх',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(color: Colors.white),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Хөдөлгөөн: бичлэг дэлгэцийг дүүргэж, нэр ба товчнууд түүн дээр сууна.
 class _MovementView extends StatelessWidget {
   const _MovementView({required this.controller});
 
@@ -399,48 +514,64 @@ class _MovementView extends StatelessWidget {
     final m = c.step.movement!;
     final theme = Theme.of(context);
     final counted = c.step.durationSec == null;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: <Widget>[
-          const SizedBox(height: 8),
-          Expanded(child: _VideoCard(controller: c, movement: m)),
-          const SizedBox(height: 12),
-          Text(m.name,
-              textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 10),
-          if (counted)
-            RehabCountdownRing(
-                progress: 0, label: '${m.reps ?? ''}', caption: 'удаа')
-          else
-            RehabCountdownRing(
-              progress: c.stepProgress,
-              label: '${c.remaining ?? 0}',
-              caption: 'сек',
+
+    return Stack(
+      fit: StackFit.expand,
+      children: <Widget>[
+        _VideoLayer(controller: c, movement: m),
+        Align(
+          alignment: Alignment.bottomCenter,
+          child: Container(
+            decoration: _scrim(fromTop: false),
+            padding: const EdgeInsets.fromLTRB(
+                12, 24, 12, _kChromeBottom - _kTouch + 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Text(
+                  m.name,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _ControlRow(
+                  controller: c,
+                  center: counted
+                      ? FilledButton.icon(
+                          style: FilledButton.styleFrom(
+                            backgroundColor: AppColors.cyanInk,
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(0, _kTouch),
+                            padding: const EdgeInsets.symmetric(horizontal: 20),
+                            textStyle: theme.textTheme.titleMedium,
+                          ),
+                          onPressed: c.next,
+                          icon: const Icon(Icons.check_rounded),
+                          label: Text('${m.reps} удаа · Дууссан'),
+                        )
+                      : RehabCountdownRing(
+                          size: 108,
+                          progress: c.stepProgress,
+                          label: '${c.remaining ?? 0}',
+                          caption: 'сек',
+                          onDark: true,
+                        ),
+                ),
+              ],
             ),
-          const SizedBox(height: 12),
-          _Controls(
-            controller: c,
-            center: counted
-                ? FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.cyanInk,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 16),
-                    ),
-                    onPressed: c.next,
-                    icon: const Icon(Icons.check_rounded),
-                    label: const Text('Дууссан'),
-                  )
-                : null,
           ),
-          const SizedBox(height: 8),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
+/// "Дараагийн дасгал" — бүтэн дэлгэц, бэлтгэх хугацаа.
 class _PreviewView extends StatelessWidget {
   const _PreviewView({required this.controller});
 
@@ -458,102 +589,95 @@ class _PreviewView extends StatelessWidget {
         : step.block.durationSec != null
             ? '${(step.block.durationSec! / 60).round()} минут'
             : null;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(16, _kChromeTop, 16, _kChromeBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
-          const SizedBox(height: 6),
           Text(
             'ДАРААГИЙН ДАСГАЛ',
             textAlign: TextAlign.center,
             style: theme.textTheme.labelLarge?.copyWith(
-              color: AppColors.cyanInk,
-              letterSpacing: 1.2,
+              color: AppColors.cyan,
+              letterSpacing: 1.4,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Expanded(
             flex: 5,
             child: m != null
-                ? _VideoCard(controller: c, movement: m, tapToPause: false)
-                : Container(
-                    decoration: BoxDecoration(
-                      color: AppColors.surface,
-                      borderRadius: BorderRadius.circular(22),
-                    ),
+                ? _VideoLayer(
+                    controller: c,
+                    movement: m,
+                    tapToPause: false,
+                    radius: 20,
+                  )
+                : Center(
                     child: Icon(
                       step.nextKind == RehabStepKind.timed
                           ? Icons.directions_walk_rounded
                           : Icons.self_improvement_rounded,
-                      size: 96,
-                      color: AppColors.cyanDeep,
+                      size: 110,
+                      color: AppColors.cyan,
                     ),
                   ),
           ),
-          const SizedBox(height: 10),
-          Text(step.title,
-              textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-          if (what != null)
-            Text(what,
-                textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          if (steps.isNotEmpty)
+          const SizedBox(height: 16),
+          Text(
+            step.title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          if (what != null) ...<Widget>[
+            const SizedBox(height: 4),
+            Text(
+              what,
+              textAlign: TextAlign.center,
+              style:
+                  theme.textTheme.titleMedium?.copyWith(color: Colors.white70),
+            ),
+          ],
+          if (steps.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
             Flexible(
               flex: 3,
-              child: SingleChildScrollView(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: <Widget>[
-                    for (var i = 0; i < steps.length; i++)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 3),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            CircleAvatar(
-                              radius: 12,
-                              backgroundColor: AppColors.infoLight,
-                              child: Text(
-                                '${i + 1}',
-                                style: theme.textTheme.labelMedium
-                                    ?.copyWith(color: AppColors.cyanInk),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: Text(steps[i],
-                                    style: theme.textTheme.bodyLarge)),
-                          ],
-                        ),
-                      ),
-                  ],
-                ),
-              ),
+              child: SingleChildScrollView(child: _StepList(steps: steps)),
             ),
-          const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 16),
           Row(
             children: <Widget>[
               RehabCountdownRing(
-                size: 84,
+                size: 92,
                 progress: c.stepProgress,
                 label: '${c.remaining ?? 0}',
+                onDark: true,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 16),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     OutlinedButton.icon(
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white54),
+                        minimumSize: const Size(0, 48),
+                      ),
                       onPressed: c.addTenSeconds,
                       icon: const Icon(Icons.add_rounded),
                       label: const Text('+10 сек'),
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 8),
                     FilledButton(
                       style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.cyanInk),
+                        backgroundColor: AppColors.cyanInk,
+                        minimumSize: const Size(0, _kTouch),
+                        textStyle: theme.textTheme.titleMedium,
+                      ),
                       onPressed: c.next,
                       child: const Text('Одоо эхлэх'),
                     ),
@@ -562,13 +686,113 @@ class _PreviewView extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 8),
         ],
       ),
     );
   }
 }
 
+/// Хөдөлгөөн хоорондын амралт.
+class _RestView extends StatelessWidget {
+  const _RestView({required this.controller});
+
+  final RehabPlayerController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    final theme = Theme.of(context);
+    final next = c.step.movement;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, _kChromeTop, 20, _kChromeBottom),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: <Widget>[
+          Text(
+            'АМРАХ',
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: AppColors.cyan,
+              letterSpacing: 1.4,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          RehabCountdownRing(
+            size: 190,
+            progress: c.stepProgress,
+            label: '${c.remaining ?? 0}',
+            caption: 'сек',
+            onDark: true,
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Амьсгалаа тайвшруулна уу',
+            style: theme.textTheme.titleMedium?.copyWith(color: Colors.white70),
+          ),
+          const SizedBox(height: 24),
+          if (next != null)
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white10,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Row(
+                children: <Widget>[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(10),
+                    child: SizedBox(
+                      width: 52,
+                      height: 78,
+                      child: _VideoLayer(
+                        controller: c,
+                        movement: next,
+                        tapToPause: false,
+                        radius: 10,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        Text('Дараагийнх',
+                            style: theme.textTheme.bodySmall
+                                ?.copyWith(color: Colors.white54)),
+                        Text(
+                          next.name,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.cyanInk,
+                minimumSize: const Size(0, _kTouch),
+                textStyle: theme.textTheme.titleMedium,
+              ),
+              onPressed: c.next,
+              child: const Text('Алгасах'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Алхах, дугуй жийх, шатаар алхах — том цаг, зорилтот пульсын бүс.
 class _TimedView extends StatelessWidget {
   const _TimedView({required this.controller, required this.onCheckin});
 
@@ -582,51 +806,56 @@ class _TimedView extends StatelessWidget {
     final last = c.lastCheckin;
     final every = c.step.block.checkInEverySec ?? 120;
     final nextIn = every - (c.elapsedInStep % every);
+    final title = c.step.block.title;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.fromLTRB(20, _kChromeTop, 20, _kChromeBottom),
       child: Column(
         children: <Widget>[
           const Spacer(),
           Icon(
-            c.step.block.title.contains('Дугуй')
+            title.contains('Дугуй')
                 ? Icons.pedal_bike_rounded
-                : c.step.block.title.contains('Шат')
+                : title.contains('Шат')
                     ? Icons.stairs_rounded
                     : Icons.directions_walk_rounded,
             size: 56,
-            color: AppColors.cyanDeep,
+            color: AppColors.cyan,
           ),
-          const SizedBox(height: 8),
-          Text(c.step.block.title, style: theme.textTheme.titleLarge),
           const SizedBox(height: 16),
           GestureDetector(
             onTap: c.togglePause,
             child: RehabCountdownRing(
-              size: 200,
+              size: 220,
               progress: c.stepProgress,
               label: rehabClock(c.remaining ?? 0),
               caption: c.paused ? 'түр зогссон' : 'үлдсэн',
+              onDark: true,
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 24),
           if (c.targetHr != null) ...<Widget>[
             RehabZoneBand(
                 zone: last?.zone, pulse: last?.pulse, target: c.targetHr),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
             Text(
               'Зорилтот пульс: ${c.targetHr}-аас дээш гаргахгүй',
-              style: theme.textTheme.bodySmall,
+              style:
+                  theme.textTheme.bodyMedium?.copyWith(color: Colors.white70),
             ),
           ],
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           TextButton.icon(
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.white,
+              minimumSize: const Size(0, 48),
+            ),
             onPressed: onCheckin,
-            icon: const Icon(Icons.favorite_rounded, color: AppColors.danger),
+            icon: const Icon(Icons.favorite_rounded, color: AppColors.urgent),
             label: Text('Пульс оруулах · дараагийнх ${rehabClock(nextIn)}'),
           ),
           const Spacer(),
-          _Controls(controller: c),
-          const SizedBox(height: 8),
+          _ControlRow(controller: c),
         ],
       ),
     );
@@ -644,36 +873,56 @@ class _VitalsView extends StatelessWidget {
     final c = controller;
     final theme = Theme.of(context);
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, _kChromeTop, 20, _kChromeBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
           const Spacer(),
           const Icon(Icons.monitor_heart_outlined,
-              size: 64, color: AppColors.cyanDeep),
-          const SizedBox(height: 10),
-          Text(c.step.block.title,
-              textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-          const SizedBox(height: 8),
-          for (final line in c.step.block.guideLines)
-            Text(line,
-                textAlign: TextAlign.center, style: theme.textTheme.bodyLarge),
+              size: 72, color: AppColors.cyan),
           const SizedBox(height: 16),
+          Text(
+            c.step.block.title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 12),
+          for (final line in c.step.block.guideLines)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Text(
+                line,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium
+                    ?.copyWith(color: Colors.white70),
+              ),
+            ),
+          const SizedBox(height: 20),
           if (c.lastCheckin != null)
             Text(
               'Сүүлийн пульс: ${c.lastCheckin!.pulse ?? '—'}',
               textAlign: TextAlign.center,
-              style: theme.textTheme.titleMedium,
+              style: theme.textTheme.titleLarge?.copyWith(color: Colors.white),
             ),
           const Spacer(),
           OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.white,
+              side: const BorderSide(color: Colors.white54),
+              minimumSize: const Size(0, _kTouch),
+            ),
             onPressed: onCheckin,
             icon: const Icon(Icons.favorite_rounded),
             label: const Text('Пульс оруулах'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.cyanInk),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.cyanInk,
+              minimumSize: const Size(0, _kTouch),
+              textStyle: theme.textTheme.titleMedium,
+            ),
             onPressed: c.next,
             child: const Text('Үргэлжлүүлэх'),
           ),
@@ -683,6 +932,7 @@ class _VitalsView extends StatelessWidget {
   }
 }
 
+/// Бичлэггүй хэсэг: зураг эсвэл цаг бүхий заавар.
 class _GuideView extends StatelessWidget {
   const _GuideView({required this.controller});
 
@@ -694,34 +944,42 @@ class _GuideView extends StatelessWidget {
     final theme = Theme.of(context);
     final timed = c.step.durationSec != null;
     return Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(20, _kChromeTop, 20, _kChromeBottom),
       child: Column(
         children: <Widget>[
-          const SizedBox(height: 8),
-          Expanded(
-              child:
-                  _VideoCard(controller: c, movement: null, tapToPause: timed)),
+          const Spacer(),
+          const Icon(Icons.self_improvement_rounded,
+              size: 88, color: AppColors.cyan),
+          const SizedBox(height: 16),
+          Text(
+            c.step.block.title,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+          ),
           const SizedBox(height: 12),
-          Text(c.step.block.title,
-              textAlign: TextAlign.center, style: theme.textTheme.titleLarge),
-          for (final line in c.step.block.guideLines)
-            Text(line,
-                textAlign: TextAlign.center, style: theme.textTheme.bodyMedium),
-          const SizedBox(height: 10),
+          if (c.step.block.guideLines.isNotEmpty)
+            _StepList(steps: c.step.block.guideLines),
+          const SizedBox(height: 20),
           if (timed)
             RehabCountdownRing(
-              size: 110,
+              size: 150,
               progress: c.stepProgress,
               label: rehabClock(c.remaining ?? 0),
+              onDark: true,
             ),
-          const SizedBox(height: 10),
-          _Controls(
+          const Spacer(),
+          _ControlRow(
             controller: c,
             center: timed
                 ? null
                 : FilledButton(
                     style: FilledButton.styleFrom(
-                        backgroundColor: AppColors.cyanInk),
+                      backgroundColor: AppColors.cyanInk,
+                      minimumSize: const Size(0, _kTouch),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      textStyle: theme.textTheme.titleMedium,
+                    ),
                     onPressed: c.next,
                     child: const Text('Үргэлжлүүлэх'),
                   ),
@@ -730,6 +988,73 @@ class _GuideView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Дугаарласан алхмууд — бэлтгэлийн дэлгэц дээр ч, "Заавар" хуудсан дээр ч.
+class _StepList extends StatelessWidget {
+  const _StepList({required this.steps, this.onDark = true});
+
+  final List<String> steps;
+  final bool onDark;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        for (var i = 0; i < steps.length; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 5),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor:
+                      onDark ? Colors.white12 : AppColors.infoLight,
+                  child: Text(
+                    '${i + 1}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: onDark ? Colors.white : AppColors.cyanInk,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    steps[i],
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: onDark ? Colors.white : AppColors.ink,
+                      height: 1.35,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// Дасгал хийж байх үед зааврыг дахин уншихад.
+Future<void> _openSteps(
+    BuildContext context, List<String> steps, String title) {
+  return showModalBottomSheet<void>(
+    context: context,
+    useSafeArea: true,
+    backgroundColor: AppColors.surface,
+    builder: (_) => ListView(
+      shrinkWrap: true,
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+      children: <Widget>[
+        Text(title, style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 12),
+        _StepList(steps: steps, onDark: false),
+      ],
+    ),
+  );
 }
 
 // ---------------------------------------------------------------------------

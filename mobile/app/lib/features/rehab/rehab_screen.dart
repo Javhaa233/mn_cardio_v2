@@ -291,8 +291,9 @@ class _MiniChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        highlight ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
+    final color = highlight
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[

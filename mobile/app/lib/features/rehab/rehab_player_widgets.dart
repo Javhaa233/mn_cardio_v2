@@ -25,6 +25,7 @@ class RehabLoopVideo extends StatefulWidget {
     this.loopEndMs,
     this.paused = false,
     this.borderRadius = 20,
+    this.background = AppColors.canvas,
   });
 
   final File? file;
@@ -32,6 +33,9 @@ class RehabLoopVideo extends StatefulWidget {
   final int? loopEndMs;
   final bool paused;
   final double borderRadius;
+
+  /// Бичлэгийн ард харагдах өнгө. Бүтэн дэлгэцийн тоглуулагчид бараан.
+  final Color background;
 
   @override
   State<RehabLoopVideo> createState() => _RehabLoopVideoState();
@@ -124,7 +128,7 @@ class _RehabLoopVideoState extends State<RehabLoopVideo> {
     Widget child;
     if (widget.file == null || _failed) {
       child = Container(
-        color: AppColors.canvas,
+        color: widget.background,
         alignment: Alignment.center,
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -145,14 +149,14 @@ class _RehabLoopVideoState extends State<RehabLoopVideo> {
         ),
       );
     } else if (c == null || !c.value.isInitialized) {
-      child = const ColoredBox(
-        color: AppColors.canvas,
-        child: Center(child: CircularProgressIndicator()),
+      child = ColoredBox(
+        color: widget.background,
+        child: const Center(child: CircularProgressIndicator()),
       );
     } else {
       // 9:16 бичлэгийг хүрээнд нь багтааж, хүнийг огтлохгүй.
       child = ColoredBox(
-        color: AppColors.canvas,
+        color: widget.background,
         child: FittedBox(
           fit: BoxFit.contain,
           child: SizedBox(
@@ -183,6 +187,7 @@ class RehabCountdownRing extends StatelessWidget {
     this.caption,
     this.size = 132,
     this.color = AppColors.cyan,
+    this.onDark = false,
   });
 
   final double progress;
@@ -190,6 +195,9 @@ class RehabCountdownRing extends StatelessWidget {
   final String? caption;
   final double size;
   final Color color;
+
+  /// Бараан дэвсгэр дээр (бүтэн дэлгэцийн тоглуулагч) — цагаан текст, цайвар зам.
+  final bool onDark;
 
   @override
   Widget build(BuildContext context) {
@@ -201,7 +209,9 @@ class RehabCountdownRing extends StatelessWidget {
         painter: _RingPainter(
           progress: progress,
           color: color,
-          track: theme.dividerColor.withValues(alpha: 0.35),
+          track: onDark
+              ? Colors.white24
+              : theme.dividerColor.withValues(alpha: 0.35),
         ),
         child: Center(
           child: Column(
@@ -211,13 +221,19 @@ class RehabCountdownRing extends StatelessWidget {
                 label,
                 style: theme.textTheme.headlineMedium?.copyWith(
                   fontWeight: FontWeight.w700,
+                  color: onDark ? Colors.white : null,
                   fontFeatures: const <FontFeature>[
                     FontFeature.tabularFigures()
                   ],
                 ),
               ),
               if (caption != null)
-                Text(caption!, style: theme.textTheme.bodySmall),
+                Text(
+                  caption!,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: onDark ? Colors.white70 : null,
+                  ),
+                ),
             ],
           ),
         ),

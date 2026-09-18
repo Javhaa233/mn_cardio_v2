@@ -25,6 +25,9 @@ enum RehabStepKind {
 
   /// Зураг, заавар (бичлэггүй хэсэг).
   guide,
+
+  /// Хөдөлгөөн хоорондын амралт (RehabMovement.RestSec).
+  rest,
 }
 
 class RehabStep {
@@ -121,6 +124,20 @@ class RehabPlayerController extends ChangeNotifier {
     return ids.indexOf(step.blockIndex);
   }
 
+  /// Хөдөлгөөний дугаар ба нийт тоо ("3/14") — дээд мөрөнд.
+  int get movementTotal =>
+      steps.where((RehabStep s) => s.kind == RehabStepKind.movement).length;
+
+  int get movementOrdinal {
+    var n = 0;
+    for (var i = 0; i <= _index && i < steps.length; i++) {
+      if (steps[i].kind == RehabStepKind.movement) n++;
+    }
+    // Бэлтгэл/амралт дээр байхад дараагийнхыг нь заана.
+    if (step.kind != RehabStepKind.movement && n < movementTotal) n += 1;
+    return n == 0 ? 1 : n;
+  }
+
   /// Одоогийн алхмын явц 0..1 (цагтай алхамд).
   double get stepProgress {
     final total = step.durationSec;
@@ -154,6 +171,18 @@ class RehabPlayerController extends ChangeNotifier {
             durationSec: m.isCounted ? null : (m.workSec ?? 30),
             lastOfBlock: i == block.movements.length - 1,
           ));
+          // Амралт зөвхөн заасан үед, бөгөөд хэсгийн сүүлчийн хөдөлгөөний
+          // дараа биш — тэнд дараагийн хэсгийн бэлтгэл өөрөө завсарлага болно.
+          if ((m.restSec ?? 0) > 0 && i != block.movements.length - 1) {
+            out.add(RehabStep(
+              kind: RehabStepKind.rest,
+              block: block,
+              blockIndex: bi,
+              // Дараагийн хөдөлгөөнийг зурагтай нь харуулна.
+              movement: block.movements[i + 1],
+              durationSec: m.restSec,
+            ));
+          }
         }
       } else if (block.isTimed) {
         out.add(RehabStep(
@@ -306,6 +335,7 @@ class RehabPlayerController extends ChangeNotifier {
     final early = s.kind == RehabStepKind.movement ||
         s.kind == RehabStepKind.timed ||
         s.kind == RehabStepKind.guide;
+    // Амралтыг алгасах нь дасгал алгассан гэсэн үг биш.
     final done = (_remaining == null) || (_remaining ?? 0) <= 0;
     if (early && !done) _skipped++;
     _advance(completed: s.kind != RehabStepKind.preview && (done || !early));

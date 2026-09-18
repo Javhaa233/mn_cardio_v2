@@ -152,8 +152,7 @@ class _VitalTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(999),
@@ -314,8 +313,7 @@ class _VitalFormSheetState extends State<_VitalFormSheet> {
               controller: scroll,
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: <Widget>[
-                Text('Амин үзүүлэлт нэмэх',
-                    style: theme.textTheme.titleMedium),
+                Text('Амин үзүүлэлт нэмэх', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 16),
                 Text('Дасгалын үе шат', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
@@ -412,9 +410,7 @@ class _VitalFormSheetState extends State<_VitalFormSheet> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _borg == null
-                      ? 'Сонгоогүй'
-                      : 'Сонгосон утга: $_borg',
+                  _borg == null ? 'Сонгоогүй' : 'Сонгосон утга: $_borg',
                   style: theme.textTheme.bodySmall,
                 ),
                 Slider(

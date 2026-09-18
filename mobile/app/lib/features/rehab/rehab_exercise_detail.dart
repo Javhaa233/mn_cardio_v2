@@ -46,7 +46,8 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
     final theme = Theme.of(context);
     final exercise = widget.exercise;
     final description = (exercise.description ?? '').trim();
-    final lastAt = context.watch<RehabController>().lastCompletedAt(exercise.id);
+    final lastAt =
+        context.watch<RehabController>().lastCompletedAt(exercise.id);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
