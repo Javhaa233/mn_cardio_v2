@@ -201,16 +201,17 @@ router.post('/GetMediaLink', async (req, res) => {
     if (Parsed.kind === 'url') return Ok(res, { Url: Parsed.url, Kind: 'url' });
     if (Parsed.kind === 'asset') return Ok(res, { Url: null, Kind: 'asset' });
 
-    const Ticket = MediaTicket.Mint({
+    // Mint returns { Ticket, ExpiresAt, ExpiresInSeconds } - not a bare string.
+    const Minted = MediaTicket.Mint({
       generatedName: Parsed.ref,
       LogedUser: req.LogedUser,
     });
-    if (!Ticket) return Fail(res, 'Холбоос үүсгэж чадсангүй');
+    if (!Minted || !Minted.Ticket) return Fail(res, 'Холбоос үүсгэж чадсангүй');
 
     return Ok(res, {
-      Url: '/api/Media/t/' + Ticket,
+      Url: '/api/Media/t/' + Minted.Ticket,
       Kind: 'file',
-      ExpiresInSec: MediaTicket.DEFAULT_TTL_SECONDS,
+      ExpiresInSec: Minted.ExpiresInSeconds,
     });
   } catch (ex) {
     console.log(ex);
