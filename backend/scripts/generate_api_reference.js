@@ -642,12 +642,31 @@ const ENGINE_NOTES = {
   '/ExportText': 'Ижил экспорт, таб-аар тусгаарласан `.txt` файлаар.',
 };
 
+/*
+ * Access per api-layer surface.
+ *
+ * /api/base and /api/report said "public (no token)" here long after they
+ * stopped being public: api/index.js has gated both with
+ * [VerifyTokenJson, DenyPatient] since 2026-09-14, and §9 of this same document
+ * said so while this table contradicted it. A security reviewer reading §7
+ * alone would raise a critical finding that does not exist.
+ *
+ * The five surfaces below /api/report were missing entirely — they were counted
+ * in the §2 total and rendered nowhere, so the document promised 421 endpoints
+ * and listed 400. /api/Media is not a minor omission: it is the delivery path
+ * for chat voice notes and the rehabilitation videos.
+ */
 const SURFACE_ACCESS = {
   '/api/patient': 'token (RoleId 4 only)',
   '/api/doctor': 'token (staff only)',
   '/api/auth': 'self-authenticating',
-  '/api/base': 'public (no token)',
-  '/api/report': 'public (no token)',
+  '/api/base': 'token + staff (`DenyPatient`)',
+  '/api/report': 'token + staff (`DenyPatient`) — but see §9, shadowed by legacy `/api/Report`',
+  '/api/Media': '`/t/:ticket` — ticket only; everything else token',
+  '/api/admin': 'token + admin (RoleId 1 or 6)',
+  '/api/mobile': '`/version` public; `/config` token',
+  '/api/time': 'public (clock sync)',
+  '/api/fhir': 'token + staff, behind `FEATURE_FHIR_EXPORT` (default off)',
 };
 
 const code = (s) => '`' + s + '`';
@@ -775,8 +794,14 @@ function render(model) {
       ]
     ),
     '',
+    // Every surface, not just the five §6 and §7 render. Listing a subset here
+    // while the total counted all of them is what hid /api/Media, /api/fhir,
+    // /api/mobile, /api/time and /api/admin — 21 endpoints — from the reference.
     'api-layer задаргаа: ' +
-      [...mobile, ...newer].map((s) => `${code(s)} ${bySurface(s).length}`).join(' · ') +
+      [...new Set(apiLayer.map((r) => r.surface))]
+        .sort()
+        .map((s) => `${code(s)} ${bySurface(s).length}`)
+        .join(' · ') +
       '.',
     ''
   );
@@ -943,6 +968,40 @@ function render(model) {
     ''
   );
 
+  /*
+   * Everything else mounted under /api that §6 and §7 do not cover.
+   *
+   * Derived by subtraction rather than from a list, so a surface added to
+   * server.js in future cannot go unrendered the way these five did: they were
+   * counted in the §2 total and documented nowhere, which is how this file came
+   * to claim 421 endpoints while listing 400.
+   */
+  const otherRows = apiLayer.filter(
+    (r) => !mobile.includes(r.surface) && !newer.includes(r.surface)
+  );
+  if (otherRows.length) {
+    const otherSurfaces = [...new Set(otherRows.map((r) => r.surface))];
+    push(
+      '## 7.1. Бусад дэд API — ' + otherSurfaces.map(code).join(', '),
+      '',
+      'Эдгээр нь `server.js`-д шууд `app.use()`-ээр холбогдсон бөгөөд хандах эрх нь тус бүрдээ',
+      'өөр. `/api/Media` бол чатын дуут бичлэг болон сэргээн засах дасгалын бичлэгийг дамжуулдаг',
+      'зам тул онцгой анхаарна уу.',
+      '',
+      table(
+        ['Method', 'Path', 'Access', 'Эх файл', 'Зорилго (кодын тайлбараас)'],
+        otherRows.map((r) => [
+          code(r.method),
+          code(r.path),
+          accessOfApi(r),
+          code(r.file + ':' + r.line),
+          r.purpose,
+        ])
+      ),
+      ''
+    );
+  }
+
   /* system */
   push(
     '## 8. Системийн endpoint',
@@ -973,7 +1032,13 @@ function render(model) {
     ">   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use('/api', ...)` дээр биш,",
     '>   дэд router дээр тавьсан нь санаатай: mount түвшинд тавьбал энэ давхаргын үйлчилдэггүй',
     '>   бүх зам 404-ийн оронд 401 болж, хүсэлт бүр дээр хэрэглэгч уншина.',
-    `> - ${code('/api/report/*')} — ${reportRows.length} endpoint, мөн адил хамгаалагдсан.`,
+    `> - ${code('/api/report/*')} — ${reportRows.length} endpoint. Хандалт хаагдсан боловч`,
+    `>   **энэ давхаргын хаалгаар биш**: ${code('/api/Report')} гэсэн legacy угтвар түрүүлж`,
+    '>   бүртгэгдсэн бөгөөд Express том/жижиг үсэг ялгадаггүй тул эдгээр замыг тэр барьж авдаг.',
+    `>   Хэмжсэн үр дүн (2026-09-21): токенгүй хүсэлтэд **HTTP 401 биш, HTTP 200** буцаж,`,
+    `>   их үсгийн ${code('{ Success: false, AuthError: true }')} бүтэц ирдэг.`,
+    '>   Хандах эрх зөв хаагдаж байгаа тул эрсдэл бага, харин 401 хүлээж бичсэн клиент',
+    '>   (гар утасны апп, интеграц) үүнийг "амжилттай, хоосон хариу" гэж уншиж мэднэ.',
     `> - ${code('/api/Test/*')} — ${testRows.length} endpoint үлдсэн, ${code('routeGroups.public')}-д`,
     '>   (`controllers/system/TestController.js`): ' +
       (testRows.length ? testRows.map((r) => code(r.method + ' ' + r.path)).join(', ') : '—') +

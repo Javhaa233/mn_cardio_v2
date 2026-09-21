@@ -41,7 +41,7 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 | system | `GET /`, `GET /health` |  | 2 |
 | **Нийт** |  |  | **421** |
 
-api-layer задаргаа: `/api/patient` 46 · `/api/doctor` 46 · `/api/auth` 5 · `/api/base` 6 · `/api/report` 1.
+api-layer задаргаа: `/api/Media` 12 · `/api/admin` 1 · `/api/auth` 5 · `/api/base` 6 · `/api/doctor` 46 · `/api/fhir` 5 · `/api/mobile` 2 · `/api/patient` 46 · `/api/report` 1 · `/api/time` 1.
 
 ## 3. Хандах эрхийн тэмдэглэгээ
 
@@ -210,8 +210,8 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/RehabContent/GetList` | token | `RehabContentController.js:67` | The whole gallery in one read: exercises, their movements, and whether a photo/clip is attached. |
 | `POST` | `/api/RehabContent/Reorder` | token | `RehabContentController.js:141` | Renumber after a drag (or an up/down tap): OrderNo = position in `Ids`. |
 | `POST` | `/api/RehabContent/GetMediaLink` | token | `RehabContentController.js:186` | A short-lived URL a browser can put straight into <img> or <video>. |
-| `POST` | `/api/RehabContent/SetMedia` | token | `RehabContentController.js:229` | Point a movement at a file that has just been uploaded through /BaseObject/uploadFile. |
-| `POST` | `/api/RehabContent/RemoveMovement` | token | `RehabContentController.js:275` | Delete a movement, and the exercise's own row count with it. |
+| `POST` | `/api/RehabContent/SetMedia` | token | `RehabContentController.js:230` | Point a movement at a file that has just been uploaded through /BaseObject/uploadFile. |
+| `POST` | `/api/RehabContent/RemoveMovement` | token | `RehabContentController.js:290` | Delete a movement, and the exercise's own row count with it. |
 | `POST` | `/api/PatientTransfer/GetCustomFormData` | token | `PatientTransferController.js:10` |  |
 | `POST` | `/api/PatientTransfer/CustomSave` | token | `PatientTransferController.js:11` |  |
 | `POST` | `/api/PatientSendPage/GetCustomFormData` | token | `PatientSendPageController.js:10` |  |
@@ -593,12 +593,42 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | Method | Path | Access | Эх файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
 | `GET` | `/api/report/getCVDMonitoringSuom` | token — `/api/Report` угтвар барьдаг (§9) | `api/report/index.js:6` |  |
-| `GET` | `/api/base/:target/lookup` | public (no token) | `api/base/index.js:21` |  |
-| `GET` | `/api/base/:target/:id` | public (no token) | `api/base/index.js:23` |  |
-| `PUT` | `/api/base/:target/:id` | public (no token) | `api/base/index.js:23` |  |
-| `DELETE` | `/api/base/:target/:id` | public (no token) | `api/base/index.js:23` |  |
-| `GET` | `/api/base/:target` | public (no token) | `api/base/index.js:34` |  |
-| `POST` | `/api/base/:target` | public (no token) | `api/base/index.js:34` |  |
+| `GET` | `/api/base/:target/lookup` | token + staff (`DenyPatient`) | `api/base/index.js:21` |  |
+| `GET` | `/api/base/:target/:id` | token + staff (`DenyPatient`) | `api/base/index.js:23` |  |
+| `PUT` | `/api/base/:target/:id` | token + staff (`DenyPatient`) | `api/base/index.js:23` |  |
+| `DELETE` | `/api/base/:target/:id` | token + staff (`DenyPatient`) | `api/base/index.js:23` |  |
+| `GET` | `/api/base/:target` | token + staff (`DenyPatient`) | `api/base/index.js:34` |  |
+| `POST` | `/api/base/:target` | token + staff (`DenyPatient`) | `api/base/index.js:34` |  |
+
+## 7.1. Бусад дэд API — `/api/mobile`, `/api/time`, `/api/admin`, `/api/fhir`, `/api/Media`
+
+Эдгээр нь `server.js`-д шууд `app.use()`-ээр холбогдсон бөгөөд хандах эрх нь тус бүрдээ
+өөр. `/api/Media` бол чатын дуут бичлэг болон сэргээн засах дасгалын бичлэгийг дамжуулдаг
+зам тул онцгой анхаарна уу.
+
+| Method | Path | Access | Эх файл | Зорилго (кодын тайлбараас) |
+|---|---|---|---|---|
+| `GET` | `/api/mobile/version` | `/version` public; `/config` token | `api/mobile/index.js:29` | §2.1 Автоматаар шинэчлэгдэх - the forced-update check |
+| `GET` | `/api/mobile/config` | `/version` public; `/config` token | `api/mobile/index.js:32` | §1.3 - terms of service text and version, support contact |
+| `GET` | `/api/time/` | public (clock sync) | `api/time/index.js:84` |  |
+| `GET` | `/api/admin/backups` | token + admin (RoleId 1 or 6) | `api/admin/index.js:40` | §1.3 Нөөцлөлт - recent backups and whether they actually worked |
+| `GET` | `/api/fhir/Patient/:id` | token + staff, behind `FEATURE_FHIR_EXPORT` (default off) | `api/fhir/index.js:38` | One patient as a FHIR R4 Patient resource |
+| `GET` | `/api/fhir/Condition` | token + staff, behind `FEATURE_FHIR_EXPORT` (default off) | `api/fhir/index.js:40` | ICD-coded diagnoses as a searchset Bundle of Condition resources |
+| `GET` | `/api/fhir/Encounter` | token + staff, behind `FEATURE_FHIR_EXPORT` (default off) | `api/fhir/index.js:43` | Examinations as Encounter resources. |
+| `GET` | `/api/fhir/Observation` | token + staff, behind `FEATURE_FHIR_EXPORT` (default off) | `api/fhir/index.js:46` | Vital signs and laboratory results as Observation. |
+| `GET` | `/api/fhir/metadata` | token + staff, behind `FEATURE_FHIR_EXPORT` (default off) | `api/fhir/index.js:48` | What this server claims to support - the standard's own discovery document |
+| `GET` | `/api/Media/t/:ticket` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaTicketController.js:30` |  |
+| `HEAD` | `/api/Media/t/:ticket` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaTicketController.js:31` |  |
+| `GET` | `/api/Media/stream/:generatedName` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:40` | Stream any file the caller is allowed to read, by its generated_name. |
+| `HEAD` | `/api/Media/stream/:generatedName` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:41` | Stream any file the caller is allowed to read, by its generated_name. |
+| `GET` | `/api/Media/exercise/:exerciseId` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:42` | The exercise video, by exercise id, so the client never builds a file path. |
+| `HEAD` | `/api/Media/exercise/:exerciseId` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:43` | The exercise video, by exercise id, so the client never builds a file path. |
+| `GET` | `/api/Media/movement/:movementId` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:45` | The player's per-movement loop and still, and a programme block's still |
+| `HEAD` | `/api/Media/movement/:movementId` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:46` | Declarations, not consts: the router table above references them at load. |
+| `GET` | `/api/Media/movement/:movementId/thumb` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:47` |  |
+| `HEAD` | `/api/Media/movement/:movementId/thumb` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:48` |  |
+| `GET` | `/api/Media/block/:blockId/thumb` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:49` |  |
+| `HEAD` | `/api/Media/block/:blockId/thumb` | `/t/:ticket` — ticket only; everything else token | `controllers/system/MediaController.js:50` |  |
 
 ## 8. Системийн endpoint
 
@@ -617,7 +647,13 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 >   үйлчлүүлэгч (RoleId 4) бол 403. Хамгаалалтыг `app.use('/api', ...)` дээр биш,
 >   дэд router дээр тавьсан нь санаатай: mount түвшинд тавьбал энэ давхаргын үйлчилдэггүй
 >   бүх зам 404-ийн оронд 401 болж, хүсэлт бүр дээр хэрэглэгч уншина.
-> - `/api/report/*` — 1 endpoint, мөн адил хамгаалагдсан.
+> - `/api/report/*` — 1 endpoint. Хандалт хаагдсан боловч
+>   **энэ давхаргын хаалгаар биш**: `/api/Report` гэсэн legacy угтвар түрүүлж
+>   бүртгэгдсэн бөгөөд Express том/жижиг үсэг ялгадаггүй тул эдгээр замыг тэр барьж авдаг.
+>   Хэмжсэн үр дүн (2026-09-21): токенгүй хүсэлтэд **HTTP 401 биш, HTTP 200** буцаж,
+>   их үсгийн `{ Success: false, AuthError: true }` бүтэц ирдэг.
+>   Хандах эрх зөв хаагдаж байгаа тул эрсдэл бага, харин 401 хүлээж бичсэн клиент
+>   (гар утасны апп, интеграц) үүнийг "амжилттай, хоосон хариу" гэж уншиж мэднэ.
 > - `/api/Test/*` — 2 endpoint үлдсэн, `routeGroups.public`-д
 >   (`controllers/system/TestController.js`): `POST /api/Test/CheckRegisterRegex`, `POST /api/Test/RegexTest`.
 >   Токенгүй 1 ГБ файл байршуулдаг байсан `PUT /api/Test/uploadFile`, хатуу бичсэн хаяг руу
@@ -649,4 +685,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-18. Нийт endpoint: 421._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-21. Нийт endpoint: 421._
