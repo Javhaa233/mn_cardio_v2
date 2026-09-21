@@ -385,6 +385,46 @@ async function Login(req, res) {
       // Remove password from response
       delete userData.Password;
 
+      /*
+       * DEACTIVATION HAS TO ACTUALLY DEACTIVATE.
+       *
+       * Users.IsActive is offered in the admin UI and declared on the model,
+       * but nothing consulted it at login - every other IsActive reference in
+       * the backend is against UserRequests or Organization. So the control an
+       * administrator reaches for when a member of staff leaves, is suspended,
+       * or loses their practice licence did nothing at all.
+       *
+       * NULL MEANS ACTIVE, and that is not a shortcut. Measured on
+       * MnCardio_test 2026-09-21: 3,325 of 3,355 accounts have IsActive NULL
+       * and 3,201 of those can log in; only 30 are explicitly '1'. Requiring
+       * IsActive = 1 would lock out the entire hospital overnight. So the
+       * column reads as "active unless explicitly switched off" - meaningful
+       * from now on, and changing nothing for anyone today, because no account
+       * currently holds a deactivating value.
+       *
+       * Stored as nvarchar, so compare as text.
+       */
+      const ActiveFlag = userData.IsActive;
+      const Deactivated =
+        ActiveFlag !== null &&
+        ActiveFlag !== undefined &&
+        ['0', 'false', 'no'].includes(String(ActiveFlag).trim().toLowerCase());
+
+      if (Deactivated) {
+        await LoginGuard.RecordFailure({
+          UserType: 'staff',
+          UserName,
+          UserId: userData.Id,
+          Reason: 'INACTIVE',
+          Req: req,
+        });
+        return res.send({
+          Success: false,
+          Message: 'Таны бүртгэл идэвхгүй болсон байна. Админд хандана уу.',
+          Data: { token: null, LogedUser: null },
+        });
+      }
+
       // Role check
       if (!userData.RoleId) {
         await LoginGuard.RecordFailure({
