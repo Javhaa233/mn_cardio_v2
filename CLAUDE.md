@@ -767,6 +767,14 @@ true harder to believe. What was closed, and by what, is at the bottom.
 
 #### Open
 
+> **A whole-system audit ran on 2026-09-21 — read `docs/audit/2026-09-21/` before this list.**
+> `findings.md` is the register (28 findings, 9 fixed and verified), `method.md` says what was
+> and was **not** tested, `backup.md` covers the backup and disk findings. Several claims in
+> this section were measured for the first time by that audit and have been corrected here;
+> where a finding has an ID (MNC-…) it is described in full there. Two items need your
+> attention before any production work: the production data volume fills around **2026-10-06**,
+> and 19 patient screenshots were published to GitHub on 2026-09-10 and remain in git history.
+
 - **`ssh.env` and `test-environment.env` in the project root hold live SQL and SSH credentials
   in plain text** (see §1). This is the correct place for them — outside every repo, and the
   GitHub export denies them by name, by pattern and by root allowlist — but they are plain text
@@ -783,19 +791,48 @@ true harder to believe. What was closed, and by what, is at the bottom.
   base64 images through `BaseObject/create`, so the real ceiling is not guessable from the code.
   Log what actually arrives, then lower it from data. Rate limiting is registered *after* the
   body parsers, so a 100 MB body is parsed before the limiter sees it.
-- **Rate limiting counts but does not reject.** `helper/RateLimit.js` exists and is wired up;
-  `RATE_LIMIT_ENABLED` defaults false so the first deploy measures instead of blocking a ward.
+- **Rate limiting is ENABLED on the test server and it will bite you.** `RATE_LIMIT_ENABLED`
+  defaults false in code — counting only — but `mncardio.itsystem.mn` has it **on**: 600
+  requests/min per IP globally, and **10 credential attempts per 5 minutes**. Measured
+  2026-09-21; this section previously said the opposite. Three consequences:
+  - A run of anything that logs in more than a few times locks itself out, and the refusal
+    looks exactly like a wrong password. The acceptance harness now caches tokens outside the
+    repo, paces itself to ~480/min, and gives credential endpoints a backoff long enough to
+    wait out the 5-minute window.
+  - On the 49 legacy prefixes a refusal arrives as **HTTP 200 `{Success:false}`** with a
+    Mongolian message — indistinguishable from a genuine failure unless you look for it.
+  - **The bucket is keyed on IP alone** (`Hit('a:' + req.ip, …)`), and `trust proxy 1` means
+    that is the client address. A hospital behind NAT is *one* address for every member of
+    staff, so ten sign-ins in five minutes locks out the eleventh person. The file's own
+    header anticipates this — *"Guessing a limit and enforcing it on day one is how you block
+    a ward"* — which is why the code default is off. Whether production has it enabled is
+    **not yet confirmed**. Recorded as MNC-AUTH-003.
   `/api/UserRequest/CheckUserName` — a username-enumeration oracle — is not in `AUTH_PATHS`.
-- **Authorisation is patient-vs-not, and nothing finer.** `PATIENT_ALLOWED_PREFIXES`
-  (`server.js`) restricts `RoleId 4` to 8 prefixes. Roles 1, 2, 3, 5 and 6 are indistinguishable
-  across all 49 protected prefixes. `FEATURE_PERMISSIONS` defaults `off`, so the `Roles` /
-  `Permissions` / `RoleToPermission` tables are not consulted. In particular `/api/base` gives
-  any staff token **write** access to 11 of its 13 targets, including `Organization` and `Icd` —
-  the national organisation directory and the ICD catalogue.
+- **Authorisation is patient-vs-not, and nothing finer — now measured, not assumed.**
+  `PATIENT_ALLOWED_PREFIXES` (`server.js`) restricts `RoleId 4` to 8 prefixes, and that holds:
+  a patient token was admitted to exactly those and refused everywhere else, with
+  `helper/PatientScope.js` correctly returning own-rows-only at the row level.
+  **Roles 1 and 3 were probed across all 49 protected prefixes and differ on none** — an
+  ordinary doctor reaches everything an administrator reaches, including `/api/Organization`,
+  `/api/Report` and `/api/XypService`. Roles 2, 5 and 6 are **untested** (no credentials, and
+  role 5 has no user in the database at all), so the claim about them still rests on the code
+  path. `FEATURE_PERMISSIONS` defaults `off`, so the `Roles` / `Permissions` /
+  `RoleToPermission` tables are not consulted; six controllers do enforce `RoleId` themselves
+  (e.g. `DoctorProfile/SetLicense`), which is the exception rather than the rule.
+  `/api/base` gives any staff token **write** access to **13 of its 13 targets** — measured by
+  probing with an invalid body, so authorisation runs and validation refuses without writing —
+  including `Organization`, `Icd` and `OptionTypes`. (This section previously said 11 of 13.)
+  Restricting it is **not** a safe unilateral change: six of the thirteen are referenced by
+  live frontend code, and `HavhlagaEmgeg` and `TurulhiinGajig` are clinical registries a doctor
+  is supposed to edit. It needs the access matrix, tracker #7. Recorded as MNC-AUTH-004/005.
 - **`/api/Report` shadows `/api/report/*`.** The legacy mount is registered first and Express
   matches case-insensitively, so the newer api-layer router never sees those requests.
   Authenticated calls are verified twice (two full `fetchFullUserData` passes); unauthenticated
-  ones get `200 {Success:false}` instead of the `401` the api layer documents.
+  ones get `200 {Success:false, AuthError:true}` instead of the `401` the api layer documents —
+  confirmed 2026-09-21. Access **is** correctly denied; only the status code is wrong, and
+  `docs/API-WEB.md` §9 now says so rather than claiming a 401. Do **not** "fix" this by mounting
+  `/api/report` before the legacy table: Express is case-insensitive, so the api layer would
+  then swallow `/api/Report/*` and take the legacy Report controller down with it. MNC-API-002.
 - **Passwords in plaintext.** `controllers/patient-care/OutPatientInfoController.js:218` logs a
   patient's freshly minted portal password (silenced in production by the `console.log` patch in
   `server.js`, written in full everywhere else). `POST /api/OutPatientInfo/GetPatientPlainPassword`
