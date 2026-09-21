@@ -119,8 +119,15 @@ export default function PatientReminders() {
 
   const remove = async (row) => {
     setBusy(true);
-    await Helper.PatientApiHelper.DeleteReminder(row.Id);
+    setFormError("");
+    const res = await Helper.PatientApiHelper.DeleteReminder(row.Id);
     setBusy(false);
+    if (!res.success) {
+      // Discarding this made a refused delete look like a successful one: the
+      // list simply re-rendered unchanged.
+      setFormError(res.message || t("Устгах үед алдаа гарлаа"));
+      return;
+    }
     refresh();
   };
 

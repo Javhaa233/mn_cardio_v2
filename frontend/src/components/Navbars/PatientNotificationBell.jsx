@@ -56,8 +56,11 @@ export default function PatientNotificationBell() {
       if (document.visibilityState === "hidden") return;
       const res = await Helper.PatientApiHelper.GetUnreadCount();
       if (cancelled) return;
-      const n = res.success && res.data ? Number(res.data.unread) || 0 : 0;
-      setUnread(n);
+      // A failed poll leaves the badge alone. Writing 0 on a dropped request
+      // hid a real count until the next tick, which reads as "nothing new"
+      // when the truth is "we could not ask".
+      if (!res.success || !res.data) return;
+      setUnread(Number(res.data.unread) || 0);
     };
 
     read();

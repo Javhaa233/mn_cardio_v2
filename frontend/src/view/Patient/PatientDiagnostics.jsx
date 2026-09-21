@@ -66,7 +66,10 @@ export default function PatientDiagnostics() {
     total: 0,
   });
   const [Filter, setFilter] = useState("");
-  const [Limit, setLimit] = useState(PAGE);
+  // Offset paging, not a growing limit. readPaging() clamps `limit` to 100, so
+  // asking for ever-larger pages silently stops working at 100 records while
+  // the "show more" button stays on screen doing nothing.
+  const [Offset, setOffset] = useState(0);
 
   const [Reload, setReload] = useState(0);
 
@@ -84,36 +87,39 @@ export default function PatientDiagnostics() {
     let cancelled = false;
 
     (async () => {
-      const params = { limit: Limit };
+      const params = { limit: PAGE, offset: Offset };
       if (Filter) params.type = Filter;
       const res = await Helper.PatientApiHelper.GetDiagnostics(params);
       if (cancelled) return;
 
-      setState({
+      const page = res.success && Array.isArray(res.data) ? res.data : [];
+      setState((prev) => ({
         loading: false,
         error: res.success
           ? null
           : res.message || t("Мэдээлэл ачаалахад алдаа гарлаа"),
-        data: res.success && Array.isArray(res.data) ? res.data : [],
+        // Offset 0 is a fresh list - first load, or the filter changed.
+        // Anything else is another page appended to what is already shown.
+        data: Offset === 0 ? page : prev.data.concat(page),
         total: res.success && typeof res.total === "number" ? res.total : 0,
-      });
+      }));
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [Filter, Limit, Reload, t]);
+  }, [Filter, Offset, Reload, t]);
 
   const chooseType = (key) => {
     if (key === Filter) return;
-    setState((s) => ({ ...s, loading: true, error: null }));
-    setLimit(PAGE);
+    setState((s) => ({ ...s, loading: true, error: null, data: [] }));
+    setOffset(0);
     setFilter(key);
   };
 
   const showMore = () => {
     setState((s) => ({ ...s, loading: true, error: null }));
-    setLimit((n) => n + PAGE);
+    setOffset((n) => n + PAGE);
   };
 
   const RenderBody = () => {

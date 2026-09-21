@@ -9,6 +9,9 @@ import ChatBubbleOutlineIcon from "@mui/icons-material/ChatBubbleOutline";
 import RecordVoiceOverOutlinedIcon from "@mui/icons-material/RecordVoiceOverOutlined";
 import VideocamOutlinedIcon from "@mui/icons-material/VideocamOutlined";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import AlarmOutlinedIcon from "@mui/icons-material/AlarmOutlined";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import FitnessCenterOutlinedIcon from "@mui/icons-material/FitnessCenterOutlined";
 
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
@@ -41,16 +44,51 @@ import Helper from "helper";
 /**
  * Where a notification points.
  *
- * `Action` is a short code the server sets when it creates the row. Only the
- * destinations a patient actually has are mapped - anything else stays a
- * plain, unclickable line rather than navigating somewhere they cannot open.
+ * `Action` is a short code the server writes when it creates the row. These
+ * are the EXACT strings the backend emits - taken from the writers in
+ * helper/NotificationHelper.js, helper/AccessNotify.js and the rehab and
+ * e-visit controllers, and confirmed against a real account, which carries
+ * `chat`, `ReplyQuestion`, `EvisitScheduled` and `Reminder`.
+ *
+ * Getting these wrong is silent: an unmatched code still renders, just with a
+ * generic bell and no link, so it looks like a design choice rather than a
+ * bug. An earlier version of this map guessed `advice` and `remotevisit`,
+ * which the server never sends, and three of the four kinds a patient
+ * actually receives were dead.
+ *
+ * Only destinations a patient can open are mapped. Anything else stays a
+ * plain, unclickable line rather than navigating somewhere they cannot reach.
  */
+const CHAT = { to: "/patient/PatientQuestion", Icon: ChatBubbleOutlineIcon };
+const ADVICE = {
+  to: "/patient/PatientAdvice",
+  Icon: RecordVoiceOverOutlinedIcon,
+};
+const EVISIT = {
+  to: "/patient/PatientRemoteVisit",
+  Icon: VideocamOutlinedIcon,
+};
+
 const ACTION = {
-  chat: { to: "/patient/PatientQuestion", Icon: ChatBubbleOutlineIcon },
-  advice: { to: "/patient/PatientAdvice", Icon: RecordVoiceOverOutlinedIcon },
-  remotevisit: {
-    to: "/patient/PatientRemoteVisit",
-    Icon: VideocamOutlinedIcon,
+  chat: CHAT,
+  ReplyQuestion: CHAT,
+  PatientQuestion: CHAT,
+
+  AdviceComment: ADVICE,
+  AdvicePublished: ADVICE,
+
+  EvisitRequested: EVISIT,
+  EvisitScheduled: EVISIT,
+  EvisitCompleted: EVISIT,
+  EvisitCancelled: EVISIT,
+  EvisitWithdrawn: EVISIT,
+
+  Reminder: { to: "/patient/PatientReminders", Icon: AlarmOutlinedIcon },
+  RecordAccessed: { to: "/patient/PatientPrivacy", Icon: ShieldOutlinedIcon },
+  RehabPlan: { to: "/patient/PatientRehab", Icon: FitnessCenterOutlinedIcon },
+  RehabAssessment: {
+    to: "/patient/PatientRehab",
+    Icon: FitnessCenterOutlinedIcon,
   },
 };
 

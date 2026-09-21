@@ -68,6 +68,7 @@ export default function PatientPrivacy() {
 
   const [Consents, setConsents] = useState({
     loading: true,
+    disabled: false,
     error: null,
     items: [],
   });
@@ -78,6 +79,7 @@ export default function PatientPrivacy() {
     data: [],
   });
   const [Busy, setBusy] = useState("");
+  const [ActionError, setActionError] = useState("");
   const [OpenDoc, setOpenDoc] = useState("");
   const [Doc, setDoc] = useState({ code: "", loading: false, text: "" });
   const [Reload, setReload] = useState(0);
@@ -92,11 +94,17 @@ export default function PatientPrivacy() {
       ]);
       if (cancelled) return;
 
+      // Consent has its own feature flag, and answers 503 FEATURE_DISABLED the
+      // same way the access log does. Rendering that as a red error with a
+      // Retry that can never succeed is worse than saying it is not on.
+      const consentOff = !c.success && c.code === "FEATURE_DISABLED";
       setConsents({
         loading: false,
-        error: c.success
-          ? null
-          : c.message || t("Мэдээлэл ачаалахад алдаа гарлаа"),
+        disabled: consentOff,
+        error:
+          c.success || consentOff
+            ? null
+            : c.message || t("Мэдээлэл ачаалахад алдаа гарлаа"),
         items:
           c.success && c.data && Array.isArray(c.data.items)
             ? c.data.items
@@ -145,19 +153,30 @@ export default function PatientPrivacy() {
     });
   };
 
-  const grant = async (row) => {
+  /**
+   * Both of these used to discard the result. A 409 CONSENT_DOC_SUPERSEDED or
+   * a 503 then left the button doing nothing at all, with no way for the
+   * patient to know their answer had not been recorded.
+   */
+  const write = async (row, call) => {
     setBusy(row.PurposeCode);
-    await Helper.PatientApiHelper.GrantConsent(row.PurposeCode, row.DocumentId);
+    setActionError("");
+    const res = await call();
     setBusy("");
+    if (!res.success) {
+      setActionError(res.message || t("Үйлдэл амжилтгүй боллоо"));
+      return;
+    }
     refresh();
   };
 
-  const withdraw = async (row) => {
-    setBusy(row.PurposeCode);
-    await Helper.PatientApiHelper.WithdrawConsent(row.PurposeCode);
-    setBusy("");
-    refresh();
-  };
+  const grant = (row) =>
+    write(row, () =>
+      Helper.PatientApiHelper.GrantConsent(row.PurposeCode, row.DocumentId),
+    );
+
+  const withdraw = (row) =>
+    write(row, () => Helper.PatientApiHelper.WithdrawConsent(row.PurposeCode));
 
   const RenderConsents = () => {
     if (Consents.loading) {
@@ -165,6 +184,11 @@ export default function PatientPrivacy() {
         <Box sx={{ position: "relative", minHeight: "160px" }}>
           <DivLoading WithoutCard />
         </Box>
+      );
+    }
+    if (Consents.disabled) {
+      return (
+        <BaseNoData Text={t("Зөвшөөрлийн бүртгэл одоогоор идэвхгүй байна")} />
       );
     }
     if (Consents.error) {
@@ -176,6 +200,10 @@ export default function PatientPrivacy() {
 
     return Consents.items.map((row) => {
       const granted = row.Granted === true;
+      // null means never asked; false means asked and REFUSED. listConsents
+      // warns about collapsing the two, because re-prompting someone who
+      // already declined is exactly what consent records exist to prevent.
+      const refused = row.Granted === false;
       const draft = isDraft(row);
       return (
         <Box
@@ -210,7 +238,9 @@ export default function PatientPrivacy() {
                   ? t("Бэлтгэгдэж байна")
                   : granted
                     ? t("Зөвшөөрсөн")
-                    : t("Зөвшөөрөөгүй")
+                    : refused
+                      ? t("Татгалзсан")
+                      : t("Асуугаагүй")
               }
             />
           </Box>
@@ -341,7 +371,12 @@ export default function PatientPrivacy() {
           {row.UserName || row.DoctorName || t("Тодорхойгүй")}
         </Typography>
         <Typography variant="body2" sx={{ color: colors.brand.inkMuted }}>
-          {Helper.ObjectHelper.getDateYMDDisplay(row.CreateDate || row.Date)}
+          {Helper.ObjectHelper.getDateYMDDisplay(
+            // LogDate, not CreateDate: the access-log rows are shaped by
+            // listAccessLog, which selects and orders on LogDate. Reading the
+            // wrong field left every date blank.
+            row.LogDate,
+          )}
         </Typography>
       </Box>
     ));
@@ -352,6 +387,21 @@ export default function PatientPrivacy() {
       <GridContainer spacing={2}>
         <GridItem xs={12} md={7}>
           <UniCard title={t("Хувийн мэдээлэл ашиглах зөвшөөрөл")}>
+            {ActionError ? (
+              <Box
+                role="alert"
+                sx={{
+                  marginBottom: space[2],
+                  color: colors.status.dangerInk,
+                  backgroundColor: colors.status.dangerTint,
+                  border: `1px solid ${colors.brand.hairline}`,
+                  borderRadius: radius.sm,
+                  padding: space[2],
+                }}
+              >
+                {ActionError}
+              </Box>
+            ) : null}
             {RenderConsents()}
           </UniCard>
         </GridItem>

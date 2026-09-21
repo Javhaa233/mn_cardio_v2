@@ -11,7 +11,7 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import ListItemText from "@mui/material/ListItemText";
 import Collapse from "@mui/material/Collapse";
-import Icon from "@mui/material/Icon"
+import Icon from "@mui/material/Icon";
 import Box from "@mui/material/Box";
 
 // material-ui icons
@@ -23,7 +23,10 @@ import Button from "components/CustomButtons/Button";
 import CustomTooltip from "customComponents/CustomTooltip";
 
 import { sidebarSx } from "assets/jss/material-dashboard-pro-react/components/sidebarStyle.js";
-import { drawerMiniWidth, drawerWidth } from "assets/jss/material-dashboard-pro-react.js";
+import {
+  drawerMiniWidth,
+  drawerWidth,
+} from "assets/jss/material-dashboard-pro-react.js";
 import { layout } from "@/theme/tokens";
 import appTheme from "@/theme.js";
 import Helper from "helper";
@@ -40,14 +43,20 @@ class SidebarWrapper extends Component {
             autoHide: "scroll",
             autoHideDelay: 600,
             clickScrolling: true,
-            dragScrolling: true
+            dragScrolling: true,
           },
           overflow: {
-            x: 'hidden',
-            y: 'scroll'
-          }
+            x: "hidden",
+            y: "scroll",
+          },
         }}
-        style={{ flex: "1 1 auto", minHeight: 0, minWidth: 0, maxWidth: "100%", ...(style || {}) }}
+        style={{
+          flex: "1 1 auto",
+          minHeight: 0,
+          minWidth: 0,
+          maxWidth: "100%",
+          ...(style || {}),
+        }}
       >
         {headerLinks}
         {links}
@@ -86,13 +95,14 @@ class Sidebar extends Component {
   /** Mini rail applies unless we are rendering the phone drawer. */
   miniEnabled = () => !this.forceExpanded && this.props.miniActive;
 
-
   getCurrentPathname = () => {
     if (this.props.location?.pathname) {
       return this.props.location.pathname;
     }
     try {
-      return window.location?.pathname || new URL(window.location.href).pathname;
+      return (
+        window.location?.pathname || new URL(window.location.href).pathname
+      );
     } catch (e) {
       return window.location?.pathname || "";
     }
@@ -103,7 +113,8 @@ class Sidebar extends Component {
     const s = (p + "").split("?")[0].split("#")[0];
     // collapse multiple slashes and remove trailing slash (except root)
     const collapsed = s.replace(/\/+/g, "/");
-    const noTrailing = collapsed.length > 1 ? collapsed.replace(/\/$/, "") : collapsed;
+    const noTrailing =
+      collapsed.length > 1 ? collapsed.replace(/\/$/, "") : collapsed;
     return noTrailing.toLowerCase();
   };
 
@@ -184,24 +195,24 @@ class Sidebar extends Component {
       }
 
       if (prop.collapse) {
-    const { t } = this.props;
+        const { t } = this.props;
         const isMini = this.miniEnabled() && this.state.miniActive;
         const isCollapseActive = this.getCollapseInitialState(prop.views);
 
         const navLinkSx = {
           ...sidebarSx.itemLink,
           ...(isMini ? sidebarSx.itemLinkMini : null),
-          ...(isCollapseActive ? sidebarSx.collapseActive : null)
+          ...(isCollapseActive ? sidebarSx.collapseActive : null),
         };
 
         const itemTextSx = {
           ...sidebarSx.itemText,
-          ...(isMini ? sidebarSx.itemTextMini : null)
+          ...(isMini ? sidebarSx.itemTextMini : null),
         };
 
         const collapseItemTextSx = {
           ...sidebarSx.collapseItemText,
-          ...(isMini ? sidebarSx.collapseItemTextMini : null)
+          ...(isMini ? sidebarSx.collapseItemTextMini : null),
         };
 
         return (
@@ -231,7 +242,7 @@ class Sidebar extends Component {
                       <Icon sx={sidebarSx.itemIcon}>{prop.icon}</Icon>
                     ) : (
                       React.createElement(prop.icon, {
-                        style: sidebarSx.itemIcon
+                        style: sidebarSx.itemIcon,
                       })
                     )
                   ) : (
@@ -246,7 +257,9 @@ class Sidebar extends Component {
                         component="b"
                         sx={{
                           ...sidebarSx.caret,
-                          ...(this.state[prop.state] ? sidebarSx.caretActive : null)
+                          ...(this.state[prop.state]
+                            ? sidebarSx.caretActive
+                            : null),
                         }}
                       />
                     }
@@ -277,23 +290,23 @@ class Sidebar extends Component {
       const innerNavLinkSx = {
         ...sidebarSx.collapseItemLink,
         ...(isMini ? sidebarSx.itemLinkMini : null),
-        ...(isActive ? sidebarSx.white : null)
+        ...(isActive ? sidebarSx.white : null),
       };
 
       const navLinkSx = {
         ...sidebarSx.itemLink,
         ...(isMini ? sidebarSx.itemLinkMini : null),
-        ...(isActive ? sidebarSx.white : null)
+        ...(isActive ? sidebarSx.white : null),
       };
 
       const itemTextSx = {
         ...sidebarSx.itemText,
-        ...(isMini ? sidebarSx.itemTextMini : null)
+        ...(isMini ? sidebarSx.itemTextMini : null),
       };
 
       const collapseItemTextSx = {
         ...sidebarSx.collapseItemText,
-        ...(isMini ? sidebarSx.collapseItemTextMini : null)
+        ...(isMini ? sidebarSx.collapseItemTextMini : null),
       };
 
       return (
@@ -341,98 +354,115 @@ class Sidebar extends Component {
   render() {
     const { routes } = this.props;
 
-    const isMini = this.miniEnabled() && this.state.miniActive;
+    /**
+     * Everything inside a drawer that the mini rail changes.
+     *
+     * Called twice - once normally, once with `forceExpanded` - because the
+     * LINKS were never the only thing keyed on `miniActive`. The "Mn Cardio"
+     * header and the footer label are too, so rendering only the links
+     * expanded gave the phone drawer labelled routes under no brand and a
+     * display:none footer. Everything it needs is in this scope, which is why
+     * it lives here rather than as a method.
+     */
+    const buildChrome = () => {
+      const isMini = this.miniEnabled() && this.state.miniActive;
 
-    const links = (
-      <List sx={sidebarSx.list}>{this.createLinks(routes)}</List>
-    );
+      const links = <List sx={sidebarSx.list}>{this.createLinks(routes)}</List>;
 
-    // The same routes, rendered with labels, for the temporary drawer. See
-    // `forceExpanded` above for why the shared tree is not good enough.
-    this.forceExpanded = true;
-    const mobileLinks = (
-      <List sx={sidebarSx.list}>{this.createLinks(routes)}</List>
-    );
-    this.forceExpanded = false;
+      const itemTextSx = {
+        ...sidebarSx.itemText,
+        ...(isMini ? sidebarSx.itemTextMini : null),
+      };
 
-    const itemTextSx = {
-      ...sidebarSx.itemText,
-      ...(isMini ? sidebarSx.itemTextMini : null)
-    };
+      const itSystemLinks = (
+        <List sx={{ ...sidebarSx.list, marginTop: 0 }}>
+          <ListItem sx={sidebarSx.item}>
+            <CustomTooltip
+              title={"IT System LLC"}
+              placement="right"
+              Disabled={!this.miniEnabled()}
+            >
+              <div>
+                <Box
+                  component="a"
+                  href="https://www.itsystem.mn"
+                  target="_blank"
+                  rel="noreferrer"
+                  sx={{
+                    ...sidebarSx.itemLink,
+                    ...(isMini ? sidebarSx.itemLinkMini : null),
+                  }}
+                >
+                  <Icon sx={sidebarSx.itemIcon}>language</Icon>
+                  <ListItemText
+                    primary={"IT System LLC"}
+                    disableTypography={true}
+                    sx={itemTextSx}
+                  />
+                </Box>
+              </div>
+            </CustomTooltip>
+          </ListItem>
+        </List>
+      );
 
-    const itSystemLinks = (
-      <List sx={{ ...sidebarSx.list, marginTop: 0 }}>
-        <ListItem sx={sidebarSx.item}>
-          <CustomTooltip
-            title={"IT System LLC"}
-            placement="right"
-            Disabled={!this.miniEnabled()}
-          >
-            <div>
-              <Box
-                component="a"
-                href="https://www.itsystem.mn"
-                target="_blank"
-                rel="noreferrer"
-                sx={{
-                  ...sidebarSx.itemLink,
-                  ...(isMini ? sidebarSx.itemLinkMini : null),
-                }}
-              >
-                <Icon sx={sidebarSx.itemIcon}>language</Icon>
-                <ListItemText
-                  primary={"IT System LLC"}
-                  disableTypography={true}
-                  sx={itemTextSx}
-                />
+      const logoNormalSx = {
+        ...sidebarSx.logoNormal,
+        ...(isMini ? sidebarSx.logoNormalSidebarMini : null),
+      };
+
+      const brand = (
+        <Box sx={sidebarSx.sidebarHeader}>
+          {/* miniEnabled(), not the raw prop: on a phone `miniActive` is true
+              (width <= 1440) and the brand would vanish from the drawer. */}
+          {!this.miniEnabled() ? (
+            <Box sx={sidebarSx.logo}>
+              <Box component="a" href="#" sx={logoNormalSx}>
+                Mn Cardio
               </Box>
-            </div>
-          </CustomTooltip>
-        </ListItem>
-      </List>
-    );
-
-    const logoNormalSx = {
-      ...sidebarSx.logoNormal,
-      ...(isMini ? sidebarSx.logoNormalSidebarMini : null)
-    };
-
-    const brand = (
-      <Box sx={sidebarSx.sidebarHeader}>
-        {!this.props.miniActive ? (
-          <Box sx={sidebarSx.logo}>
-            <Box component="a" href="#" sx={logoNormalSx}>
-              Mn Cardio
+            </Box>
+          ) : null}
+          <Box sx={{ display: { xs: "none", md: "block" } }}>
+            <Box sx={sidebarSx.sidebarMinimize}>
+              {this.miniEnabled() ? (
+                <Button
+                  justIcon
+                  round
+                  color="white"
+                  simple
+                  onClick={this.props.sidebarMinimize}
+                >
+                  <MenuIcon style={{ width: "22px", height: "22px" }} />
+                </Button>
+              ) : (
+                <Button
+                  justIcon
+                  round
+                  color="white"
+                  simple
+                  onClick={this.props.sidebarMinimize}
+                >
+                  <CloseIcon style={{ width: "22px", height: "22px" }} />
+                </Button>
+              )}
             </Box>
           </Box>
-        ) : null}
-        <Box sx={{ display: { xs: 'none', md: 'block' } }}>
-          <Box sx={sidebarSx.sidebarMinimize}>
-            {this.props.miniActive ? (
-              <Button
-                justIcon
-                round
-                color="white"
-                simple
-                onClick={this.props.sidebarMinimize}
-              >
-                <MenuIcon style={{ width: "22px", height: "22px" }} />
-              </Button>
-            ) : (
-              <Button
-                justIcon
-                round
-                color="white"
-                simple
-                onClick={this.props.sidebarMinimize}
-              >
-                <CloseIcon style={{ width: "22px", height: "22px" }} />
-              </Button>
-            )}
-          </Box>
         </Box>
-      </Box>
-    );
+      );
+
+      return { links, itSystemLinks, brand };
+    };
+
+    const desktop = buildChrome();
+
+    this.forceExpanded = true;
+    const mobile = buildChrome();
+    this.forceExpanded = false;
+
+    // The PERMANENT drawer's width. Deliberately the desktop reading, not the
+    // builder's - forceExpanded is a rendering concern for the phone drawer
+    // and must not widen the rail behind it.
+    const isMini = this.miniEnabled() && this.state.miniActive;
 
     // TWO paper styles, not one.
     //
@@ -504,7 +534,7 @@ class Sidebar extends Component {
       minWidth: 0,
       maxWidth: "100%",
       overflowX: "hidden",
-      paddingBottom: "0"
+      paddingBottom: "0",
     };
 
     // Which drawer is live is decided by `sx` ON THE DRAWER, not by a wrapper
@@ -539,15 +569,26 @@ class Sidebar extends Component {
             keepMounted: true,
           }}
         >
-          <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            {brand}
+          <Box
+            sx={{ display: "flex", flexDirection: "column", height: "100%" }}
+          >
+            {mobile.brand}
             <SidebarWrapper
               className=""
-              links={mobileLinks}
+              links={mobile.links}
               style={sidebarWrapperStyle}
             />
-            <Box sx={{ mt: "auto", flex: "0 0 auto", paddingBottom: "12px", backgroundColor: "transparent", zIndex: 5, position: "relative" }}>
-              {itSystemLinks}
+            <Box
+              sx={{
+                mt: "auto",
+                flex: "0 0 auto",
+                paddingBottom: "12px",
+                backgroundColor: "transparent",
+                zIndex: 5,
+                position: "relative",
+              }}
+            >
+              {mobile.itSystemLinks}
             </Box>
           </Box>
         </Drawer>
@@ -558,11 +599,26 @@ class Sidebar extends Component {
           sx={{ display: { xs: "none", md: "block" } }}
           PaperProps={{ sx: permanentPaperSx }}
         >
-          <Box sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
-            {brand}
-            <SidebarWrapper className="" links={links} style={sidebarWrapperStyle} />
-            <Box sx={{ mt: "auto", flex: "0 0 auto", paddingBottom: "12px", backgroundColor: "transparent", zIndex: 5, position: "relative" }}>
-              {itSystemLinks}
+          <Box
+            sx={{ display: "flex", flexDirection: "column", height: "100%" }}
+          >
+            {desktop.brand}
+            <SidebarWrapper
+              className=""
+              links={desktop.links}
+              style={sidebarWrapperStyle}
+            />
+            <Box
+              sx={{
+                mt: "auto",
+                flex: "0 0 auto",
+                paddingBottom: "12px",
+                backgroundColor: "transparent",
+                zIndex: 5,
+                position: "relative",
+              }}
+            >
+              {desktop.itSystemLinks}
             </Box>
           </Box>
         </Drawer>
@@ -592,4 +648,6 @@ const SidebarWithLocation = (props) => {
   return <Sidebar {...props} location={location} />;
 };
 
-export default withTranslation(undefined, { withRef: true })(SidebarWithLocation);
+export default withTranslation(undefined, { withRef: true })(
+  SidebarWithLocation,
+);
