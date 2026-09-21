@@ -82,7 +82,9 @@ class AdviceComment extends Component {
     this.setState({ LogedUser: LogedUser || {} });
     this.GetAdvice();
 
-    if (LogedUser && LogedUser.Id) {
+    // Guarded on the id too: recording a "view" of a ticket that was never
+    // named writes a row against AdviceId null.
+    if (LogedUser && LogedUser.Id && this.state.AdviceId) {
       Helper.AdviceHelper.SaveAdviceViews(
         this.state.AdviceId,
         LogedUser,
@@ -92,6 +94,18 @@ class AdviceComment extends Component {
   }
 
   GetAdvice = async () => {
+    // No id means there is nothing to fetch. This screen is `redirect: true` -
+    // reached by clicking a ticket, never from the menu - so it normally
+    // receives an AdviceId. Opened directly it used to call GetTicket with
+    // AdviceId: null anyway, which answers "Information is missing", and the
+    // user was left looking at an empty page backed by a failed request.
+    // The empty state below already says the right thing; it just should not
+    // take a doomed round trip to get there.
+    if (!this.state.AdviceId) {
+      this.setState({ Advice: {}, NotFound: true, isLoading: false });
+      return;
+    }
+
     this.setState({ isLoading: true });
     await Helper.AdviceHelper.GetTicket(this.state.AdviceId, (resData) => {
       const Ticket = resData && resData.Data ? resData.Data : null;
