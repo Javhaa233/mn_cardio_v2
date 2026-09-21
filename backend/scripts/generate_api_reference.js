@@ -1070,4 +1070,15 @@ function main() {
   }
 }
 
-main();
+/*
+ * Exported so the acceptance harness can discover endpoints through THIS parser
+ * rather than keeping a second, weaker copy. tests/acceptance/catalogue.js read
+ * routeGroups one line at a time and silently lost every entry Prettier wrapped
+ * over several lines, so the sweep could not state its own coverage.
+ *
+ * Importing must stay side-effect-free: main() is what writes API-WEB.md, and it
+ * now runs only when this file is executed directly.
+ */
+if (require.main === module) main();
+
+module.exports = { discover, parseServer, parseRouterFile, BACKEND };

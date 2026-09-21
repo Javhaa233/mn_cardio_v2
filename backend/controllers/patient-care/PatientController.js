@@ -17,6 +17,25 @@ async function SearchPatient(req, res) {
     const LogedUser = req.LogedUser;
     const ObjectName = req.body.ObjectName;
 
+    /*
+     * Refuse rather than silently answer "no results".
+     *
+     * The whole handler is guarded by `ObjectName === 'Patient'`, so a caller
+     * that omits it — or sends the SearchText the name implies rather than the
+     * SearchField this actually wants — got {Success:true, Data:[]} in ~11ms and
+     * could not tell "no patient matched" from "you called it wrong".
+     *
+     * Same class as TenderForm/CustomSave accepting only-unknown fields: an
+     * operation that did nothing must not report success.
+     */
+    if (ObjectName !== 'Patient') {
+      return res.send(
+        JSON.stringify(
+          BaseControllerHelper.GetDefaultErrorResult("ObjectName: 'Patient' байхаар илгээнэ үү")
+        )
+      );
+    }
+
     if (ObjectName === 'Patient' && LogedUser) {
       const Option = BaseControllerHelper.GetCrudRequestData(req);
 

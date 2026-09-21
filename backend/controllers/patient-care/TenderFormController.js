@@ -60,6 +60,45 @@ function CallerOrganizations(LogedUser) {
  *   edited". There is no unlock. A repeat procedure is a NEW record, which is
  *   offered a copy of the previous one (GetPrevious).
  */
+/**
+ * Remove answers that belong to questions the record no longer shows.
+ *
+ * WHY THE SERVER HAS TO DO THIS. Clearing used to be the editor's job — it sent
+ * null for each hidden field at save time, and the merge above dropped empties.
+ * That works for the web form and for nothing else. `IsVisible` is consulted on
+ * the server at Confirm and when printing, so any caller that does not
+ * reproduce the editor's behaviour leaves a stale answer that the form and the
+ * printed sheet both hide while the generated view, the register filters and the
+ * .xlsx export all show it. The mobile app posts these same field codes.
+ *
+ * Measured 2026-09-21 on all 11 seeded forms. On 1.1: answering
+ * VirusIdevhijil = 'y', then setting its parent VirusMarker = 'n' (which hides
+ * it) without re-sending the child, left vwForm_1_1 reporting virus activity for
+ * a patient whose record says the marker is negative.
+ *
+ * REPEATED UNTIL STABLE, not a single pass. Visibility is transitive: removing a
+ * parent's answer can hide its children, which can hide theirs. One pass
+ * computed against the pre-removal values would keep those grandchildren. The
+ * loop is bounded because each iteration removes at least one key.
+ *
+ * Mutates `Answers` in place and returns the codes it removed.
+ */
+function DropHidden(Answers, ByCode) {
+  const Removed = [];
+  for (let pass = 0; pass < 20; pass++) {
+    const Hidden = Object.keys(Answers).filter((k) => {
+      const Field = ByCode.get ? ByCode.get(k) : ByCode[k];
+      return Field && !IsVisible(Field, Answers, ByCode);
+    });
+    if (!Hidden.length) break;
+    Hidden.forEach((k) => {
+      delete Answers[k];
+      Removed.push(k);
+    });
+  }
+  return Removed;
+}
+
 async function LoadWritable(Id, LogedUser, transaction) {
   const Row = await Models.TenderFormData.findOne({ where: { Id }, transaction });
   if (!Row || Row.rec_status === 2) return { Error: 'Бүртгэл олдсонгүй' };
@@ -546,9 +585,11 @@ async function CustomSave(req, res) {
     }
 
     // only accept keys the dictionary knows about
+    // ParentField/ParentValue are selected so the save can enforce visibility
+    // itself — see DropHidden below.
     const Dictionary = await Models.TenderFormField.findAll({
       where: { FormCode, IsActive: true },
-      attributes: ['FieldCode', 'FieldType', 'LabelMn'],
+      attributes: ['FieldCode', 'FieldType', 'LabelMn', 'ParentField', 'ParentValue'],
       raw: true,
       transaction: t,
     });
@@ -560,6 +601,34 @@ async function CustomSave(req, res) {
     });
     if (Rejected.length) {
       console.warn('[TenderForm/CustomSave] ignored unknown fields:', Rejected.join(', '));
+    }
+
+    /*
+     * A SAVE THAT STORED NOTHING MUST NOT REPORT SUCCESS.
+     *
+     * Unknown field codes were dropped with a console.warn the caller never
+     * sees, and the response was indistinguishable from a real save — so a
+     * payload whose keys were ALL unknown answered "Амжилттай хадгаллаа" having
+     * written nothing. A client with one mistyped code shows the clinician
+     * "saved" while the answer goes nowhere.
+     *
+     * This lands hardest on the mobile app, which posts these field codes over
+     * the wire with no dictionary to validate against.
+     *
+     * Where SOME keys are valid the save proceeds — refusing the whole payload
+     * would be worse — but the rejected codes are returned so a caller can see
+     * them instead of having to read the server log.
+     */
+    if (Rejected.length && !Object.keys(Clean).length) {
+      await t.rollback();
+      return res.send(
+        Fail(
+          'Танигдахгүй талбар: ' +
+            Rejected.slice(0, 5).join(', ') +
+            (Rejected.length > 5 ? '…' : '') +
+            '. Хадгалах утга алга.'
+        )
+      );
     }
 
     const Wrong = Object.keys(Clean)
@@ -593,12 +662,11 @@ async function CustomSave(req, res) {
     if (Row) {
       const Existing = JSON.parse(Row.Data || '{}');
       const Merged = { ...Existing, ...Clean };
-      // An emptied answer is removed rather than stored as null. This is also
-      // how a field hidden by a changed parent loses its stale value: the
-      // editor sends null for it at save time.
+      // An emptied answer is removed rather than stored as null.
       Object.keys(Merged).forEach((k) => {
         if (IsEmpty(Merged[k])) delete Merged[k];
       });
+      DropHidden(Merged, ByCode);
       await Row.update(
         {
           Data: JSON.stringify(Merged),
@@ -612,6 +680,9 @@ async function CustomSave(req, res) {
       Object.keys(Clean).forEach((k) => {
         if (IsEmpty(Clean[k])) delete Clean[k];
       });
+      // A brand-new record can arrive with hidden answers too — a caller that
+      // posts a whole form at once, which is exactly what the mobile app will do.
+      DropHidden(Clean, ByCode);
       Row = await Models.TenderFormData.create(
         {
           FormCode,
@@ -640,7 +711,9 @@ async function CustomSave(req, res) {
     return res.send({
       Success: true,
       Message: 'Амжилттай хадгаллаа',
-      Data: { DataId: Row.Id, Id: Row.Id },
+      // Rejected is surfaced so a caller can see which of its field codes the
+      // dictionary did not recognise, rather than having to read the log.
+      Data: { DataId: Row.Id, Id: Row.Id, Rejected: Rejected.length ? Rejected : undefined },
     });
   } catch (ex) {
     await t.rollback();

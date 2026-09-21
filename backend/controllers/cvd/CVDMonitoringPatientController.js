@@ -124,6 +124,27 @@ async function CheckPatient(req, res) {
         );
       }
     }
+
+    /*
+     * EVERY PATH MUST ANSWER.
+     *
+     * The block above is guarded by `if (PatRegNo && LogedUser)`, and had no
+     * else — so a request without PatRegNo fell straight through, the response
+     * was never sent, and the connection was held until the client gave up.
+     * Measured 2026-09-21: three of three requests with an empty body never
+     * responded (client timeout 90s), while the same call carrying PatRegNo
+     * answered in 121ms.
+     *
+     * That matters more here than it would elsewhere: /CVDMonitoringPatient is
+     * in PATIENT_ALLOWED_PREFIXES, so the least-privileged role on the system
+     * could hold server connections open until the pool was exhausted.
+     *
+     * Same class as the AtrialRhythm(New)/checkConfirm defect fixed on
+     * 2026-09-10.
+     */
+    return res.send(
+      JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Регистрийн дугаар оруулна уу'))
+    );
   } catch (ex) {
     console.log(ex);
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
