@@ -164,10 +164,76 @@ ModelHelper.prototype.GetFindOption = async function (Option) {
   return { FindOption };
 };
 
+/**
+ * Add the includes that association-path filters need in order to bind.
+ *
+ * A filter on `Assoc.Column` is turned into Sequelize's `$Assoc.Column$`
+ * syntax by GetFindOption. That syntax only resolves if the association is
+ * ALSO included in the query — otherwise SQL Server answers
+ * "The multi-part identifier "Assoc.Column" could not be bound" and the whole
+ * list fails.
+ *
+ * That is not hypothetical. BaseControllerHelper.AddOrgFilter scopes the
+ * Patient register with `Users.RoleId` and `Users.Id`, and the plain list path
+ * runs Model.findAll with no includes at all — so listing Patient failed
+ * outright for every role, while the SAME call filtered by p_registration
+ * worked, because AddOrgFilter returns early for that case before adding the
+ * filters. 358,148 patients, and the register could not be listed.
+ *
+ * Includes are added with `attributes: []` so nothing extra is selected, and
+ * `required: false` so the join cannot silently drop rows on its own — the
+ * where clause remains the only thing that filters.
+ *
+ * Only associations that actually exist on the model are added; an unknown
+ * prefix is left alone for the existing error handling to report.
+ */
+ModelHelper.prototype.AddFilterIncludes = function (FindOption) {
+  try {
+    if (!FindOption || !FindOption.where || !this.Model || !this.Model.associations) return;
+
+    // Collect every $Assoc.Column$ key anywhere in the where tree.
+    var Needed = new Set();
+    var Walk = function (Node, Depth) {
+      if (!Node || Depth > 6) return;
+      if (Array.isArray(Node)) return Node.forEach((n) => Walk(n, Depth + 1));
+      if (typeof Node !== 'object') return;
+      // Symbol keys (Op.and / Op.or) carry nested conditions.
+      Object.getOwnPropertySymbols(Node).forEach((s) => Walk(Node[s], Depth + 1));
+      Object.keys(Node).forEach(function (k) {
+        var m = /^\$(.+)\.[^.]+\$$/.exec(k);
+        if (m) Needed.add(m[1]);
+        Walk(Node[k], Depth + 1);
+      });
+    };
+    Walk(FindOption.where, 0);
+    if (!Needed.size) return;
+
+    if (!Array.isArray(FindOption.include)) {
+      FindOption.include = FindOption.include ? [FindOption.include] : [];
+    }
+
+    var Existing = new Set(
+      FindOption.include.map((i) => (i && (i.as || (i.association && i.association.as))) || null)
+    );
+
+    Needed.forEach((As) => {
+      if (Existing.has(As)) return;
+      var Assoc = this.Model.associations[As];
+      if (!Assoc || !Assoc.target) return;
+      FindOption.include.push({ model: Assoc.target, as: As, attributes: [], required: false });
+    });
+  } catch (ex) {
+    // A list that cannot be scoped must still not crash; the filter will fail
+    // loudly on its own if the include really was required.
+    console.log('[ModelHelper] AddFilterIncludes failed:', ex.message);
+  }
+};
+
 ModelHelper.prototype.FindAllExec = async function (Option, FindOption) {
   var result = { Data: [], Total: 0 };
   var CountQuery = '';
   try {
+    this.AddFilterIncludes(FindOption);
     if (this.Model.findAllNew && Option.FindType == 'AllData') {
       result.Data = await this.Model.findAllNew({
         ...FindOption,

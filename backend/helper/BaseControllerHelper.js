@@ -6,6 +6,9 @@ const path = require('path');
 const { Models, Op, sequelize } = require('../config/DB');
 
 const ConfigHelper = require('./ConfigHelper');
+// The single definition of the export source stamp. This file used to carry a
+// second, drifted copy — see the note in the Excel export below.
+const Provenance = require('./Provenance');
 var ModelHelper = require('./ModelHelper');
 const BaseHelper = require('./BaseHelper');
 const ObjectHelper = require('./ObjectHelper');
@@ -1406,26 +1409,31 @@ class BaseControllerHelper {
           })
         : [];
 
-    // An exported file leaves the system and has to stand on its own, so it
-    // says which organisation and which database the rows came from, when it
-    // was taken, and by whom.
-    const ExportedBy =
-      (LogedUser && (LogedUser.FullName || (LogedUser.Doctor && LogedUser.Doctor.FullName))) ||
-      (LogedUser && LogedUser.UserName) ||
-      '';
-    const OrgName =
-      (LogedUser && LogedUser.Doctor && LogedUser.Doctor.Organization
-        ? LogedUser.Doctor.Organization.Name
-        : null) || '';
+    /*
+     * An exported file leaves the system and has to stand on its own, so it
+     * says which organisation and which database the rows came from, when it
+     * was taken, and by whom — the source marking both tenders require.
+     *
+     * THIS USED TO BE A SECOND, INLINE COPY of helper/Provenance.js, and the
+     * two had drifted: this one omitted `Хамрах хугацаа`, so a workbook from
+     * BaseObject/ExportExcel carried five of the six lines the mobile exports
+     * carry. Provenance.js's own header explains why that matters — "a stamp
+     * that says something slightly different depending on which endpoint
+     * produced it is worse than no stamp at all", because the whole point is
+     * that an exported file can be traced back to one source.
+     *
+     * Measured 2026-09-21 on real workbooks (Organization, Visit,
+     * TenderFormData): 5/6 lines, `Хамрах хугацаа` missing from all three.
+     *
+     * There is now one implementation. No From/To is passed because this export
+     * takes no date range, so Provenance renders "Бүх хугацаа" — which is the
+     * accurate statement for a whole-register extract.
+     */
     const ExportTitle = (ModelConfig.TitleObject && ModelConfig.TitleObject.Title) || ObjectName;
-
-    const provenance = [
-      'Байгууллага: ' + OrgName,
-      'Мэдээллийн сан: ' + (process.env.SQL_DB || ''),
-      'Бүртгэл: ' + this.translateLabel(ExportTitle),
-      'Гаргасан огноо: ' + new Date().toISOString().slice(0, 19) + 'Z (UTC)',
-      'Гаргасан хэрэглэгч: ' + ExportedBy,
-    ];
+    const provenance = Provenance.Lines({
+      LogedUser,
+      Register: this.translateLabel(ExportTitle),
+    });
 
     return {
       columns,
