@@ -3,13 +3,14 @@ import React, { useEffect, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material components
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
 // @mui/icons-material
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import PlayCircleOutlineIcon from "@mui/icons-material/PlayCircleOutline";
 // default components
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
-import Button from "components/CustomButtons/Button";
 // custom components
 import PageContainer from "customComponents/PageContainer";
 import UniCard from "customComponents/UniCard";
@@ -17,6 +18,8 @@ import DivLoading from "customComponents/DivLoading";
 import BaseNoData from "customComponents/BaseNoData";
 // theme
 import { colors } from "@/theme/colors";
+import { space, radius } from "@/theme/tokens";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 // helper
 import Helper from "helper";
 
@@ -139,12 +142,16 @@ export default function PatientRehab() {
                     key={ex.Id}
                     sx={{
                       display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                      padding: "10px 12px",
-                      marginBottom: "8px",
-                      border: "1px solid " + colors.border.subtle,
-                      borderRadius: "3px",
+                      // Side by side from tablet up; stacked on a phone, where
+                      // the title was squeezed into roughly 100px beside a
+                      // button taking half the width, and wrapped to six lines.
+                      flexDirection: { xs: "column", sm: "row" },
+                      alignItems: { xs: "stretch", sm: "center" },
+                      gap: space[3],
+                      padding: space[3],
+                      marginBottom: space[2],
+                      border: "1px solid " + colors.brand.hairline,
+                      borderRadius: radius.md,
                       backgroundColor: done
                         ? colors.background.infoTint
                         : colors.background.surface,
@@ -153,52 +160,63 @@ export default function PatientRehab() {
                     <Box
                       sx={{
                         display: "flex",
-                        color: done ? colors.status.normal : colors.text.muted,
-                        "& svg": { width: "24px", height: "24px" },
+                        alignItems: "flex-start",
+                        gap: space[3],
+                        flex: 1,
+                        minWidth: 0,
                       }}
                     >
-                      {done ? <CheckCircleIcon /> : <PlayCircleOutlineIcon />}
-                    </Box>
-
-                    <Box sx={{ flex: 1, minWidth: 0 }}>
                       <Box
                         sx={{
-                          fontSize: "13px",
-                          fontWeight: 500,
-                          color: colors.text.primary,
+                          display: "flex",
+                          flex: "0 0 auto",
+                          color: done
+                            ? colors.status.normal
+                            : colors.brand.cyanInk,
+                          "& svg": { width: "24px", height: "24px" },
                         }}
                       >
-                        {ex.Name}
+                        {done ? <CheckCircleIcon /> : <PlayCircleOutlineIcon />}
                       </Box>
-                      {ex.Description ? (
-                        <Box
-                          sx={{
-                            fontSize: "12px",
-                            color: colors.text.secondary,
-                          }}
+
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography
+                          variant="h5"
+                          component="div"
+                          sx={{ color: colors.brand.ink }}
                         >
-                          {ex.Description}
-                        </Box>
-                      ) : null}
-                      {ex.DurationSec ? (
-                        <Box
-                          sx={{
-                            fontSize: "11.5px",
-                            color: colors.text.secondary,
-                          }}
-                        >
-                          {Math.round(ex.DurationSec / 60)} {t("минут")}
-                        </Box>
-                      ) : null}
+                          {ex.Name}
+                        </Typography>
+                        {ex.Description ? (
+                          <Typography
+                            variant="body2"
+                            sx={{ color: colors.brand.inkMuted }}
+                          >
+                            {ex.Description}
+                          </Typography>
+                        ) : null}
+                        {ex.DurationSec ? (
+                          <Typography
+                            variant="caption"
+                            component="div"
+                            sx={{ color: colors.brand.inkMuted }}
+                          >
+                            {Math.round(ex.DurationSec / 60)} {t("минут")}
+                          </Typography>
+                        ) : null}
+                      </Box>
                     </Box>
 
                     <Button
-                      color={done ? "success" : "info"}
-                      size="sm"
-                      style={{
-                        textTransform: "none",
-                        borderRadius: "3px",
-                        margin: 0,
+                      // One filled primary per row for the action. A completed
+                      // exercise is a state, not an action, so it drops to a
+                      // disabled neutral rather than a second filled button.
+                      sx={{
+                        ...(done
+                          ? gridToolbarButtonSx.neutral
+                          : gridToolbarButtonSx.primary),
+                        flex: { xs: "1 1 auto", sm: "0 0 auto" },
+                        alignSelf: { xs: "stretch", sm: "center" },
                       }}
                       disabled={done || Saving === ex.Id}
                       onClick={() => markDone(ex.Id)}
@@ -219,7 +237,7 @@ export default function PatientRehab() {
               {Assessment.error || !Assessment.data ? (
                 <BaseNoData Text={t("Үнэлгээ хараахан хийгдээгүй байна")} />
               ) : (
-                <Box sx={{ fontSize: "12.5px", color: colors.text.primary }}>
+                <Box sx={{ color: colors.brand.ink }}>
                   <Box sx={{ marginBottom: "6px" }}>
                     {t("Эрсдэлийн түвшин")}: {Assessment.data.RiskLevel || "—"}
                   </Box>
@@ -228,8 +246,10 @@ export default function PatientRehab() {
                     {Assessment.data.ToleranceScore || "—"}{" "}
                     {Assessment.data.ToleranceUnit || ""}
                   </Box>
-                  <Box sx={{ color: colors.text.secondary }}>
-                    {Assessment.data.AssessmentDate}
+                  <Box sx={{ color: colors.brand.inkMuted }}>
+                    {Helper.ObjectHelper.getDateYMDDisplay(
+                      Assessment.data.AssessmentDate,
+                    )}
                   </Box>
                 </Box>
               )}

@@ -3,7 +3,10 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 // @mui/material components
 import Avatar from "@mui/material/Avatar";
+import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
 import { colors } from "@/theme/colors";
+import { space } from "@/theme/tokens";
 // default components
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
@@ -34,10 +37,12 @@ import Helper from "helper";
 // A fixed-size placeholder. It was sized as 75% of its column, which on a
 // phone (column = full width) drew a 270px grey circle above the details.
 const avatarSx = {
-  width: 96,
-  height: 96,
+  width: { xs: 56, sm: 96 },
+  height: { xs: 56, sm: 96 },
   bgcolor: colors.brand.tintSolid,
-  color: colors.brand.inkDim,
+  color: colors.brand.cyanInk,
+  fontSize: { xs: "22px", sm: "34px" },
+  fontWeight: 600,
   "& svg": { width: "60%", height: "60%" },
 };
 
@@ -84,6 +89,9 @@ export default function PatientProfile() {
   }, [load]);
 
   const Data = Profile.data;
+  const Initial = Data
+    ? (Data.p_firstname || Data.p_lastname || "").trim().charAt(0).toUpperCase()
+    : "";
   const Rows = Data
     ? [
         { Label: t("РД"), Value: Data.p_registration },
@@ -121,13 +129,29 @@ export default function PatientProfile() {
 
     return (
       <GridContainer>
+        {/* Avatar and name on one line on a phone. Centred, the placeholder
+            circle alone took roughly a third of the first screen before any of
+            the patient's own details appeared. */}
         <GridItem
           xs={12}
           sm={2}
           md={2}
-          sx={{ display: "flex", justifyContent: "center", py: 1.5 }}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: { xs: "flex-start", sm: "center" },
+            gap: space[3],
+            py: 1.5,
+          }}
         >
-          <Avatar sx={avatarSx} />
+          <Avatar sx={avatarSx}>{Initial}</Avatar>
+          {/* Name only. The registration number is the very next row, and
+              repeating it here just reads as a mistake. */}
+          <Box sx={{ display: { xs: "block", sm: "none" }, minWidth: 0 }}>
+            <Typography variant="h4" sx={{ color: colors.brand.ink }}>
+              {[Data.p_lastname, Data.p_firstname].filter(Boolean).join(" ")}
+            </Typography>
+          </Box>
         </GridItem>
         <GridItem xs={12} sm={10} md={10}>
           <GridContainer>
@@ -136,7 +160,9 @@ export default function PatientProfile() {
                 <BaseInfo
                   Label={row.Label}
                   Value={row.Value ? row.Value + "" : ""}
-                  Size="14px"
+                  // BaseInfo defaults to the doctor side's 14px. This screen
+                  // sits inside the patient layout, whose baseline is 16.
+                  Size="16px"
                   md={3.6}
                   LabelWeight="500"
                   ValueWeight="400"

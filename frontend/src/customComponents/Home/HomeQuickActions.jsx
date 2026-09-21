@@ -118,7 +118,7 @@ export default function HomeQuickActions() {
               "&:hover": { backgroundColor: colors.background.hover },
               "&:focus": { outline: "none" },
               "&:focus-visible": {
-                outline: `2px solid ${colors.button.primary}`,
+                outline: `2px solid ${colors.brand.focus}`,
                 outlineOffset: "-2px",
               },
             }}

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PropTypes from "prop-types";
 import i18next from "i18next";
 import { useTranslation } from "react-i18next";
 import Box from "@mui/material/Box";
@@ -16,12 +17,17 @@ import Helper from "helper";
  * about current-vs-next, the tooltip carries the whole disambiguation and is
  * phrased as an ACTION ("Switch to English"), never as a label.
  */
-export default function LanguageToggle() {
+export default function LanguageToggle({ SeedFromAccount = true }) {
   const { t } = useTranslation();
   // Seeded from the stored user - moved here from AdminNavbarLinks. Read lazily
   // in the initialiser rather than in an effect, so there is no second render
   // and no setState-in-effect.
   const [Language, setLanguage] = useState(() => {
+    if (!SeedFromAccount) {
+      // Follow whatever the app already resolved, which i18n.js takes from the
+      // saved choice and otherwise defaults to Mongolian.
+      return i18next.resolvedLanguage || i18next.language || "mn";
+    }
     const User = Helper.AuthHelper.GetLogedUserLocal();
     // Default Mongolian, not English - an account with no Language set is a
     // Mongolian clinician, and this effect calls changeLanguage() on mount, so
@@ -30,6 +36,10 @@ export default function LanguageToggle() {
   });
 
   useEffect(() => {
+    // With SeedFromAccount off there is nothing to apply: the language already
+    // is what i18n resolved, and calling changeLanguage here would re-assert
+    // the account's stored value over the patient's explicit choice.
+    if (!SeedFromAccount) return;
     i18next.changeLanguage(Language);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -79,3 +89,19 @@ export default function LanguageToggle() {
     </>
   );
 }
+
+LanguageToggle.propTypes = {
+  /**
+   * Apply the signed-in account's `Language` field on mount.
+   *
+   * True on the doctor bar, which is how it has always behaved. FALSE on the
+   * patient bar: CLAUDE.md section 6 is explicit that the portal follows a
+   * saved choice and otherwise Mongolian, because a half-English portal has
+   * shipped to citizens before. An account carrying Language "en" - often set
+   * by accident, or by a clinician creating the account - would otherwise flip
+   * the whole portal to English with the patient never having asked. The
+   * toggle still switches the language and still persists it; it just does not
+   * assert one on arrival.
+   */
+  SeedFromAccount: PropTypes.bool,
+};

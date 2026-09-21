@@ -68,6 +68,25 @@ class Sidebar extends Component {
 
   mainPanel = createRef();
 
+  /**
+   * Set while rendering the TEMPORARY (phone / tablet-portrait) drawer.
+   *
+   * `miniActive` is driven by `window.innerWidth <= layout.sidebarAutoMini`
+   * (1440), which is true on every phone - so the drawer that opens from the
+   * hamburger was rendering as the mini rail: eight icons and no labels. On a
+   * desktop the mini rail is fine, because hovering expands it. On a phone
+   * there is no hover, and the drawer IS the whole menu.
+   *
+   * An instance flag rather than state: it is set and cleared synchronously
+   * around one render call below and never survives it, so it cannot get out
+   * of step the way a second piece of state could.
+   */
+  forceExpanded = false;
+
+  /** Mini rail applies unless we are rendering the phone drawer. */
+  miniEnabled = () => !this.forceExpanded && this.props.miniActive;
+
+
   getCurrentPathname = () => {
     if (this.props.location?.pathname) {
       return this.props.location.pathname;
@@ -166,7 +185,7 @@ class Sidebar extends Component {
 
       if (prop.collapse) {
     const { t } = this.props;
-        const isMini = this.props.miniActive && this.state.miniActive;
+        const isMini = this.miniEnabled() && this.state.miniActive;
         const isCollapseActive = this.getCollapseInitialState(prop.views);
 
         const navLinkSx = {
@@ -193,7 +212,7 @@ class Sidebar extends Component {
             <CustomTooltip
               title={prop.name}
               placement="right"
-              Disabled={!this.props.miniActive}
+              Disabled={!this.miniEnabled()}
             >
               <div>
                 <Box
@@ -240,7 +259,7 @@ class Sidebar extends Component {
             <Collapse
               in={
                 this.state[prop.state] &&
-                !(this.props.miniActive && this.state.miniActive)
+                !(this.miniEnabled() && this.state.miniActive)
               }
               unmountOnExit
             >
@@ -252,7 +271,7 @@ class Sidebar extends Component {
         );
       }
 
-      const isMini = this.props.miniActive && this.state.miniActive;
+      const isMini = this.miniEnabled() && this.state.miniActive;
       const isActive = this.activeRoute(prop.path) !== "";
 
       const innerNavLinkSx = {
@@ -285,7 +304,7 @@ class Sidebar extends Component {
           <CustomTooltip
             title={t(prop.name + "")}
             placement="right"
-            Disabled={!this.props.miniActive}
+            Disabled={!this.miniEnabled()}
           >
             <div>
               <Box
@@ -322,11 +341,19 @@ class Sidebar extends Component {
   render() {
     const { routes } = this.props;
 
-    const isMini = this.props.miniActive && this.state.miniActive;
+    const isMini = this.miniEnabled() && this.state.miniActive;
 
     const links = (
       <List sx={sidebarSx.list}>{this.createLinks(routes)}</List>
     );
+
+    // The same routes, rendered with labels, for the temporary drawer. See
+    // `forceExpanded` above for why the shared tree is not good enough.
+    this.forceExpanded = true;
+    const mobileLinks = (
+      <List sx={sidebarSx.list}>{this.createLinks(routes)}</List>
+    );
+    this.forceExpanded = false;
 
     const itemTextSx = {
       ...sidebarSx.itemText,
@@ -339,7 +366,7 @@ class Sidebar extends Component {
           <CustomTooltip
             title={"IT System LLC"}
             placement="right"
-            Disabled={!this.props.miniActive}
+            Disabled={!this.miniEnabled()}
           >
             <div>
               <Box
@@ -502,7 +529,11 @@ class Sidebar extends Component {
           anchor="right"
           open={this.props.open}
           sx={{ display: { xs: "block", md: "none" } }}
-          PaperProps={{ sx: temporaryPaperSx }}
+          // A stable id so a control that opens this drawer can name it with
+          // aria-controls. The patient portal's bottom bar does; the doctor
+          // hamburger does not yet, but the id costs nothing and only one of
+          // the two layouts is ever mounted at a time.
+          PaperProps={{ sx: temporaryPaperSx, id: "app-nav-drawer" }}
           onClose={this.props.handleDrawerToggle}
           ModalProps={{
             keepMounted: true,
@@ -512,7 +543,7 @@ class Sidebar extends Component {
             {brand}
             <SidebarWrapper
               className=""
-              links={links}
+              links={mobileLinks}
               style={sidebarWrapperStyle}
             />
             <Box sx={{ mt: "auto", flex: "0 0 auto", paddingBottom: "12px", backgroundColor: "transparent", zIndex: 5, position: "relative" }}>

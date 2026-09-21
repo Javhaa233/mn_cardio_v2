@@ -38,6 +38,37 @@ class BaseCrudHelper {
     }
   };
 
+  /**
+   * End an expired session and send the user to THEIR login.
+   *
+   * Both AuthError branches used to clear localStorage and then hard-navigate
+   * to "/auth/login" - the DOCTOR login - whoever had been signed in. A
+   * patient whose ten-hour token expired mid-visit landed on a staff sign-in
+   * screen telling them to get credentials from their doctor, with no way
+   * back to the portal short of typing the URL.
+   *
+   * The role has to be read BEFORE the clear, which is why this is one helper
+   * rather than a line repeated at each site.
+   */
+  EndSessionAndRedirect = () => {
+    let IsPatient = false;
+    try {
+      const Raw = localStorage.getItem("LogedUser");
+      const User = Raw ? JSON.parse(Raw) : null;
+      IsPatient = !!User && User.RoleId + "" === "4";
+    } catch (ex) {
+      // A corrupt LogedUser should still log the person out; it just cannot
+      // say which login they belong on, and staff is the safer default -
+      // the patient login refuses a staff account outright.
+      IsPatient = false;
+    }
+
+    localStorage.removeItem("IsLogin");
+    localStorage.removeItem("LogedUser");
+    localStorage.removeItem("MnCardioToken");
+    document.location = IsPatient ? "/patientAuth/login" : "/auth/login";
+  };
+
   CallServiceWithoutAuthError = async (Url, ReqData, callback) => {
     process.env.NODE_ENV === "development" && console.log({ ReqData, Url });
     const Token = localStorage.getItem("MnCardioToken");
@@ -84,10 +115,7 @@ class BaseCrudHelper {
             responseData: Data,
           });
         if (Data && Data.AuthError === true) {
-          localStorage.removeItem("IsLogin");
-          localStorage.removeItem("LogedUser");
-          localStorage.removeItem("MnCardioToken");
-          document.location = "/auth/login";
+          this.EndSessionAndRedirect();
         }
         Data && callback && callback(Data);
       })
@@ -199,10 +227,7 @@ class BaseCrudHelper {
           console.log({ responseData: Data });
         if (Data) {
           if (Data.AuthError === true) {
-            localStorage.removeItem("IsLogin");
-            localStorage.removeItem("LogedUser");
-            localStorage.removeItem("MnCardioToken");
-            document.location = "/auth/login";
+            this.EndSessionAndRedirect();
           }
           callback && callback(Data);
         }

@@ -89,6 +89,15 @@ export const layout = {
   // 100px slot of remaining page behind it.
   drawerMobileWidth: "min(85vw, 300px)",
 
+  // The phone-only bottom tab bar in the patient portal. 56 is the Material
+  // standard and what MUI's BottomNavigation defaults to; naming it here keeps
+  // the bar's height and the padding Content must reserve for it from drifting
+  // apart in two files.
+  //
+  // Patient portal only. The doctor shell has no bottom bar - a doctor on a
+  // phone still gets the hamburger drawer.
+  bottomNavHeight: 56,
+
   // Below this the sidebar auto-collapses to its mini rail. This is NOT a
   // breakpoint - it deliberately matches no entry in `theme.breakpoints`, it
   // is a "smaller desktop" threshold that predates the token file. Named here

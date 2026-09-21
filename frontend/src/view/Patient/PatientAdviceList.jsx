@@ -129,7 +129,7 @@ export default function PatientAdviceList() {
                         color: colors.text.secondary,
                       }}
                     >
-                      {ticket.date}
+                      {Helper.ObjectHelper.getDateYMDDisplay(ticket.date)}
                     </Box>
                   </Box>
 
@@ -158,7 +158,7 @@ export default function PatientAdviceList() {
                             color: colors.text.secondary,
                           }}
                         >
-                          {c.date}
+                          {Helper.ObjectHelper.getDateYMDDisplay(c.date)}
                         </Box>
                       </Box>
                     ))

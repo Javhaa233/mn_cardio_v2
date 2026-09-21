@@ -1,4 +1,5 @@
 import React from "react";
+import { Link as RouterLink } from "react-router-dom";
 // translation
 import { useTranslation } from "react-i18next";
 // @mui/material components
@@ -9,9 +10,8 @@ import Typography from "@mui/material/Typography";
 import UniCard from "customComponents/UniCard";
 // theme
 import { colors } from "@/theme/colors";
-import { radius, space, elevation } from "@/theme/tokens";
-// history
-import customHistory from "customHistory";
+import { COARSE, TOUCH } from "@/theme.js";
+import { radius, space, elevation, motion } from "@/theme/tokens";
 
 /**
  * Home tiles.
@@ -37,6 +37,54 @@ import customHistory from "customHistory";
  *   "bare"  no frame at all, so several tiles can share one panel instead of
  *           stacking one panel each. This is what keeps a rail short.
  */
+/**
+ * The focus ring for everything in this file.
+ *
+ * `colors.brand.focus` is the token for this and is now worth using: it used
+ * to be cyan at 55% alpha, which measured 1.73:1 over a white card, and has
+ * been corrected to the AA-passing step. See the note on the token itself.
+ */
+const FOCUS_RING = {
+  "&:focus": { outline: "none" },
+  "&:focus-visible": {
+    outline: `2px solid ${colors.brand.focus}`,
+    outlineOffset: "-2px",
+    borderRadius: radius.lg,
+  },
+};
+
+/**
+ * A tile that goes somewhere is an anchor, not a div with an onClick.
+ *
+ * These were bare `<Box onClick>`: no tab stop, no Enter, no focus ring. On
+ * the patient home that is the ENTIRE navigation, so the portal could not be
+ * used without a mouse at all.
+ *
+ * An anchor rather than `role="button"` + a keydown handler, because `To` is
+ * always a real path: the browser then gives Enter, middle-click,
+ * open-in-new-tab and the correct "link" announcement for free, and there is
+ * no key handling to get wrong. `customHistory.push` is gone for the same
+ * reason - RouterLink already does client-side navigation.
+ */
+function linkProps(To, Label) {
+  if (!To) return {};
+  return {
+    component: RouterLink,
+    to: To,
+    "aria-label": Label || undefined,
+    sx: {
+      display: "block",
+      height: "100%",
+      textDecoration: "none",
+      color: "inherit",
+      cursor: "pointer",
+      transition: `opacity ${motion.fast}`,
+      "&:hover": { opacity: 0.92 },
+      ...FOCUS_RING,
+    },
+  };
+}
+
 export function TilePanel({
   Title,
   Color = "info",
@@ -109,17 +157,19 @@ export function StatTile({
 }) {
   const { t } = useTranslation();
 
-  const clickable = !!To;
+  // Composed deliberately. Without it a screen reader reads the whole card as
+  // one link name - title, number, unit and caption run together - which is
+  // what wrapping a card in an anchor does by default.
+  const label = [
+    Title,
+    Value === null || Value === undefined || Value === "" ? null : Value,
+    Unit,
+  ]
+    .filter(Boolean)
+    .join(" ");
 
   return (
-    <Box
-      onClick={clickable ? () => customHistory.push(To) : undefined}
-      sx={{
-        height: "100%",
-        cursor: clickable ? "pointer" : "default",
-        "&:hover": clickable ? { opacity: 0.92 } : undefined,
-      }}
-    >
+    <Box {...(To ? linkProps(To, label) : { sx: { height: "100%" } })}>
       <TileFrame Title={Title} Color={Color} Variant={Variant}>
         {Variant === "bare" && Title ? (
           <Box
@@ -184,10 +234,7 @@ export function StatTile({
  */
 export function ActionTile({ Title, Description, Icon, To, Color }) {
   return (
-    <Box
-      onClick={() => customHistory.push(To)}
-      sx={{ height: "100%", cursor: "pointer", "&:hover": { opacity: 0.92 } }}
-    >
+    <Box {...linkProps(To, [Title, Description].filter(Boolean).join(". "))}>
       <TileFrame Title={Title} Color={Color}>
         <Box sx={{ display: "flex", alignItems: "center", gap: "10px" }}>
           {Icon ? (
@@ -250,7 +297,25 @@ export function ListTile({
           Items.map((item, i) => (
             <Box
               key={i}
-              onClick={OnItemClick ? () => OnItemClick(item) : undefined}
+              // A row only becomes a control when there is something to
+              // activate. Rows without OnItemClick stay inert text and must
+              // NOT become tab stops - the patient home's two lists are
+              // read-only, and giving every entry a stop would put five dead
+              // stops between the reader and the next real control.
+              {...(OnItemClick
+                ? {
+                    role: "button",
+                    tabIndex: 0,
+                    onClick: () => OnItemClick(item),
+                    onKeyDown: (event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        // Space scrolls the page otherwise.
+                        event.preventDefault();
+                        OnItemClick(item);
+                      }
+                    },
+                  }
+                : {})}
               sx={{
                 padding: "7px 0",
                 borderBottom:
@@ -263,6 +328,23 @@ export function ListTile({
                 "&:hover": OnItemClick
                   ? { backgroundColor: colors.background.hover }
                   : undefined,
+                ...(OnItemClick
+                  ? {
+                      // ~26px of text is under the 44px WCAG 2.5.5 asks of a
+                      // touch target, and these rows are only targets at all
+                      // once they are clickable.
+                      [COARSE]: {
+                        minHeight: TOUCH.height,
+                        display: "flex",
+                        alignItems: "center",
+                      },
+                      ...FOCUS_RING,
+                      "&:focus-visible": {
+                        ...FOCUS_RING["&:focus-visible"],
+                        borderRadius: radius.sm,
+                      },
+                    }
+                  : {}),
               }}
             >
               {RenderItem(item)}

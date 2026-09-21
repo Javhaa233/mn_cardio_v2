@@ -26,6 +26,71 @@ export const docIcon = (ext) => {
 };
 
 /**
+ * A photo that fails politely.
+ *
+ * `isMissing()` already moves an attachment to the chip row when the SERVER
+ * says the bytes are gone (`FileInfo.Available === false`). It cannot catch
+ * the other case: the server believes the file is there and the fetch fails
+ * anyway - a file restored without its bytes, a permission change, a dead
+ * mount. Then the browser draws its broken-image glyph and, because `alt`
+ * carries the filename, a wall of text like
+ * "image_picker_2F4BF875-7975-4EE6-84AE-5ADE6965C0EC.jpg" inside the bubble.
+ *
+ * On error this becomes the same muted placeholder a missing file gets
+ * elsewhere, so a patient sees "зураг үзэх боломжгүй" rather than debris.
+ */
+function MediaImage({ Src, Name, Sx }) {
+  const { t } = useTranslation();
+  const [failed, setFailed] = useState(false);
+
+  // An EMPTY src is the case that actually turned up, and it needs catching
+  // before render rather than in onError: Chrome treats `<img src="">` as
+  // already complete, makes no request and fires no error event, so it just
+  // sits there as the broken glyph forever. Measured: complete=true,
+  // naturalWidth=0, zero network requests.
+  if (!Src || failed) {
+    return (
+      <Box
+        sx={{
+          width: "100%",
+          height: "100%",
+          minHeight: 96,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: space[1],
+          color: colors.brand.inkMuted,
+          backgroundColor: colors.brand.tintSolid,
+          padding: space[2],
+          textAlign: "center",
+        }}
+      >
+        <InsertDriveFileOutlinedIcon fontSize="small" />
+        <Box sx={{ fontSize: "12.5px" }}>{t("Зураг үзэх боломжгүй")}</Box>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      component="img"
+      src={Src}
+      // A generic alt, with the filename on hover instead. These names are
+      // device-generated - image_picker_2F4BF875-7975-4EE6-84AE-... - so
+      // reading one aloud tells a screen-reader user nothing about the photo
+      // and buries the rest of the message.
+      alt={t("Хавсралт зураг")}
+      title={Name}
+      loading="lazy"
+      decoding="async"
+      onError={() => setFailed(true)}
+      sx={Sx}
+    />
+  );
+}
+
+/**
  * A single photo tile.
  *
  * `aspectRatio` is declared before the image loads and never removed, so the
@@ -63,13 +128,10 @@ function Tile({ file, ratio, onOpen, overlay, index }) {
         },
       }}
     >
-      <Box
-        component="img"
-        src={file.FileSrc}
-        alt={fileName(file)}
-        loading="lazy"
-        decoding="async"
-        sx={{
+      <MediaImage
+        Src={file.FileSrc}
+        Name={fileName(file)}
+        Sx={{
           width: "100%",
           height: "100%",
           objectFit: "cover",
@@ -182,13 +244,10 @@ export default function PostMedia({
           },
         }}
       >
-        <Box
-          component="img"
-          src={f.FileSrc}
-          alt={fileName(f)}
-          loading="lazy"
-          decoding="async"
-          sx={{
+        <MediaImage
+          Src={f.FileSrc}
+          Name={fileName(f)}
+          Sx={{
             width: "100%",
             height: "auto",
             maxHeight: "min(620px, 78vh)",

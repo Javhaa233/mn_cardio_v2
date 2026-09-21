@@ -221,7 +221,25 @@ export const colors = {
     hairline: "rgba(13, 58, 92, 0.13)",
     hairlineStrong: "rgba(13, 58, 92, 0.22)",
 
-    focus: "rgba(24, 168, 232, 0.55)",
+    /**
+     * The focus indicator, everywhere. 24 call sites read this.
+     *
+     * It was `rgba(24, 168, 232, 0.55)` - `cyan` at 55% alpha - which
+     * composited over a white card measures 1.73:1. WCAG 1.4.11 asks 3:1 of
+     * any visual indicator of state, so the ring that tells a keyboard user
+     * where they are was the one piece of UI that could not be seen.
+     *
+     * No alpha of `cyan` fixes it: the hue is too light to pass even fully
+     * opaque (2.69:1). `cyanDeep` scrapes 3.38:1. `cyanInk` is the same step
+     * already used for every word on these screens and clears it properly -
+     * 5.84:1 on white, 5.34:1 on `tintSolid`, 5.16:1 on `canvas`, the three
+     * surfaces a ring actually lands on.
+     *
+     * Four call sites draw this as a 3px `boxShadow` glow rather than an
+     * outline; they become a solid halo, which is more visible and is the
+     * point.
+     */
+    focus: "#0a6c96",
 
     // One saturated colour, used once per screen, for the only urgent thing.
     urgent: "#ee147d", // LoginScene --pink

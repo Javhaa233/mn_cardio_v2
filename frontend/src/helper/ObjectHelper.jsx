@@ -110,6 +110,25 @@ class ObjectHelper {
     );
   };
 
+  /**
+   * A date for DISPLAY, or an empty string.
+   *
+   * `getDateYMD` above defaults to `new Date()` whenever it is handed nothing,
+   * which is right for "stamp this record now" and actively wrong for showing
+   * a stored value: a row with no date then renders as today, which reads as
+   * real data. That is the same trap BaseSimpleDate has.
+   *
+   * It also copes with the two shapes the API actually returns for the same
+   * column - a plain "2021-11-09" and a full "2011-10-13T09:27:31.000Z" -
+   * which were reaching the advice list and the home tiles unformatted.
+   */
+  getDateYMDDisplay = function (value) {
+    if (value === null || value === undefined || value === "") return "";
+    const parsed = new Date(String(value).replace(".000Z", ""));
+    if (isNaN(parsed.getTime())) return String(value);
+    return this.getDateYMD({ Date: parsed });
+  };
+
   getDateYMDHMS = function (Option) {
     var date = null;
     if (!Option) {

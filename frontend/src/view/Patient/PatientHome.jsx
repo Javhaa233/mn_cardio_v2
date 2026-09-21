@@ -1,8 +1,11 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { Link as RouterLink } from "react-router-dom";
 // translation
 import { useTranslation } from "react-i18next";
 // @mui/material components
 import Box from "@mui/material/Box";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
 // @mui/icons-material
 import DescriptionIcon from "@mui/icons-material/Description";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
@@ -10,6 +13,8 @@ import VideocamIcon from "@mui/icons-material/Videocam";
 import FavoriteIcon from "@mui/icons-material/Favorite";
 import AccountBoxIcon from "@mui/icons-material/AccountBox";
 import RecordVoiceOverIcon from "@mui/icons-material/RecordVoiceOver";
+import FitnessCenterIcon from "@mui/icons-material/FitnessCenter";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
 // default components
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
@@ -18,6 +23,8 @@ import PageContainer from "customComponents/PageContainer";
 import { StatTile, ActionTile, ListTile } from "customComponents/Home/Tiles";
 // theme
 import { colors } from "@/theme/colors";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
+import { space, radius } from "@/theme/tokens";
 // helper
 import Helper from "helper";
 
@@ -93,23 +100,63 @@ export default function PatientHome() {
 
   return (
     <PageContainer>
-      <Box
-        sx={{
-          marginBottom: "14px",
-          fontSize: "19px",
-          fontWeight: 500,
-          color: colors.text.primary,
-        }}
+      {/* The page's heading, and it should have been one: this was a bare Box
+          at a hardcoded 19px, a size the scale does not contain, with no
+          heading semantics at all - so a screen reader user had nothing to
+          navigate to and the portal's first line was invisible to them. */}
+      <Typography
+        variant="h2"
+        component="h1"
+        sx={{ marginBottom: space[3], color: colors.brand.ink }}
       >
         {Profile.loading
           ? t("Ачаалж байна")
           : fullName
             ? t("Сайн байна уу") + ", " + fullName
             : t("Сайн байна уу")}
-      </Box>
+      </Typography>
 
       <GridContainer spacing={2}>
-        <GridItem xs={12} sm={6} md={3}>
+        {/* A patient who has just been given their login sees four "—" tiles
+            and two empty lists, which reads as a broken page rather than an
+            empty one. Only shown once the journal has actually loaded and come
+            back empty, so it never flashes during a normal load. */}
+        {!Journal.loading && !Journal.error && !latest ? (
+          <GridItem xs={12}>
+            <Box
+              sx={{
+                backgroundColor: colors.brand.tintSolid,
+                border: `1px solid ${colors.brand.hairline}`,
+                borderRadius: radius.lg,
+                padding: space[4],
+                marginBottom: space[2],
+              }}
+            >
+              <Typography variant="h4" sx={{ color: colors.brand.ink }}>
+                {t("Тавтай морилно уу")}
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: colors.brand.inkMuted, marginTop: space[1] }}
+              >
+                {t(
+                  "Даралт, судасны цохилт, жингээ бүртгэж эхэлснээр эмч тань хяналтаа тавих боломжтой болно.",
+                )}
+              </Typography>
+              <Box sx={{ marginTop: space[3] }}>
+                <Button
+                  component={RouterLink}
+                  to="/patient/PatientMonitoringPat"
+                  sx={gridToolbarButtonSx.primary}
+                >
+                  {t("Эхний тэмдэглэлээ бүртгэх")}
+                </Button>
+              </Box>
+            </Box>
+          </GridItem>
+        ) : null}
+
+        <GridItem xs={6} sm={6} md={3}>
           <StatTile
             Title={t("Сүүлийн даралт")}
             Value={latest ? latest.blood_pressure : null}
@@ -121,7 +168,7 @@ export default function PatientHome() {
             To="/patient/PatientMonitoringPat"
           />
         </GridItem>
-        <GridItem xs={12} sm={6} md={3}>
+        <GridItem xs={6} sm={6} md={3}>
           <StatTile
             Title={t("Судасны цохилт")}
             Value={latest ? latest.pulse : null}
@@ -132,7 +179,7 @@ export default function PatientHome() {
             To="/patient/PatientMonitoringPat"
           />
         </GridItem>
-        <GridItem xs={12} sm={6} md={3}>
+        <GridItem xs={6} sm={6} md={3}>
           <StatTile
             Title={t("Жин")}
             Value={latest ? latest.weight : null}
@@ -144,7 +191,7 @@ export default function PatientHome() {
             To="/patient/PatientMonitoringPat"
           />
         </GridItem>
-        <GridItem xs={12} sm={6} md={3}>
+        <GridItem xs={6} sm={6} md={3}>
           <StatTile
             Title={t("Эмчийн хариу")}
             Value={replies}
@@ -171,7 +218,7 @@ export default function PatientHome() {
                   gap: "10px",
                 }}
               >
-                <span>{row.date}</span>
+                <span>{Helper.ObjectHelper.getDateYMDDisplay(row.date)}</span>
                 <span style={{ color: colors.text.secondary }}>
                   {[row.blood_pressure, row.pulse, row.weight]
                     .filter(Boolean)
@@ -201,7 +248,7 @@ export default function PatientHome() {
                 >
                   <span>{row.body || t("Асуулт")}</span>
                   <span style={{ color: colors.text.secondary }}>
-                    {row.date}
+                    {Helper.ObjectHelper.getDateYMDDisplay(row.date)}
                   </span>
                 </Box>
                 {row.comments && row.comments.length ? (
@@ -266,6 +313,28 @@ export default function PatientHome() {
             Icon={<AccountBoxIcon />}
             To="/patient/PatientProfile"
             Color="success"
+          />
+        </GridItem>
+        <GridItem xs={12} sm={6} md={3}>
+          <ActionTile
+            Title={t("Шинжилгээ")}
+            Description={t("Шинжилгээний хариу харах")}
+            Icon={<ScienceOutlinedIcon />}
+            To="/patient/PatientDiagnostics"
+            Color="info"
+          />
+        </GridItem>
+        {/* /PatientRehab has existed in the route table and the sidebar since
+            the rehab work landed, but nothing on this page pointed at it, so
+            the one destination a patient is meant to return to daily was the
+            only one with no tile. */}
+        <GridItem xs={12} sm={6} md={3}>
+          <ActionTile
+            Title={t("Сэргээн засах")}
+            Description={t("Дасгал хөдөлгөөн")}
+            Icon={<FitnessCenterIcon />}
+            To="/patient/PatientRehab"
+            Color="info"
           />
         </GridItem>
       </GridContainer>

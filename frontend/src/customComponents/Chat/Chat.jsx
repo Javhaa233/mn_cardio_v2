@@ -1,4 +1,5 @@
 import React, { useEffect } from "react";
+import PropTypes from "prop-types";
 import { useTranslation } from "react-i18next";
 import { Badge, Box, Card, Fab, Zoom } from "@mui/material";
 import ChatIcon from "@mui/icons-material/Chat";
@@ -38,7 +39,20 @@ const NOOP = () => {};
  *    unread-message badge and a critical-value alert must not look alike, and
  *    CLAUDE.md reserves the one saturated colour for the genuinely urgent thing.
  */
-export default function Chat() {
+/**
+ * `BottomOffset` is how far the dock sits above the bottom of the viewport.
+ *
+ * The default 30 is the geometry this dock has always had and is what the
+ * doctor shell still gets. The patient portal raises it on phones, where a
+ * fixed bottom navigation bar occupies the lower 56px: the button is 60px
+ * tall sitting at 30, so it spans 30-90px and would otherwise paint straight
+ * over two of the five tabs at zIndex 1200.
+ *
+ * A prop rather than a `useIsPhone()` check inside this component, because
+ * this component is shared with layouts/Admin.jsx - a role check here would
+ * move the button on a doctor's phone, where there is no bar to clear.
+ */
+export default function Chat({ BottomOffset = 30 }) {
   const { t } = useTranslation();
   const chat = useChatContext();
 
@@ -59,7 +73,9 @@ export default function Chat() {
   if (!chat || !chat.MyUserId) return null;
 
   return (
-    <Box sx={{ position: "fixed", bottom: 30, right: 30, zIndex: 1200 }}>
+    <Box
+      sx={{ position: "fixed", bottom: BottomOffset, right: 30, zIndex: 1200 }}
+    >
       <Zoom in={isOpen} unmountOnExit>
         <Card
           elevation={0}
@@ -72,7 +88,10 @@ export default function Chat() {
             width: { xs: "calc(100vw - 20px)", sm: 600, md: 950 },
             maxWidth: "calc(100vw - 20px)",
             height: 550,
-            maxHeight: "calc(100vh - 140px)",
+            // 140 = the panel's 80px offset from the button plus headroom. The
+            // button's own offset is added so a raised dock does not push the
+            // panel off the top of the screen.
+            maxHeight: `calc(100vh - ${60 + BottomOffset + 50}px)`,
             display: "flex",
             flexDirection: "column",
             borderRadius: radius.lg,
@@ -137,3 +156,8 @@ export default function Chat() {
     </Box>
   );
 }
+
+Chat.propTypes = {
+  /** Distance in px from the viewport bottom. Raised where a bottom bar sits. */
+  BottomOffset: PropTypes.number,
+};

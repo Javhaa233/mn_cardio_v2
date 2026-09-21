@@ -13,8 +13,15 @@ import BaseList from "baseComponents/BaseList";
 import BaseNoData from "customComponents/BaseNoData";
 import LoadError from "customComponents/LoadError";
 import AdviceFileInfo from "customComponents/Advice/AdviceFileInfo";
+import StatusChip from "customComponents/StatusChip";
 // theme
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import VideocamIcon from "@mui/icons-material/Videocam";
+
 import { colors } from "@/theme/colors";
+import { space, radius } from "@/theme/tokens";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 // helper
 import Helper from "helper";
 
@@ -36,10 +43,38 @@ import Helper from "helper";
  * The switch is opt-in precisely so the doctor caller keeps its behaviour
  * unchanged.
  */
+/**
+ * How each status reads. The server sends both the code and a StatusLabel from
+ * the `remotevisit_status` dico; the label wins when the dico is seeded and the
+ * code is the fallback, which is the contract shapeEvisit() documents.
+ */
+const STATUS_TONE = {
+  requested: "warning",
+  scheduled: "info",
+  completed: "success",
+  cancelled: "neutral",
+};
+
+const STATUS_FALLBACK = {
+  requested: "Хүсэлт илгээсэн",
+  scheduled: "Товлосон",
+  completed: "Дууссан",
+  cancelled: "Цуцалсан",
+};
+
+/** The server allows cancel from these two only; anything else is terminal. */
+const CANCELLABLE = ["requested", "scheduled"];
+
 class RemoteVisitList extends BaseList {
   constructor(props) {
     super(props);
-    this.state = { ...this.state, LoadErrorMessage: null };
+    this.state = {
+      ...this.state,
+      LoadErrorMessage: null,
+      Confirm: null,
+      Alert: null,
+      CancellingId: null,
+    };
     this.Patient = props.Patient || null;
     this.SearchOption.PageOption.Limit = 5;
     this.SearchOption.OrderBy = { Field: "Id", Type: "desc" };
@@ -150,9 +185,55 @@ class RemoteVisitList extends BaseList {
     );
   };
 
-  CustomRender = () => {
-    const { Data, GridOption, isLoading, LoadErrorMessage } = this.state;
+  /**
+   * Withdraw a request.
+   *
+   * POST /evisits/:id/cancel has existed since the patient API layer was
+   * built and had no caller at all, so a patient who asked for an appointment
+   * by mistake - or no longer needed one - had no way to take it back and the
+   * doctor kept seeing it in their queue.
+   */
+  CancelEvisit = (row) => {
     const { t } = this.props;
+
+    // ShowConfirm/ShowAlert return an element for the caller to render - they
+    // do not display anything themselves - so both live in state below.
+    const Confirm = Helper.BaseCrudHelper.ShowConfirm(
+      t("Энэ хүсэлтийг цуцлах уу?"),
+      async () => {
+        this.setState({ Confirm: null, CancellingId: row.Id });
+        const res = await Helper.PatientApiHelper.CancelEvisit(row.Id);
+        this.setState({ CancellingId: null });
+
+        if (!res.success) {
+          this.setState({
+            Alert: Helper.BaseCrudHelper.ShowAlert(
+              res.message || t("Цуцлах үед алдаа гарлаа"),
+              false,
+              () => this.setState({ Alert: null }),
+            ),
+          });
+          return;
+        }
+        this.GetData(true);
+      },
+      () => this.setState({ Confirm: null }),
+      { Destructive: true },
+    );
+    this.setState({ Confirm });
+  };
+
+  CustomRender = () => {
+    const {
+      Data,
+      GridOption,
+      isLoading,
+      LoadErrorMessage,
+      Confirm,
+      Alert,
+      CancellingId,
+    } = this.state;
+    const { t, UsePatientApi } = this.props;
 
     // Loading, error and empty are three different answers and used to render
     // as one: the spinner and the "no data" panel were drawn on top of each
@@ -185,6 +266,8 @@ class RemoteVisitList extends BaseList {
 
     return (
       <div style={{ minHeight: "120px" }}>
+        {Confirm}
+        {Alert}
         <List style={{ padding: 0 }}>
           {Data.map((e, key) => (
             <ListItem
@@ -211,7 +294,50 @@ class RemoteVisitList extends BaseList {
                   style={{ width: "16px", height: "16px", marginRight: "6px" }}
                 />
                 {Helper.ObjectHelper.getDateYMDHMS({ DateStr: e.CreateDate })}
+                {/* Status, the doctor and the appointment time all came back
+                    from /api/patient/evisits from the first day and none of
+                    them were shown, so every request looked identical to
+                    every other one whatever had happened to it. The legacy
+                    doctor path has no Status column, hence the guard. */}
+                {UsePatientApi && e.Status ? (
+                  <Box sx={{ marginLeft: "auto" }}>
+                    <StatusChip
+                      Tone={STATUS_TONE[e.Status] || "neutral"}
+                      Label={
+                        e.StatusLabel ||
+                        t(STATUS_FALLBACK[e.Status] || e.Status)
+                      }
+                    />
+                  </Box>
+                ) : null}
               </div>
+
+              {UsePatientApi && (e.DoctorName || e.ScheduledDate) ? (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: space[3],
+                    marginBottom: space[2],
+                    color: colors.brand.inkMuted,
+                    fontSize: "13px",
+                  }}
+                >
+                  {e.DoctorName ? (
+                    <span>
+                      {t("Эмч")}: {e.DoctorName}
+                    </span>
+                  ) : null}
+                  {e.ScheduledDate ? (
+                    <span>
+                      {t("Товлосон цаг")}:{" "}
+                      {Helper.ObjectHelper.getDateYMDHMS({
+                        DateStr: e.ScheduledDate,
+                      })}
+                    </span>
+                  ) : null}
+                </Box>
+              ) : null}
               {e.Comment && e.Comment !== "" && (
                 <div
                   style={{
@@ -249,6 +375,48 @@ class RemoteVisitList extends BaseList {
                   <AdviceFileInfo Data={e.Files} />
                 </div>
               )}
+
+              {UsePatientApi &&
+              (e.MeetingUrl || CANCELLABLE.includes(e.Status)) ? (
+                <Box
+                  sx={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: space[2],
+                    marginTop: space[3],
+                    paddingTop: space[2],
+                    borderTop: `1px solid ${colors.brand.hairline}`,
+                  }}
+                >
+                  {/* The server only fills MeetingUrl once the request is
+                      scheduled, so this appears exactly when there is
+                      something to join. */}
+                  {e.MeetingUrl ? (
+                    <Button
+                      component="a"
+                      href={e.MeetingUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      startIcon={<VideocamIcon />}
+                      sx={gridToolbarButtonSx.primary}
+                    >
+                      {t("Үзлэгт нэгдэх")}
+                    </Button>
+                  ) : null}
+
+                  {CANCELLABLE.includes(e.Status) ? (
+                    <Button
+                      onClick={() => this.CancelEvisit(e)}
+                      disabled={CancellingId === e.Id}
+                      sx={gridToolbarButtonSx.danger}
+                    >
+                      {CancellingId === e.Id
+                        ? t("Цуцалж байна")
+                        : t("Хүсэлт цуцлах")}
+                    </Button>
+                  ) : null}
+                </Box>
+              ) : null}
             </ListItem>
           ))}
           <Paginition

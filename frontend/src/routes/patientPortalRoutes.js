@@ -10,6 +10,10 @@ import AccountBoxIcon from "@mui/icons-material/AccountBox";
 import DescriptionIcon from "@mui/icons-material/Description";
 import ChatBubbleIcon from "@mui/icons-material/ChatBubble";
 import AddAlertIcon from "@mui/icons-material/AddAlert";
+import ScienceOutlinedIcon from "@mui/icons-material/ScienceOutlined";
+import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
+import AlarmOutlinedIcon from "@mui/icons-material/AlarmOutlined";
+import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import i18n from "i18n";
 
 const PatientHome = React.lazy(() => import("view/Patient/PatientHome.jsx"));
@@ -30,6 +34,18 @@ const PatientRemoteVisit = React.lazy(
   () => import("view/Patient/PatientRemoteVisit.jsx"),
 );
 const PatientCVD = React.lazy(() => import("view/Patient/PatientCVD.jsx"));
+const PatientDiagnostics = React.lazy(
+  () => import("view/Patient/PatientDiagnostics.jsx"),
+);
+const PatientNotifications = React.lazy(
+  () => import("view/Patient/PatientNotifications.jsx"),
+);
+const PatientReminders = React.lazy(
+  () => import("view/Patient/PatientReminders.jsx"),
+);
+const PatientPrivacy = React.lazy(
+  () => import("view/Patient/PatientPrivacy.jsx"),
+);
 
 const patientPortalRoutes = [
   {
@@ -65,6 +81,15 @@ const patientPortalRoutes = [
     layout: "/patient",
   },
   {
+    // Right after the journal: both answer "what is recorded about me".
+    path: "/PatientDiagnostics",
+    name: "Шинжилгээ",
+    roles: [4],
+    icon: ScienceOutlinedIcon,
+    component: PatientDiagnostics,
+    layout: "/patient",
+  },
+  {
     path: "/PatientAdvice",
     name: "Эмчийн зөвлөгөө",
     icon: RecordVoiceOverIcon,
@@ -89,11 +114,36 @@ const patientPortalRoutes = [
     layout: "/patient",
   },
   {
+    path: "/PatientNotifications",
+    name: "Мэдэгдэл",
+    roles: [4],
+    icon: NotificationsNoneIcon,
+    component: PatientNotifications,
+    layout: "/patient",
+  },
+  {
+    path: "/PatientReminders",
+    name: "Сануулга",
+    roles: [4],
+    icon: AlarmOutlinedIcon,
+    component: PatientReminders,
+    layout: "/patient",
+  },
+  {
     path: "/PatientRehab",
     name: "Сэргээн засах",
     icon: FitnessCenterIcon,
     roles: [4],
     component: PatientRehab,
+    layout: "/patient",
+  },
+  {
+    // Last on purpose: a settings-shaped screen, not a daily one.
+    path: "/PatientPrivacy",
+    name: "Нууцлал",
+    roles: [4],
+    icon: ShieldOutlinedIcon,
+    component: PatientPrivacy,
     layout: "/patient",
   },
 ];

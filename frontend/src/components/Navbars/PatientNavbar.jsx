@@ -6,6 +6,8 @@ import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
 import { TopBarShell, TopBarInner } from "components/Navbars/AdminNavbar";
 import ProfileMenu from "components/Navbars/ProfileMenu";
 import TopBarIconButton from "components/Navbars/TopBarIconButton";
+import LanguageToggle from "components/Navbars/LanguageToggle";
+import PatientNotificationBell from "components/Navbars/PatientNotificationBell";
 import T from "components/Navbars/topBarTokens";
 
 /**
@@ -25,10 +27,20 @@ export default function PatientNavbar({ handleDrawerToggle }) {
       <TopBarInner component="nav" aria-label={t("Top bar")}>
         <Box sx={{ flex: "1 1 auto", minWidth: 0 }} />
         <Box sx={{ display: "flex", alignItems: "center", height: "100%" }}>
+          {/* The patient bar had no language control at all, so a patient who
+              landed in English - or whose account carries Language "en" - had
+              no way back to Mongolian short of clearing site data. The doctor
+              bar has had this all along. */}
+          <PatientNotificationBell />
+          <LanguageToggle SeedFromAccount={false} />
           <ProfileMenu Variant="patient" />
           <Box
             sx={{
-              display: { xs: "flex", md: "none" },
+              // Phones reach the menu from the bottom bar's Цэс tab, so the
+              // hamburger would be a second control for the same drawer. It
+              // stays for tablet portrait (600-959), where there is no bottom
+              // bar and the sidebar is still a temporary drawer.
+              display: { xs: "none", sm: "flex", md: "none" },
               alignItems: "center",
               ml: `${T.gapItem}px`,
             }}

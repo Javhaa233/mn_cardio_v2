@@ -4,6 +4,10 @@ import { useTranslation } from "react-i18next";
 
 import GridContainer from "components/Grid/GridContainer";
 import GridItem from "components/Grid/GridItem";
+import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
+import FileDownloadIcon from "@mui/icons-material/FileDownload";
+
 import UniCard from "customComponents/UniCard";
 
 import BaseNoData from "customComponents/BaseNoData";
@@ -11,6 +15,9 @@ import PatientMonitoringList from "customComponents/PatientPlatform/PatientMonit
 import PatientMonitoringForm from "customComponents/PatientPlatform/PatientMonitoringForm";
 import PressureChart from "customComponents/PatientPlatform/PressureChart";
 
+import { colors } from "@/theme/colors";
+import { space, radius } from "@/theme/tokens";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 import Helper from "helper";
 
 /**
@@ -27,6 +34,24 @@ import Helper from "helper";
 export default function PatientMonitoring() {
   const { t } = useTranslation();
   const [Resset, setResset] = useState(true);
+  const [Exporting, setExporting] = useState(false);
+  const [ExportError, setExportError] = useState("");
+
+  /**
+   * Mobile tender section 1.8: the journal as a file, to show a doctor at an
+   * appointment. The endpoint has existed since the /api/patient layer was
+   * built, complete with the provenance stamp the tender requires - there was
+   * simply no way to ask for it from the web.
+   */
+  const Export = async () => {
+    setExporting(true);
+    setExportError("");
+    const res = await Helper.PatientApiHelper.ExportJournal({ format: "xlsx" });
+    setExporting(false);
+    if (!res.success) {
+      setExportError(res.message || t("Татаж чадсангүй. Дахин оролдоно уу."));
+    }
+  };
 
   const LogedUser = Helper.AuthHelper.GetLogedUserLocal();
   const LogedPatient = LogedUser ? LogedUser.Patient : null;
@@ -77,7 +102,10 @@ export default function PatientMonitoring() {
         <UniCard
           color="primary"
           title={t("Даралт хяналт")}
-          cardStyle={{ height: "auto", marginTop: 16 }}
+          // space[4], not 16: UniCard spreads cardStyle into `sx`, and MUI
+          // multiplies a bare number by the 8px spacing unit - so `16` was
+          // rendering as 128px of dead canvas between this card and the form.
+          cardStyle={{ height: "auto", marginTop: space[4] }}
         >
           <PressureChart RefreshKey={Resset} />
         </UniCard>
@@ -87,7 +115,32 @@ export default function PatientMonitoring() {
           color="warning"
           title={t("Тэмдэглэлийн түүх")}
           cardStyle={{ height: "auto" }}
+          actions={
+            <Button
+              onClick={Export}
+              disabled={Exporting}
+              startIcon={<FileDownloadIcon />}
+              sx={gridToolbarButtonSx.neutral}
+            >
+              {Exporting ? t("Татаж байна") : t("Татах")}
+            </Button>
+          }
         >
+          {ExportError ? (
+            <Box
+              role="alert"
+              sx={{
+                marginBottom: space[2],
+                color: colors.status.dangerInk,
+                backgroundColor: colors.status.dangerTint,
+                border: `1px solid ${colors.brand.hairline}`,
+                borderRadius: radius.sm,
+                padding: space[2],
+              }}
+            >
+              {ExportError}
+            </Box>
+          ) : null}
           <PatientMonitoringList
             ref={(ref) => (PatientMonitoringListRef = ref)}
             ObjectName="PatientMonitoring"
