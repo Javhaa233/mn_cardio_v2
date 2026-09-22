@@ -2173,5 +2173,10 @@
   "бичлэг": "records",
   "Үзлэгт нэгдэх": "Join the appointment",
   "Үндсэн цэс": "Main menu",
-  "Эм уух сануулга": "Medication reminder"
+  "Эм уух сануулга": "Medication reminder",
+  "Шинэ нууц үг олгох": "Issue new password",
+  "Өвчтөнд шинэ нууц үг олгох уу? Өмнө хэвлэсэн нууц үг ажиллахаа болино.": "Issue a new password to the patient? The previously printed password will stop working.",
+  "Нууц үг олгож чадсангүй": "Could not issue a password",
+  "Нууц үг олгогдлоо — хэвлээд өвчтөнд өгнө үү": "Password issued — print it and give it to the patient",
+  "Нууц үг хэвлэх үед нэг удаа олгогдоно": "The password is issued once, when you print"
 }

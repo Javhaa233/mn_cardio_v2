@@ -12,6 +12,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const { IsAcceptable, RequirementMessageMn } = require('../../helper/PasswordPolicy');
 const Flags = require('../../helper/FeatureFlags');
 const LoginGuard = require('../../helper/LoginGuard');
+const PatientCredential = require('../../helper/PatientCredential');
 
 // routes
 router.post('/Login', Login);
@@ -53,7 +54,15 @@ async function CheckLogin(req, res) {
 
 async function Login(req, res) {
   try {
-    const { UserName, Password } = req.body;
+    // Patients type the register number and the printed password by hand on a
+    // phone: a stray space, lowercase Cyrillic, or the slip's "482 917"
+    // grouping must not read as a wrong password (helper/PatientCredential.js).
+    // The raw values are still tried second, so an older account whose stored
+    // name or chosen password really contains a space keeps working.
+    const RawUserName = req.body.UserName;
+    const RawPassword = req.body.Password;
+    const UserName = PatientCredential.NormalizeUserName(RawUserName);
+    const Password = PatientCredential.NormalizePassword(RawPassword);
 
     // Same guard as staff login, and checked before the lookup for the same
     // reason: an early return is measurably faster than findAllDetail plus
@@ -68,14 +77,23 @@ async function Login(req, res) {
     }
 
     //const AppId = req.headers["app"];
-    const patientUserDatas = await Models.PatientUsers.findAllDetail({
+    let patientUserDatas = await Models.PatientUsers.findAllDetail({
       where: { UserName, RoleId: 4 },
     });
+    if (patientUserDatas.length === 0 && RawUserName && RawUserName !== UserName) {
+      patientUserDatas = await Models.PatientUsers.findAllDetail({
+        where: { UserName: RawUserName, RoleId: 4 },
+      });
+    }
     if (patientUserDatas.length === 1) {
       let patientUserData = JSON.parse(JSON.stringify(patientUserDatas[0]));
 
       if (patientUserData) {
-        const isPasswordMatch = await bcrypt.compare(Password, patientUserData.Password);
+        let isPasswordMatch =
+          !!Password && (await bcrypt.compare(Password, patientUserData.Password));
+        if (!isPasswordMatch && RawPassword && RawPassword !== Password) {
+          isPasswordMatch = await bcrypt.compare(RawPassword, patientUserData.Password);
+        }
         if (!isPasswordMatch) {
           const Fail = await LoginGuard.RecordFailure({
             UserType: 'patient',
@@ -91,7 +109,9 @@ async function Login(req, res) {
             Success: false,
             Message: Fail.Locked
               ? LoginGuard.LockedMessage(Flags.LoginLockoutMinutes * 60)
-              : 'Login name or password is incorrect',
+              : // Same wording as the unknown-user branch below, so the reply
+                // does not reveal which register numbers have an account.
+                'Нэвтрэх нэр эсвэл нууц үг буруу байна',
             Data: { token: null, LogedUser: null },
           });
         }

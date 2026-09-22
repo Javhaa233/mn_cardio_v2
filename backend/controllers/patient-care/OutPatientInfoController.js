@@ -11,6 +11,7 @@ const { Models } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const PatientCredential = require('../../helper/PatientCredential');
 
 const OutPatientInfoReport = require('../../reports/OutPatientInfo');
 
@@ -19,6 +20,7 @@ router.post('/PrintReport', PrintReport);
 router.post('/PrintByStayId', PrintByStayId);
 router.post('/GetLastOutPatientInfoId', GetLastOutPatientInfoId);
 router.post('/GetPatientPlainPassword', GetPatientPlainPassword);
+router.post('/IssueLoginForPrint', IssueLoginForPrint);
 router.post('/UpdateStayDates', UpdateStayDates);
 
 // Returns a copy of InPatientInfo with the admission/discharge dates replaced by
@@ -52,7 +54,7 @@ async function GetReportData(Id, LogedUser) {
   });
 
   const OutPatientInfos = ModHelper.GetNewObject(Data);
-  let RandomPassword = null;
+  let Credential = null;
   let PatientData = null;
   let InPatientInfo = null;
   let DischargeDate = new Date();
@@ -109,57 +111,22 @@ async function GetReportData(Id, LogedUser) {
       }
     }
 
-    // Password Random String Create
-    RandomPassword = Math.random().toString(36).substr(2, 8);
-
+    // Every print used to mint a new password, so each reprint broke the sheet
+    // the patient was already carrying. Now the first print of this discharge
+    // issues one and reprints show the login name only; a doctor reissues on
+    // request (GetPatientPlainPassword). See helper/PatientCredential.js.
+    //
+    // Keyed on the Stay when there is one - the same key PrintByStayId uses -
+    // so printing before and after saving the discharge form is still ONE
+    // password per hospital stay.
     if (PatientData) {
-      var PatientUserId = PatientData.user_id;
-
-      if (PatientUserId) {
-        await BaseControllerHelper.BaseUpdate({
-          ObjectName: 'PatientUsers',
-          Data: {
-            Id: PatientUserId,
-            Password: RandomPassword,
-            PassExpireDate: ObjectHelper.getDateYMD({
-              Date: new Date(DischargeDate.setMonth(DischargeDate.getMonth() + 6)),
-            }),
-          },
-          LogedUser,
-          SaveLog: true,
-        });
-        // Reset DischargeDate for expiry calculation
-        DischargeDate =
-          InPatientInfo && InPatientInfo.date_discharge
-            ? new Date(InPatientInfo.date_discharge)
-            : new Date();
-      } else {
-        const CreateResult = await BaseControllerHelper.BaseCreate({
-          ObjectName: 'PatientUsers',
-          Data: {
-            UserName: PatientData.p_registration,
-            LastName: PatientData.p_lastname,
-            FirstName: PatientData.p_firstname,
-            Password: RandomPassword,
-            PassExpireDate: ObjectHelper.getDateYMD({
-              Date: new Date(DischargeDate.setMonth(DischargeDate.getMonth() + 6)),
-            }),
-            Email: null,
-            UserTypeId: 3,
-            IsActive: '1',
-            RoleId: '4',
-            Language: 'en',
-          },
-          LogedUser,
-          SaveLog: true,
-        });
-        await Models.Patient.update({ user_id: CreateResult }, { where: { id_data: PatientId } });
-        // Reset DischargeDate for expiry calculation
-        DischargeDate =
-          InPatientInfo && InPatientInfo.date_discharge
-            ? new Date(InPatientInfo.date_discharge)
-            : new Date();
-      }
+      Credential = await PatientCredential.IssueOnce({
+        PatientId,
+        LogedUser,
+        LinkObjectName: StayId ? 'Stay' : 'OutPatientInfo',
+        LinkObjectId: StayId || outPatientInfo.Id,
+        ExpireFrom: DischargeDate,
+      });
     }
   }
 
@@ -167,7 +134,7 @@ async function GetReportData(Id, LogedUser) {
     Data: OutPatientInfos[0],
     PatientData: PatientData ? PatientData.dataValues : null,
     InPatientInfo: InPatientInfo ? InPatientInfo.dataValues : null,
-    Password: RandomPassword,
+    Credential,
     DischargeDate:
       InPatientInfo && InPatientInfo.date_discharge
         ? new Date(InPatientInfo.date_discharge)
@@ -212,16 +179,16 @@ async function PrintReport(req, res) {
       type: 'pdf',
     };
 
-    const { Data, PatientData, InPatientInfo, Password, DischargeDate, OrganizationLogo } =
+    // Never log the credential: the password's only copies are the response
+    // and the printed sheet.
+    const { Data, PatientData, InPatientInfo, Credential, DischargeDate, OrganizationLogo } =
       await GetReportData(Id, LogedUser);
-
-    console.log({ Password });
 
     const html = OutPatientInfoReport(
       Data,
       PatientData,
       ApplyDateOverrides(InPatientInfo, DateAdmission, DateDischarge),
-      Password,
+      Credential,
       DischargeDate,
       OrganizationLogo
     );
@@ -435,7 +402,15 @@ async function PrintByStayId(req, res) {
         },
         PatientData: PatientData ? PatientData.dataValues : null,
         InPatientInfo: InPatientInfo.dataValues,
-        Password: Math.random().toString(36).substr(2, 8),
+        // This used to print a random password that was never saved, so the
+        // sheet could not work. Issue a real one, once per stay.
+        Credential: await PatientCredential.IssueOnce({
+          PatientId,
+          LogedUser,
+          LinkObjectName: 'Stay',
+          LinkObjectId: StayId,
+          ExpireFrom: InPatientInfo.date_discharge,
+        }),
         DischargeDate: InPatientInfo.date_discharge
           ? new Date(InPatientInfo.date_discharge)
           : new Date(),
@@ -460,7 +435,7 @@ async function PrintByStayId(req, res) {
       Data,
       PatientData,
       InPatientInfo: StayInfo,
-      Password,
+      Credential,
       DischargeDate,
       OrganizationLogo,
     } = reportData;
@@ -478,7 +453,7 @@ async function PrintByStayId(req, res) {
       Data,
       PatientData,
       ApplyDateOverrides(StayInfo, DateAdmission, DateDischarge),
-      Password,
+      Credential,
       DischargeDate,
       OrganizationLogo
     );
@@ -557,9 +532,11 @@ async function PrintByStayId(req, res) {
   }
 }
 
-// Issues a fresh login credential for a patient so the discharge report can hand
-// it to them on paper. It rotates the password on every call by design - the
-// printed sheet is the only copy.
+// The doctor's explicit "Шинэ нууц үг олгох": issues a new 6-digit password,
+// replacing the previous one, and creates the portal account if the patient
+// has none. It rotates on every call by design - so it must only ever run on a
+// button press. The client report used to call it on mount, which reset the
+// patient's password just by opening the report.
 //
 // This used to check nothing but "is someone logged in". It sits in the
 // protected route group, which means any valid token - including a patient's own
@@ -588,48 +565,96 @@ async function GetPatientPlainPassword(req, res) {
       });
     }
 
-    const patient = await Models.Patient.findByPk(PatientId, {
-      attributes: ['user_id'],
-      raw: true,
-    });
-
-    if (!patient || !patient.user_id) {
-      return res.json({ Success: true, Data: null });
-    }
-
-    const user = await Models.PatientUsers.findByPk(patient.user_id, {
-      attributes: ['Id', 'UserName'],
-      raw: true,
-    });
-
-    if (!user) {
-      return res.json({ Success: true, Data: null });
-    }
-
-    // Handing out a credential is a sensitive act; leave a trail of who did it.
-    await BaseControllerHelper.CreateUserActionHistory({
+    // The helper audits it (who issued a credential to whom) and stores only
+    // the hash. The cleartext lives in this response and on the printed sheet.
+    const Issued = await PatientCredential.Issue({
+      PatientId,
+      LogedUser,
       LinkObjectName: 'Patient',
       LinkObjectId: PatientId,
-      Action: 'IssueCredential',
-      LogedUser,
-      Notes: 'Issued patient login credential for the discharge report',
-      NotesMn: 'Эмнэлгээс гарах хуудсанд өвчтөний нэвтрэх эрх олгов',
+      Reason: 'Reissue',
     });
 
-    const bcrypt = require('bcryptjs');
-    const newPassword = Math.random().toString(36).substr(2, 8);
-    const hashed = await bcrypt.hash(newPassword, 8);
-
-    // Only the hash is stored. The cleartext lives in this response and on the
-    // printed sheet - nowhere else.
-    await Models.PatientUsers.update({ Password: hashed }, { where: { Id: user.Id } });
+    if (!Issued) {
+      return res.json({
+        Success: false,
+        Message: 'Өвчтөний регистрийн дугаар бүртгэгдээгүй тул нууц үг олгох боломжгүй',
+        Data: null,
+      });
+    }
 
     return res.json({
       Success: true,
-      Data: { UserName: user.UserName, PlainPassword: newPassword },
+      Data: {
+        UserName: Issued.UserName,
+        PlainPassword: Issued.Password,
+        ExpireDate: Issued.ExpireDate,
+      },
     });
   } catch (ex) {
     console.error('GetPatientPlainPassword error:', ex);
+    return res.json(BaseControllerHelper.GetDefaultErrorResult());
+  }
+}
+
+// The client-rendered discharge report (OutPatientInfoReport.jsx, html2canvas)
+// calls this at the moment it prints, so it follows the same rule as the
+// server PDF: the first print of a stay issues a password, reprints return
+// AlreadyIssued with the login name only. Opening the report issues nothing.
+async function IssueLoginForPrint(req, res) {
+  try {
+    const { Id } = req.body;
+    const LogedUser = req.LogedUser;
+    if (!LogedUser || !Id) {
+      return res.json({ Success: false, Data: null });
+    }
+    if (parseInt(LogedUser.RoleId) === 4) {
+      return res.json({
+        Success: false,
+        Message: 'Энэ үйлдлийг гүйцэтгэх эрхгүй байна',
+        Data: null,
+      });
+    }
+
+    const Info = await Models.OutPatientInfo.findByPk(Id, {
+      attributes: ['Id', 'PatientId', 'StayId'],
+      raw: true,
+    });
+    if (!Info || !Info.PatientId) {
+      return res.json({ Success: false, Data: null });
+    }
+
+    let ExpireFrom = null;
+    if (Info.StayId) {
+      const Stay = await Models.Stay.findByPk(Info.StayId, {
+        attributes: ['date_discharge'],
+        raw: true,
+      });
+      ExpireFrom = Stay && Stay.date_discharge;
+    }
+
+    const Issued = await PatientCredential.IssueOnce({
+      PatientId: Info.PatientId,
+      LogedUser,
+      LinkObjectName: Info.StayId ? 'Stay' : 'OutPatientInfo',
+      LinkObjectId: Info.StayId || Info.Id,
+      ExpireFrom,
+    });
+    if (!Issued) {
+      return res.json({ Success: true, Data: null });
+    }
+
+    return res.json({
+      Success: true,
+      Data: {
+        UserName: Issued.UserName,
+        PlainPassword: Issued.Password,
+        ExpireDate: Issued.ExpireDate,
+        AlreadyIssued: Issued.AlreadyIssued,
+      },
+    });
+  } catch (ex) {
+    console.error('IssueLoginForPrint error:', ex);
     return res.json(BaseControllerHelper.GetDefaultErrorResult());
   }
 }

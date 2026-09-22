@@ -1,7 +1,9 @@
 const ObjectHelper = require('../helper/ObjectHelper');
 const tt = require('./translate');
+const PatientLoginSlip = require('./PatientLoginSlip');
 
-function Visit(Data, Language, Password) {
+// Credential is helper/PatientCredential's { UserName, Password, ExpireDate }.
+function Visit(Data, Language, Credential) {
   var ICD10 = [];
   var MajorFindings = [];
   var Treatments = [];
@@ -9,7 +11,6 @@ function Visit(Data, Language, Password) {
   var Procedures = [];
 
   var Language = Language ? Language : 'mn';
-  var Password = Password;
 
   const t = function (word) {
     return tt(word, Language);
@@ -172,31 +173,23 @@ function Visit(Data, Language, Password) {
       </div>`
           : ''
       }
-      <div>
-        <div>Иргэний платформ (үзлэгийн түүх) орох хаяг:</div>
-        <div>https://smr.telemedicine.mn/patient</div>
-        ${
-          Data && Data.Patient && Data.Patient.p_registration
-            ? `
-        <div>${t('Login name')}: ${Data.Patient.p_registration}</div>`
-            : ''
-        }
-        ${
-          // A password is printed ONLY on the sheet that created the account.
-          // Reprints used to issue a fresh one every time, which silently
-          // invalidated whatever the patient was already carrying; now the
-          // controller passes null for an existing account and this line
-          // disappears rather than showing a password that is not theirs.
-          Password
-            ? `
-        <div>${t('Password')}: ${Password.replace(/\s+/g, '')}</div>`
-            : ''
-        }
-        <div>Кодны хүчинтэй хугацаа:</div>
-        <div>Дараагийн зүрхний үзлэг хүртэл эсвэл ${ObjectHelper.getDateYMD({
-          Date: new Date(VisitDate.setMonth(VisitDate.getMonth() + 6)),
-        })}</div>
-      </div>
+      ${
+        // The first print of a visit issues the password; reprints of the same
+        // visit print the login name and "issued earlier", never a password
+        // that is not the patient's (helper/PatientCredential.js).
+        PatientLoginSlip({
+          UserName:
+            (Credential && Credential.UserName) ||
+            (Data && Data.Patient && Data.Patient.p_registration),
+          Password: Credential && Credential.Password,
+          ExpireDate:
+            (Credential && Credential.ExpireDate) ||
+            ObjectHelper.getDateYMD({
+              Date: new Date(VisitDate.setMonth(VisitDate.getMonth() + 6)),
+            }),
+          Labels: { LoginName: t('Login name'), Password: t('Password') },
+        })
+      }
     </div>
   </body>
 </html>

@@ -129,6 +129,13 @@ export default function PatientLoginPage() {
           type="text"
           autoComplete="username"
           autoFocus
+          // The login name is the register number printed on the sheet. The
+          // server ignores spaces and case, so the phone keyboard need not
+          // fight the patient: capitals on, autocorrect off.
+          placeholder={t("Регистрийн дугаар")}
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
           className={UserNameError ? "bad" : undefined}
           aria-invalid={UserNameError || undefined}
           value={UserName}

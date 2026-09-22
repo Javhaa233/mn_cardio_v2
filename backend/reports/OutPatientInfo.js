@@ -1,13 +1,16 @@
 const ObjectHelper = require('../helper/ObjectHelper');
+const PatientLoginSlip = require('./PatientLoginSlip');
 
 // Default logo as base64 (placeholder - can be updated with actual default logo)
 const DEFAULT_LOGO = null;
 
+// Credential is helper/PatientCredential's { UserName, Password, ExpireDate };
+// Password is null on a reprint of a sheet that already issued one.
 function OutPatientInfo(
   Data,
   PatientData,
   InPatientInfo,
-  Password,
+  Credential,
   DischargeDate,
   OrganizationLogo
 ) {
@@ -161,19 +164,12 @@ function OutPatientInfo(
         </div>
       </div>
 
-      <div class="login-box">
-        <div class="login-title">Иргэний платформ (үзлэгийн түүх) орох хаяг:</div>
-        <div>https://smr.telemedicine.mn/patient</div>
-        ${
-          PatientData && PatientData.p_registration && Password
-            ? `
-        <div>Нэвтрэх нэр: ${PatientData.p_registration}</div>
-        <div>Нууц үг: ${Password.replace(/\s+/g, '')}</div>
-        <div>Кодны хүчинтэй хугацаа: ${expireDateStr}</div>
-        `
-            : ''
-        }
-      </div>
+      ${PatientLoginSlip({
+        UserName:
+          (Credential && Credential.UserName) || (PatientData && PatientData.p_registration),
+        Password: Credential && Credential.Password,
+        ExpireDate: (Credential && Credential.ExpireDate) || expireDateStr,
+      })}
 
       <div class="signature">
         <div>Эмчийн нэр: .......................................................</div>
