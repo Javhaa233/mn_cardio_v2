@@ -1,12 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/network/api_client.dart';
 import '../../core/network/api_exception.dart';
+import '../../core/util/json_read.dart';
 import '../../core/util/async_state.dart';
 import '../../shared/widgets/date_range_field.dart';
 import 'rehab_models.dart';
+import 'rehab_player_models.dart';
 
 /// 2.7 Сэргээн засах, дасгал хөдөлгөөн.
 ///
@@ -19,6 +23,9 @@ class RehabRepository {
   RehabRepository(this._api);
 
   final ApiClient _api;
+
+  /// Бичлэгийг урьдчилан татахад (MediaCache) хэрэгтэй.
+  ApiClient get api => _api;
 
   Future<List<RehabExercise>> fetchExercises() async {
     final data = await _api.getRaw('/api/patient/rehab/exercises');
@@ -60,7 +67,8 @@ class RehabRepository {
     );
   }
 
-  Future<RehabVitalsBundle> fetchVitals({DateRange range = DateRange.all}) async {
+  Future<RehabVitalsBundle> fetchVitals(
+      {DateRange range = DateRange.all}) async {
     final data = await _api.getRaw(
       '/api/patient/rehab/vitals',
       query: range.toQuery(),
@@ -85,6 +93,54 @@ class RehabRepository {
       offset: 0,
     );
     return page.items;
+  }
+
+  // ------------------------------------------------ тоглуулагч (API.md §2.7c)
+
+  Future<RehabToday> fetchToday() async {
+    final data = await _api.getRaw('/api/patient/rehab/today');
+    if (data is! Map) return RehabToday.empty;
+    return RehabToday.fromJson(Map<String, dynamic>.from(data));
+  }
+
+  /// Нэг дасгалын хөдөлгөөнүүд — хөтөлбөргүйгээр туршиж үзэхэд.
+  Future<List<RehabMovement>> fetchMovements(int exerciseId) async {
+    final data =
+        await _api.getRaw('/api/patient/rehab/exercises/$exerciseId/movements');
+    if (data is! Map) return const <RehabMovement>[];
+    return J
+        .list(Map<String, dynamic>.from(data), <String>['Movements'])
+        .map(RehabMovement.fromJson)
+        .toList(growable: false);
+  }
+
+  Future<RehabSessionStart> startSession(
+      {int? restingHr, int? exerciseId}) async {
+    final data = await _api.postObject(
+      '/api/patient/rehab/sessions',
+      body: <String, dynamic>{
+        if (restingHr != null) 'RestingHr': restingHr,
+        if (exerciseId != null) 'ExerciseId': exerciseId,
+      },
+    );
+    return RehabSessionStart.fromJson(data);
+  }
+
+  Future<RehabCheckin> checkin(int sessionId, RehabCheckin value) async {
+    final data = await _api.postObject(
+      '/api/patient/rehab/sessions/$sessionId/checkins',
+      body: value.toJson(),
+    );
+    return RehabCheckin.fromJson(data);
+  }
+
+  Future<RehabSessionDetail> finish(
+      int sessionId, Map<String, dynamic> body) async {
+    final data = await _api.patchObject(
+      '/api/patient/rehab/sessions/$sessionId',
+      body: body,
+    );
+    return RehabSessionDetail.fromJson(data);
   }
 
   Future<RehabAssessment?> fetchAssessment() async {
@@ -153,8 +209,83 @@ class RehabController extends ChangeNotifier {
     }).length;
   }
 
+  // ------------------------------------------------ Өнөөдрийн дасгал
+
+  AsyncState<RehabToday> _today = const AsyncState<RehabToday>.idle();
+  AsyncState<RehabToday> get today => _today;
+
+  RehabRepository get repository => _repo;
+
+  static const String _pendingKey = 'rehab.pendingFinish';
+
+  Future<void> loadToday({bool refresh = false}) async {
+    _today = refresh && _today.hasData
+        ? _today.toRefreshing()
+        : const AsyncState<RehabToday>.loading();
+    notifyListeners();
+    // Өмнө нь илгээж чадаагүй дасгалын дүнг эхлээд явуулна — эс бөгөөс
+    // цуваа, долоо хоногийн тэмдэг буруу харагдана.
+    await flushPendingFinishes();
+    try {
+      _today = AsyncState<RehabToday>.ready(await _repo.fetchToday());
+      _moduleDisabled = false;
+    } on ApiException catch (e) {
+      if (isModuleNotEnabled(e)) _moduleDisabled = true;
+      _today = AsyncState<RehabToday>.error(e);
+    }
+    notifyListeners();
+  }
+
+  /// Дасгалыг дуусгах. Сүлжээ тасарсан бол утсан дээр хадгалаад дараа нь илгээнэ —
+  /// дүн хэзээ ч алдагдах ёсгүй. Алдвал null буцаана.
+  Future<RehabSessionDetail?> finishSession(RehabFinishDraft draft) async {
+    try {
+      final detail = await _repo.finish(draft.sessionId, draft.toJson());
+      unawaited(loadToday(refresh: true));
+      unawaited(loadVitals(refresh: true));
+      return detail;
+    } on ApiException catch (e) {
+      // 409 SESSION_CLOSED: аль хэдийн хадгалагдсан — дахин оролдох шаардлагагүй.
+      if (e.statusCode != 409) await _queueFinish(draft);
+      return null;
+    }
+  }
+
+  Future<void> _queueFinish(RehabFinishDraft draft) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_pendingKey) ?? <String>[];
+      list.add(jsonEncode(draft.toStorage()));
+      await prefs.setStringList(_pendingKey, list);
+    } catch (_) {
+      // Хадгалж чадаагүй нь дэлгэцийг унагаах шалтгаан биш.
+    }
+  }
+
+  Future<void> flushPendingFinishes() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList(_pendingKey) ?? <String>[];
+      if (list.isEmpty) return;
+      final keep = <String>[];
+      for (final raw in list) {
+        try {
+          final map = Map<String, dynamic>.from(jsonDecode(raw) as Map);
+          final id = map['sessionId'] as int;
+          await _repo.finish(id, Map<String, dynamic>.from(map['body'] as Map));
+        } on ApiException catch (e) {
+          if (e.statusCode != 409 && e.statusCode != 404) keep.add(raw);
+        } catch (_) {
+          // Эвдэрсэн мөрийг хаяна.
+        }
+      }
+      await prefs.setStringList(_pendingKey, keep);
+    } catch (_) {}
+  }
+
   Future<void> loadAll({bool refresh = false}) async {
     await Future.wait<void>(<Future<void>>[
+      loadToday(refresh: refresh),
       loadExercises(refresh: refresh),
       loadVitals(refresh: refresh),
       loadAssessment(refresh: refresh),

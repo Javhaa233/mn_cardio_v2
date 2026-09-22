@@ -152,8 +152,7 @@ class _VitalTile extends StatelessWidget {
           Row(
             children: <Widget>[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3),
                 decoration: BoxDecoration(
                   color: theme.colorScheme.primary.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(999),
@@ -202,9 +201,9 @@ class _VitalTile extends StatelessWidget {
                 ),
               if (vital.borg != null)
                 _VitalValue(
-                  label: 'Борг',
+                  label: 'Ачаалал',
                   value: '${vital.borg}',
-                  unit: '',
+                  unit: vital.borgScale == 'CR10' ? '/ 10' : '/ 20',
                   color: AppColors.info,
                 ),
             ],
@@ -314,8 +313,7 @@ class _VitalFormSheetState extends State<_VitalFormSheet> {
               controller: scroll,
               padding: const EdgeInsets.fromLTRB(20, 8, 20, 28),
               children: <Widget>[
-                Text('Амин үзүүлэлт нэмэх',
-                    style: theme.textTheme.titleMedium),
+                Text('Амин үзүүлэлт нэмэх', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 16),
                 Text('Дасгалын үе шат', style: theme.textTheme.titleSmall),
                 const SizedBox(height: 8),
@@ -407,22 +405,20 @@ class _VitalFormSheetState extends State<_VitalFormSheet> {
                 ),
                 const SizedBox(height: 18),
                 Text(
-                  'Ачааллын мэдрэмж (Борг, 6–20)',
+                  'Ачааллын мэдрэмж (0–10)',
                   style: theme.textTheme.titleSmall,
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  _borg == null
-                      ? 'Сонгоогүй'
-                      : 'Сонгосон утга: $_borg',
+                  _borg == null ? 'Сонгоогүй' : 'Сонгосон утга: $_borg',
                   style: theme.textTheme.bodySmall,
                 ),
                 Slider(
-                  value: (_borg ?? 6).toDouble(),
-                  min: 6,
-                  max: 20,
-                  divisions: 14,
-                  label: '${_borg ?? 6}',
+                  value: (_borg ?? 0).toDouble(),
+                  min: 0,
+                  max: 10,
+                  divisions: 10,
+                  label: '${_borg ?? 0}',
                   onChanged: (double value) =>
                       setState(() => _borg = value.round()),
                 ),

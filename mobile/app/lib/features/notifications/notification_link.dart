@@ -64,6 +64,7 @@ Future<void> openNotification(
       case 'AdviceComment':
         return push(const AdviceScreen());
       case 'RehabAssessment':
+      case 'RehabPlan':
         return push(const RehabScreen());
       case 'PatientConsent':
         return push(const ConsentsScreen());

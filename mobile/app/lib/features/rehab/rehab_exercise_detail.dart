@@ -7,6 +7,7 @@ import '../../shared/widgets/section_card.dart';
 import '../../shared/widgets/state_views.dart';
 import 'rehab_controller.dart';
 import 'rehab_models.dart';
+import 'rehab_session_setup.dart';
 
 /// Дасгалын дэлгэрэнгүй, гүйцэтгэлээ тэмдэглэх хуудас.
 Future<void> showRehabExerciseDetail(
@@ -45,7 +46,8 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
     final theme = Theme.of(context);
     final exercise = widget.exercise;
     final description = (exercise.description ?? '').trim();
-    final lastAt = context.watch<RehabController>().lastCompletedAt(exercise.id);
+    final lastAt =
+        context.watch<RehabController>().lastCompletedAt(exercise.id);
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -77,6 +79,17 @@ class _ExerciseDetailSheetState extends State<_ExerciseDetailSheet> {
             ),
             const SizedBox(height: 18),
             _VideoPlaceholder(exercise: exercise),
+            const SizedBox(height: 10),
+            // Хөдөлгөөн бүрийг тоглуулагчаар дагаж хийх (хөтөлбөргүйгээр).
+            OutlinedButton.icon(
+              onPressed: () {
+                final nav = Navigator.of(context);
+                nav.pop();
+                tryRehabExercise(nav.context, exercise);
+              },
+              icon: const Icon(Icons.play_circle_outline_rounded),
+              label: const Text('Туршиж үзэх'),
+            ),
             if (description.isNotEmpty) ...<Widget>[
               const SizedBox(height: 14),
               SectionCard(

@@ -78,6 +78,7 @@ class RehabVital {
     this.bloodPressure,
     this.spo2,
     this.borg,
+    this.borgScale,
   });
 
   final int id;
@@ -90,8 +91,9 @@ class RehabVital {
   final String? bloodPressure;
   final int? spo2;
 
-  /// Боргийн ачааллын мэдрэмжийн үнэлгээ (6–20).
+  /// Ачааллын мэдрэмж. [borgScale] `CR10` бол 0–10, хоосон бол хуучин 6–20.
   final int? borg;
+  final String? borgScale;
 
   String get phaseLabel => rehabPhaseLabel(phase);
 
@@ -103,6 +105,7 @@ class RehabVital {
         bloodPressure: J.str(json, <String>['BloodPressure', 'bloodPressure']),
         spo2: J.intOf(json, <String>['Spo2', 'spo2']),
         borg: J.intOf(json, <String>['Borg', 'borg']),
+        borgScale: J.str(json, <String>['BorgScale']),
       );
 }
 
@@ -237,6 +240,7 @@ class RehabVitalDraft {
           'BloodPressure': bloodPressure!.trim(),
         if (spo2 != null) 'Spo2': spo2,
         if (borg != null) 'Borg': borg,
+        if (borg != null) 'BorgScale': 'CR10',
         if (notes != null && notes!.trim().isNotEmpty) 'Notes': notes!.trim(),
       };
 }

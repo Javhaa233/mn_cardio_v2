@@ -8,6 +8,7 @@ import 'rehab_assessment_tab.dart';
 import 'rehab_controller.dart';
 import 'rehab_exercise_detail.dart';
 import 'rehab_models.dart';
+import 'rehab_today_tab.dart';
 import 'rehab_vitals_tab.dart';
 
 /// 2.7 Сэргээн засах, дасгал хөдөлгөөн.
@@ -20,7 +21,7 @@ class RehabScreen extends StatefulWidget {
 
 class _RehabScreenState extends State<RehabScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 3, vsync: this);
+  late final TabController _tabs = TabController(length: 4, vsync: this);
 
   @override
   void initState() {
@@ -47,7 +48,8 @@ class _RehabScreenState extends State<RehabScreen>
           isScrollable: true,
           tabAlignment: TabAlignment.start,
           tabs: const <Widget>[
-            Tab(text: 'Дасгал хөдөлгөөн'),
+            Tab(text: 'Өнөөдрийн дасгал'),
+            Tab(text: 'Бүх дасгал'),
             Tab(text: 'Амин үзүүлэлт'),
             Tab(text: 'Үнэлгээ, зөвлөгөө'),
           ],
@@ -56,6 +58,7 @@ class _RehabScreenState extends State<RehabScreen>
       body: TabBarView(
         controller: _tabs,
         children: const <Widget>[
+          RehabTodayTab(),
           _ExercisesTab(),
           RehabVitalsTab(),
           RehabAssessmentTab(),
@@ -288,8 +291,9 @@ class _MiniChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final color =
-        highlight ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant;
+    final color = highlight
+        ? theme.colorScheme.primary
+        : theme.colorScheme.onSurfaceVariant;
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: <Widget>[
