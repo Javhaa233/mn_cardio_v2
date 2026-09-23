@@ -35,11 +35,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 4 | 30 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 264 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 265 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 125 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **421** |
+| **Нийт** |  |  | **422** |
 
 api-layer задаргаа: `/api/Media` 12 · `/api/admin` 1 · `/api/auth` 5 · `/api/base` 6 · `/api/doctor` 46 · `/api/fhir` 5 · `/api/mobile` 2 · `/api/patient` 46 · `/api/report` 1 · `/api/time` 1.
 
@@ -112,13 +112,13 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/UserRequest/DeclineMany` | token (route-level) | `UserRequestController.js:141` |  |
 | `POST` | `/api/UserRequest/DeleteMany` | token (route-level) | `UserRequestController.js:142` |  |
 | `POST` | `/api/UserRequest/PendingCount` | token (route-level) | `UserRequestController.js:143` | How many requests are waiting. |
-| `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:17` |  |
-| `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:18` |  |
-| `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:19` |  |
-| `POST` | `/api/PatientUser/Save` | token (route-level) | `PatientUserController.js:20` |  |
-| `POST` | `/api/PatientUser/ForgotPassword` | public | `PatientUserController.js:21` | TRANSITIONAL - patients will move to DAN (national digital identity) with no password at all; see… |
-| `POST` | `/api/PatientUser/ResetPassword` | public | `PatientUserController.js:22` |  |
-| `POST` | `/api/PatientUser/ChangePassword` | token (route-level) | `PatientUserController.js:23` |  |
+| `POST` | `/api/PatientUser/Login` | public | `PatientUserController.js:18` |  |
+| `POST` | `/api/PatientUser/LogOut` | token (route-level) | `PatientUserController.js:19` |  |
+| `POST` | `/api/PatientUser/CheckLogin` | token (route-level) | `PatientUserController.js:20` |  |
+| `POST` | `/api/PatientUser/Save` | token (route-level) | `PatientUserController.js:21` |  |
+| `POST` | `/api/PatientUser/ForgotPassword` | public | `PatientUserController.js:22` | TRANSITIONAL - patients will move to DAN (national digital identity) with no password at all; see… |
+| `POST` | `/api/PatientUser/ResetPassword` | public | `PatientUserController.js:23` |  |
+| `POST` | `/api/PatientUser/ChangePassword` | token (route-level) | `PatientUserController.js:24` |  |
 
 ### 4.3. Байгууллага, эмч, баг, зөвлөгөө (асуумж), хяналтын самбар — `controllers/organization/`
 
@@ -170,17 +170,17 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.4. Өвчтөний тусламж үйлчилгээ — `controllers/patient-care/`
 
-Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 47 endpoint.
+Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 48 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
-| `POST` | `/api/Visit/GetCustomFormData` | token | `VisitController.js:20` |  |
-| `POST` | `/api/Visit/CustomSave` | token | `VisitController.js:21` |  |
-| `POST` | `/api/Visit/GetVisitsByPatient` | token | `VisitController.js:22` |  |
-| `POST` | `/api/Visit/GetLastVisitId` | token | `VisitController.js:23` | The patient's most recent visit id. |
-| `POST` | `/api/Visit/PrintReport` | token | `VisitController.js:24` |  |
-| `POST` | `/api/Visit/PrintAmbulatori` | token | `VisitController.js:25` |  |
-| `POST` | `/api/Visit/PrintAmbulatoriHTML` | token | `VisitController.js:26` |  |
+| `POST` | `/api/Visit/GetCustomFormData` | token | `VisitController.js:21` |  |
+| `POST` | `/api/Visit/CustomSave` | token | `VisitController.js:22` |  |
+| `POST` | `/api/Visit/GetVisitsByPatient` | token | `VisitController.js:23` |  |
+| `POST` | `/api/Visit/GetLastVisitId` | token | `VisitController.js:24` | The patient's most recent visit id. |
+| `POST` | `/api/Visit/PrintReport` | token | `VisitController.js:25` |  |
+| `POST` | `/api/Visit/PrintAmbulatori` | token | `VisitController.js:26` |  |
+| `POST` | `/api/Visit/PrintAmbulatoriHTML` | token | `VisitController.js:27` |  |
 | `POST` | `/api/Stay/GetDepartments` | token | `StayController.js:10` |  |
 | `POST` | `/api/Stay/CustomSave` | token | `StayController.js:11` |  |
 | `POST` | `/api/Stay/LeavePatient` | token | `StayController.js:12` |  |
@@ -216,11 +216,12 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/PatientTransfer/CustomSave` | token | `PatientTransferController.js:11` |  |
 | `POST` | `/api/PatientSendPage/GetCustomFormData` | token | `PatientSendPageController.js:10` |  |
 | `POST` | `/api/PatientSendPage/CustomSave` | token | `PatientSendPageController.js:11` |  |
-| `POST` | `/api/OutPatientInfo/PrintReport` | token | `OutPatientInfoController.js:18` |  |
-| `POST` | `/api/OutPatientInfo/PrintByStayId` | token | `OutPatientInfoController.js:19` |  |
-| `POST` | `/api/OutPatientInfo/GetLastOutPatientInfoId` | token | `OutPatientInfoController.js:20` |  |
-| `POST` | `/api/OutPatientInfo/GetPatientPlainPassword` | token | `OutPatientInfoController.js:21` | Issues a fresh login credential for a patient so the discharge report can hand it to them on paper. |
-| `POST` | `/api/OutPatientInfo/UpdateStayDates` | token | `OutPatientInfoController.js:22` | Persists the doctor's edited admission/discharge dates from the printable report back onto the… |
+| `POST` | `/api/OutPatientInfo/PrintReport` | token | `OutPatientInfoController.js:19` |  |
+| `POST` | `/api/OutPatientInfo/PrintByStayId` | token | `OutPatientInfoController.js:20` |  |
+| `POST` | `/api/OutPatientInfo/GetLastOutPatientInfoId` | token | `OutPatientInfoController.js:21` |  |
+| `POST` | `/api/OutPatientInfo/GetPatientPlainPassword` | token | `OutPatientInfoController.js:22` | The doctor's explicit "Шинэ нууц үг олгох": issues a new 6-digit password, replacing the previous… |
+| `POST` | `/api/OutPatientInfo/IssueLoginForPrint` | token | `OutPatientInfoController.js:23` | The client-rendered discharge report (OutPatientInfoReport.jsx, html2canvas) calls this at the… |
+| `POST` | `/api/OutPatientInfo/UpdateStayDates` | token | `OutPatientInfoController.js:24` | Persists the doctor's edited admission/discharge dates from the printable report back onto the… |
 
 ### 4.5. Чат ба мэдэгдэл — `controllers/communication/`
 
@@ -685,4 +686,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-21. Нийт endpoint: 421._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-22. Нийт endpoint: 422._

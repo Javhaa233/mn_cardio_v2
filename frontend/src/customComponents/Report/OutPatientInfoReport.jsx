@@ -3,7 +3,9 @@ import React, { Component } from "react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 // translation
-import { Box } from "@mui/material";
+import { Box, Button, Typography } from "@mui/material";
+import colors from "@/theme/colors";
+import { gridToolbarButtonSx } from "@/theme/controlStyles";
 
 import BaseLoading from "customComponents/BaseLoading";
 
@@ -61,6 +63,8 @@ class OutPatientInfoReport extends Component {
       Alert: null,
       Loaded: false,
       OrganizationLogo: null,
+      Login: null,
+      Reissuing: false,
     };
     this.LogedUser = Helper.AuthHelper.GetLogedUserLocal();
     // Refs to the editable admission/discharge date spans so we can read the
@@ -138,16 +142,57 @@ class OutPatientInfoReport extends Component {
         PatientId,
         (resData) => {
           if (resData && resData.Success) {
-            this.setState({ PatientData: resData.Data }, () => {
-              this.GetPlainPassword(PatientId);
-            });
+            this.setState({ PatientData: resData.Data });
           }
         },
       );
     }
   };
 
-  GetPlainPassword = async (PatientId) => {
+  // The patient portal password. Opening this report used to reset it (it
+  // called GetPatientPlainPassword on mount), breaking the sheet the patient
+  // already had. Now it is issued when the report is PRINTED, once per stay:
+  // a reprint gets AlreadyIssued and prints the login name only. A password
+  // already on screen is kept, so printing twice in one sitting shows it twice.
+  PrepareLogin = async () => {
+    const { DataId, Login } = this.state;
+    if (Login?.PlainPassword) return;
+    try {
+      const res = await call({
+        url: "/OutPatientInfo/IssueLoginForPrint",
+        method: "POST",
+        data: { Id: DataId },
+      });
+      const Next = res?.Success && res?.Data ? res.Data : { Failed: true };
+      await new Promise((resolve) => this.setState({ Login: Next }, resolve));
+    } catch (e) {
+      await new Promise((resolve) =>
+        this.setState({ Login: { Failed: true } }, resolve),
+      );
+    }
+  };
+
+  // The patient lost the sheet: issue a new password, replacing the old one.
+  AskReissue = () => {
+    const { t } = this.props;
+    const alert = Helper.BaseCrudHelper.ShowConfirm(
+      t(
+        "Өвчтөнд шинэ нууц үг олгох уу? Өмнө хэвлэсэн нууц үг ажиллахаа болино.",
+      ),
+      () => {
+        this.setState({ Alert: null });
+        this.Reissue();
+      },
+      () => this.setState({ Alert: null }),
+    );
+    this.setState({ Alert: alert });
+  };
+
+  Reissue = async () => {
+    const { t } = this.props;
+    const PatientId = this.state.Data?.PatientId;
+    if (!PatientId) return;
+    this.setState({ Reissuing: true });
     try {
       const res = await call({
         url: "/OutPatientInfo/GetPatientPlainPassword",
@@ -155,25 +200,32 @@ class OutPatientInfoReport extends Component {
         data: { PatientId },
       });
       if (res?.Success && res?.Data?.PlainPassword) {
-        this.setState((prev) => ({
-          PatientData: {
-            ...prev.PatientData,
-            LinkedUser: {
-              ...(prev.PatientData?.LinkedUser || {}),
-              UserName:
-                res.Data.UserName || prev.PatientData?.LinkedUser?.UserName,
-              Password: res.Data.PlainPassword,
-            },
-          },
-        }));
+        this.setState({ Login: { ...res.Data, AlreadyIssued: false } });
+      } else {
+        this.setState({
+          Alert: Helper.BaseCrudHelper.ShowAlert(
+            res?.Message || t("Нууц үг олгож чадсангүй"),
+            false,
+            () => this.setState({ Alert: null }),
+          ),
+        });
       }
     } catch (e) {
-      // silently ignore — credentials section just won't show password
+      this.setState({
+        Alert: Helper.BaseCrudHelper.ShowAlert(
+          t("Нууц үг олгож чадсангүй"),
+          false,
+          () => this.setState({ Alert: null }),
+        ),
+      });
+    } finally {
+      this.setState({ Reissuing: false });
     }
   };
 
-  Print = (callback) => {
+  Print = async (callback) => {
     let alert = null;
+    await this.PrepareLogin();
     const element = document.querySelector("#divToPrint");
     if (!element) return;
 
@@ -395,6 +447,104 @@ class OutPatientInfoReport extends Component {
 
   NewPrint = (callback) => this.Print(callback);
 
+  // Mirrors backend/reports/PatientLoginSlip.js, so the client-printed sheet
+  // and the server PDF hand the patient the same box. This is inside
+  // #divToPrint (html2canvas), so it keeps to inline styles and no bare
+  // headings or tables.
+  renderLoginSlip = () => {
+    const { PatientData, Login } = this.state;
+    const UserName =
+      Login?.UserName ||
+      PatientData?.LinkedUser?.UserName ||
+      PatientData?.p_registration;
+    if (!UserName) return null;
+
+    const Mono = {
+      fontFamily: '"Consolas", "Courier New", monospace',
+      fontWeight: "bold",
+      fontSize: "20px",
+      letterSpacing: "1px",
+    };
+    const Password = Login?.PlainPassword
+      ? String(Login.PlainPassword).replace(/^(\d{3})(\d{3})$/, "$1 $2")
+      : null;
+
+    return (
+      <Box
+        sx={{
+          ...styles.avoidBreak,
+          marginBottom: "10px",
+          border: `1px solid ${colors.brand.hairlineStrong}`,
+          padding: "8px",
+        }}
+      >
+        <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
+          Иргэний платформ (үзлэгийн түүх) орох:
+        </div>
+        <div>https://smr.telemedicine.mn/patient</div>
+        <div style={{ marginTop: "6px" }}>
+          Нэвтрэх нэр: <span style={Mono}>{UserName}</span>
+        </div>
+        {Password ? (
+          <>
+            <div>
+              Нууц үг: <span style={Mono}>{Password}</span>
+            </div>
+            {Login?.ExpireDate && (
+              <div>Нууц үгийн хүчинтэй хугацаа: {Login.ExpireDate}</div>
+            )}
+            <div style={{ marginTop: "4px", fontSize: "14px" }}>
+              1. Утсан дээрээ дээрх хаягийг нээнэ. 2. Нэвтрэх нэрт регистрийн
+              дугаараа бичнэ. 3. Нууц үгийн 6 оронтой тоог хоосон зайгүйгээр
+              бичнэ.
+            </div>
+          </>
+        ) : Login?.AlreadyIssued ? (
+          <div style={{ fontSize: "14px" }}>
+            Нууц үгийг өмнө нь хэвлэж өгсөн. Мартсан бол эмчдээ хандаж шинэ нууц
+            үг авна уу.
+          </div>
+        ) : null}
+      </Box>
+    );
+  };
+
+  // Screen-only: outside #divToPrint, so it never reaches the PDF.
+  renderLoginActions = () => {
+    const { t } = this.props;
+    const { Login, Reissuing } = this.state;
+    return (
+      <Box
+        sx={{
+          width: "210mm",
+          margin: "0 auto 8px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: 1,
+        }}
+      >
+        <Typography
+          variant="caption"
+          component="span"
+          sx={{ color: colors.text.secondary }}
+        >
+          {Login?.PlainPassword
+            ? t("Нууц үг олгогдлоо — хэвлээд өвчтөнд өгнө үү")
+            : t("Нууц үг хэвлэх үед нэг удаа олгогдоно")}
+        </Typography>
+        <Button
+          size="small"
+          sx={gridToolbarButtonSx.neutral}
+          disabled={Reissuing}
+          onClick={this.AskReissue}
+        >
+          {t("Шинэ нууц үг олгох")}
+        </Button>
+      </Box>
+    );
+  };
+
   render() {
     const { Data, PatientData, InPatientInfo, Alert, OrganizationLogo } =
       this.state;
@@ -413,144 +563,149 @@ class OutPatientInfoReport extends Component {
           {!Data || !PatientData || !InPatientInfo ? (
             <BaseLoading />
           ) : (
-            <div
-              style={{
-                margin: "0 auto",
-                width: "210mm",
-                border: "1px solid #ccc",
-              }}
-            >
-              <Box id="divToPrint" sx={styles.body}>
-                <div
-                  style={{
-                    display: "inline-block",
-                    width: "100%",
-                    marginBottom: "4px",
-                  }}
-                >
-                  <div style={{ float: "left", marginLeft: "16px" }}>
-                    {/* Use organization logo if available, otherwise default */}
-                    <img
-                      alt="Logo"
-                      src={OrganizationLogo || mnCardioNewLogo}
-                      style={{ width: "auto", height: "40px" }}
-                    />
-                  </div>
-                  <div style={{ float: "right", marginRight: "16px" }}>
-                    <img
-                      alt="Cardion center"
-                      src={mnCardioNew}
-                      style={{ width: "auto", height: "40px" }}
-                    />
-                  </div>
-                </div>
-                <div style={{ textAlign: "center" }}>
-                  <h5 style={{ fontSize: "18px", fontWeight: "500" }}>
-                    {InPatientInfo.DrgroupDepartments
-                      ? InPatientInfo.DrgroupDepartments.name
-                      : ""}
-                    {isInPatient
-                      ? "т хэвтэн эмчлүүлсэн тухай"
-                      : "т амбулатороор үзүүлсэн тухай"}
-                  </h5>
-                </div>
-
-                <div style={{ marginBottom: "15px" }}>
-                  <div style={{ display: "inline-block", width: "100%" }}>
-                    <div style={{ fontWeight: "bold" }}>
-                      {PatientData.p_lastname} овогтой {PatientData.p_firstname}{" "}
-                      {PatientData.p_birthday
-                        ? Helper.ObjectHelper.GetAgeDateStr(
-                            PatientData.p_birthday,
-                          )
-                        : "..."}{" "}
-                      нас/
-                      {PatientData.p_genderObj
-                        ? Helper.ObjectHelper.getGenderLabel(
-                            PatientData.p_genderObj.Value ||
-                              PatientData.p_genderObj.Label,
-                          )
-                        : "..."}
-                      ,
+            <>
+              {this.renderLoginActions()}
+              <div
+                style={{
+                  margin: "0 auto",
+                  width: "210mm",
+                  border: "1px solid #ccc",
+                }}
+              >
+                <Box id="divToPrint" sx={styles.body}>
+                  <div
+                    style={{
+                      display: "inline-block",
+                      width: "100%",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    <div style={{ float: "left", marginLeft: "16px" }}>
+                      {/* Use organization logo if available, otherwise default */}
+                      <img
+                        alt="Logo"
+                        src={OrganizationLogo || mnCardioNewLogo}
+                        style={{ width: "auto", height: "40px" }}
+                      />
                     </div>
-                    Улсын 3-р төв эмнэлгийн{" "}
-                    {InPatientInfo.DrgroupDepartments
-                      ? InPatientInfo.DrgroupDepartments.name
-                      : ""}
-                    т{" "}
-                    {isInPatient ? (
-                      <>
-                        {this.renderEditableDate(
-                          InPatientInfo.date_admission
-                            ? InPatientInfo.date_admission.split("T")[0]
-                            : ".......",
-                          this.admissionRef,
+                    <div style={{ float: "right", marginRight: "16px" }}>
+                      <img
+                        alt="Cardion center"
+                        src={mnCardioNew}
+                        style={{ width: "auto", height: "40px" }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "center" }}>
+                    <h5 style={{ fontSize: "18px", fontWeight: "500" }}>
+                      {InPatientInfo.DrgroupDepartments
+                        ? InPatientInfo.DrgroupDepartments.name
+                        : ""}
+                      {isInPatient
+                        ? "т хэвтэн эмчлүүлсэн тухай"
+                        : "т амбулатороор үзүүлсэн тухай"}
+                    </h5>
+                  </div>
+
+                  <div style={{ marginBottom: "15px" }}>
+                    <div style={{ display: "inline-block", width: "100%" }}>
+                      <div style={{ fontWeight: "bold" }}>
+                        {PatientData.p_lastname} овогтой{" "}
+                        {PatientData.p_firstname}{" "}
+                        {PatientData.p_birthday
+                          ? Helper.ObjectHelper.GetAgeDateStr(
+                              PatientData.p_birthday,
+                            )
+                          : "..."}{" "}
+                        нас/
+                        {PatientData.p_genderObj
+                          ? Helper.ObjectHelper.getGenderLabel(
+                              PatientData.p_genderObj.Value ||
+                                PatientData.p_genderObj.Label,
+                            )
+                          : "..."}
+                        ,
+                      </div>
+                      Улсын 3-р төв эмнэлгийн{" "}
+                      {InPatientInfo.DrgroupDepartments
+                        ? InPatientInfo.DrgroupDepartments.name
+                        : ""}
+                      т{" "}
+                      {isInPatient ? (
+                        <>
+                          {this.renderEditableDate(
+                            InPatientInfo.date_admission
+                              ? InPatientInfo.date_admission.split("T")[0]
+                              : ".......",
+                            this.admissionRef,
+                          )}
+                          {" - "}
+                          {this.renderEditableDate(
+                            InPatientInfo.date_discharge
+                              ? InPatientInfo.date_discharge.split("T")[0]
+                              : ".......",
+                            this.dischargeRef,
+                          )}{" "}
+                        </>
+                      ) : (
+                        <>
+                          {this.renderEditableDate(
+                            Data.CreateDate
+                              ? Data.CreateDate.split("T")[0]
+                              : ".......",
+                          )}{" "}
+                        </>
+                      )}
+                      {isInPatient
+                        ? "өдөр хэвтэн эмчлүүлсэн"
+                        : "өдөр амбулатороор үзүүлсэн"}
+                    </div>
+                    <Box sx={styles.avoidBreak}>
+                      {/* Онош: {}  */}
+                      <p
+                        dangerouslySetInnerHTML={createMarkup(
+                          "Онош: " +
+                            Data.Diagnosis +
+                            (isInPatient
+                              ? " оноштойгоор хэвтэн эмчлүүлэв."
+                              : " оноштойгоор амбулатороор үзүүлэв."),
                         )}
-                        {" - "}
-                        {this.renderEditableDate(
-                          InPatientInfo.date_discharge
-                            ? InPatientInfo.date_discharge.split("T")[0]
-                            : ".......",
-                          this.dischargeRef,
-                        )}{" "}
-                      </>
-                    ) : (
-                      <>
-                        {this.renderEditableDate(
-                          Data.CreateDate
-                            ? Data.CreateDate.split("T")[0]
-                            : ".......",
-                        )}{" "}
-                      </>
-                    )}
-                    {isInPatient
-                      ? "өдөр хэвтэн эмчлүүлсэн"
-                      : "өдөр амбулатороор үзүүлсэн"}
+                      />
+                    </Box>
                   </div>
-                  <Box sx={styles.avoidBreak}>
-                    {/* Онош: {}  */}
-                    <p
-                      dangerouslySetInnerHTML={createMarkup(
-                        "Онош: " +
-                          Data.Diagnosis +
-                          (isInPatient
-                            ? " оноштойгоор хэвтэн эмчлүүлэв."
-                            : " оноштойгоор амбулатороор үзүүлэв."),
-                      )}
-                    />
-                  </Box>
-                </div>
-                <div style={{ width: "100%", marginBottom: "15px" }}>
-                  <Box sx={styles.avoidBreak}>
-                    <div style={{ fontWeight: "bold" }}>
-                      Хийгдсэн оношилгоо, шинжилгээ:
-                    </div>
-                    <div
-                      style={{ fontSize: "16px" }}
-                      dangerouslySetInnerHTML={createMarkup(
-                        Data.HiigdsenShinjilgee,
-                      )}
-                    />
-                  </Box>
-                </div>
-                <div style={{ marginBottom: "15px" }}>
-                  <Box sx={styles.avoidBreak}>
-                    <div style={{ fontWeight: "bold" }}>Хийгдсэн эмчилгээ:</div>
+                  <div style={{ width: "100%", marginBottom: "15px" }}>
+                    <Box sx={styles.avoidBreak}>
+                      <div style={{ fontWeight: "bold" }}>
+                        Хийгдсэн оношилгоо, шинжилгээ:
+                      </div>
+                      <div
+                        style={{ fontSize: "16px" }}
+                        dangerouslySetInnerHTML={createMarkup(
+                          Data.HiigdsenShinjilgee,
+                        )}
+                      />
+                    </Box>
+                  </div>
+                  <div style={{ marginBottom: "15px" }}>
+                    <Box sx={styles.avoidBreak}>
+                      <div style={{ fontWeight: "bold" }}>
+                        Хийгдсэн эмчилгээ:
+                      </div>
 
-                    <div
-                      style={{
-                        fontSize: "16px",
-                        paddingLeft: "4px",
-                      }}
-                      dangerouslySetInnerHTML={createMarkup(
-                        Data.HiigdsenEmchilgee,
-                      )}
-                    />
-                  </Box>
-                </div>
+                      <div
+                        style={{
+                          fontSize: "16px",
+                          paddingLeft: "4px",
+                        }}
+                        dangerouslySetInnerHTML={createMarkup(
+                          Data.HiigdsenEmchilgee,
+                        )}
+                      />
+                    </Box>
+                  </div>
 
-                {/* New */}
-                {/* <div style={{ marginBottom: "4px" }}>
+                  {/* New */}
+                  {/* <div style={{ marginBottom: "4px" }}>
                   <div style={{ fontWeight: "bold" }}>
                     Зүрхний шигдээсийн дараах сэргээн засах эмчилгээнд явах:
                   </div>
@@ -560,12 +715,14 @@ class OutPatientInfoReport extends Component {
                   />
                 </div> */}
 
-                <div style={{ marginBottom: "4px" }}>
-                  <div style={{ fontWeight: "bold" }}>Цаашид:</div>
-                  <div>
-                    <div style={{ fontWeight: "bold" }}>Амьдралын хэв маяг</div>
-                    <div style={{ paddingLeft: "4px", fontSize: "16px" }}>
-                      {/* <div>
+                  <div style={{ marginBottom: "4px" }}>
+                    <div style={{ fontWeight: "bold" }}>Цаашид:</div>
+                    <div>
+                      <div style={{ fontWeight: "bold" }}>
+                        Амьдралын хэв маяг
+                      </div>
+                      <div style={{ paddingLeft: "4px", fontSize: "16px" }}>
+                        {/* <div>
                         {Data.LifeAdviceSelectObj.map((e, key) => (
                           <div key={key}>{e.Label}</div>
                         ))}
@@ -576,141 +733,132 @@ class OutPatientInfoReport extends Component {
                           __html: Data.LifeAdviceOther,
                         }}
                       /> */}
-                      <ul style={{ marginLeft: "4px", marginBottom: "0" }}>
-                        {Data.LifeAdviceSelectObj.filter(
-                          (e) => e.Label !== "No135 тоотод үзүүлэх",
-                        ).map((e, key) => (
-                          <li key={key}>{e.Label}</li>
-                        ))}
-                      </ul>
-                      {Data.LifeAdviceOther &&
-                        Data.LifeAdviceOther.split(
-                          /<\/p>|<br\s*\/?>|<\/div>|\n/gi,
-                        )
-                          .map((part) => {
-                            return part
-                              .replace(/<(p|div)[^>]*>/gi, "")
-                              .replace(/&nbsp;/g, " ")
-                              .trim();
-                          })
-                          .filter(
-                            (content) =>
-                              content.replace(/<[^>]+>/g, "").trim().length > 0,
-                          )
-                          .map((content, i) => (
-                            <div
-                              key={`adv-other-${i}`}
-                              style={{ marginLeft: "24px" }}
-                              dangerouslySetInnerHTML={createMarkup(content)}
-                            />
+                        <ul style={{ marginLeft: "4px", marginBottom: "0" }}>
+                          {Data.LifeAdviceSelectObj.filter(
+                            (e) => e.Label !== "No135 тоотод үзүүлэх",
+                          ).map((e, key) => (
+                            <li key={key}>{e.Label}</li>
                           ))}
+                        </ul>
+                        {Data.LifeAdviceOther &&
+                          Data.LifeAdviceOther.split(
+                            /<\/p>|<br\s*\/?>|<\/div>|\n/gi,
+                          )
+                            .map((part) => {
+                              return part
+                                .replace(/<(p|div)[^>]*>/gi, "")
+                                .replace(/&nbsp;/g, " ")
+                                .trim();
+                            })
+                            .filter(
+                              (content) =>
+                                content.replace(/<[^>]+>/g, "").trim().length >
+                                0,
+                            )
+                            .map((content, i) => (
+                              <div
+                                key={`adv-other-${i}`}
+                                style={{ marginLeft: "24px" }}
+                                dangerouslySetInnerHTML={createMarkup(content)}
+                              />
+                            ))}
+                      </div>
                     </div>
-                  </div>
-                  <Box sx={styles.avoidBreak}>
-                    <div style={{ fontWeight: "bold" }}>Хяналт</div>
-                    <div style={{ paddingLeft: "0", fontSize: "16px" }}>
-                      <ul style={{ marginLeft: "4px", marginBottom: "0" }}>
-                        {Data.MonitoringSelectObj.map((e, key) => (
-                          <li key={key}>{e.Label}</li>
-                        ))}
-                      </ul>
-                      {Data.MonitoringOther &&
-                        Data.MonitoringOther.split(
-                          /<\/p>|<br\s*\/?>|<\/div>|\n/gi,
-                        )
-                          .map((part) => {
-                            return part
-                              .replace(/<(p|div)[^>]*>/gi, "")
-                              .replace(/&nbsp;/g, " ")
-                              .trim();
-                          })
-                          .filter(
-                            (content) =>
-                              content.replace(/<[^>]+>/g, "").trim().length > 0,
-                          )
-                          .map((content, i) => (
-                            <div
-                              key={`mon-other-${i}`}
-                              style={{ marginLeft: "24px" }}
-                              dangerouslySetInnerHTML={createMarkup(content)}
-                            />
+                    <Box sx={styles.avoidBreak}>
+                      <div style={{ fontWeight: "bold" }}>Хяналт</div>
+                      <div style={{ paddingLeft: "0", fontSize: "16px" }}>
+                        <ul style={{ marginLeft: "4px", marginBottom: "0" }}>
+                          {Data.MonitoringSelectObj.map((e, key) => (
+                            <li key={key}>{e.Label}</li>
                           ))}
-                      {/* <div>
+                        </ul>
+                        {Data.MonitoringOther &&
+                          Data.MonitoringOther.split(
+                            /<\/p>|<br\s*\/?>|<\/div>|\n/gi,
+                          )
+                            .map((part) => {
+                              return part
+                                .replace(/<(p|div)[^>]*>/gi, "")
+                                .replace(/&nbsp;/g, " ")
+                                .trim();
+                            })
+                            .filter(
+                              (content) =>
+                                content.replace(/<[^>]+>/g, "").trim().length >
+                                0,
+                            )
+                            .map((content, i) => (
+                              <div
+                                key={`mon-other-${i}`}
+                                style={{ marginLeft: "24px" }}
+                                dangerouslySetInnerHTML={createMarkup(content)}
+                              />
+                            ))}
+                        {/* <div>
                         {Data.MonitoringSelectObj.map((e, key) => (
                           <div key={key}>{e.Label}</div>
                         ))}
                       </div> */}
-                      {/* <div
+                        {/* <div
                         style={{ display: "inline-block", width: "100%" }}
                         dangerouslySetInnerHTML={createMarkup(Data.Monitoring)}
                       /> */}
-                      {/* <div
+                        {/* <div
                         style={{ display: "inline-block", width: "100%" }}
                         dangerouslySetInnerHTML={createMarkup(Data.MonitoringOther)}
                       /> */}
-                    </div>
-                  </Box>
-                  <div>
-                    <div style={{ fontWeight: "bold" }}>Эмэн эмчилгээ</div>
-                    <div style={{ paddingLeft: "8px" }}>
-                      {/* <div>
+                      </div>
+                    </Box>
+                    <div>
+                      <div style={{ fontWeight: "bold" }}>Эмэн эмчилгээ</div>
+                      <div style={{ paddingLeft: "8px" }}>
+                        {/* <div>
                         {Array.isArray(Data.UuhEmSelectObj) &&Data.UuhEmSelectObj.map((e, key) => (
                           <div key={key}>{e.Label}</div>
                         ))}
                       </div> */}
-                      <div dangerouslySetInnerHTML={createMarkup(Data.UuhEm)} />
-                      {isInPatient && hasUuhEm && (
-                        <>
-                          <div style={{ margin: "10px 0", fontWeight: "bold" }}>
-                            ДЭЭРХ ЭМҮҮДИЙГ ЭМНЭЛГЭЭС ГАРСАН ӨДРӨӨС УУЖ ЭХЭЛНЭ
-                            ҮҮ!
-                          </div>
-                          <div>
-                            Цус шингэлэх эмүүдийг зогсоовол стент бөглөрч
-                            Зүрхний шигдээсээр хүндэрдэг тул эмчийн
-                            зааваргүйгээр эм зогсоохгүйг анхаарна уу.
-                          </div>
-                        </>
-                      )}
+                        <div
+                          dangerouslySetInnerHTML={createMarkup(Data.UuhEm)}
+                        />
+                        {isInPatient && hasUuhEm && (
+                          <>
+                            <div
+                              style={{ margin: "10px 0", fontWeight: "bold" }}
+                            >
+                              ДЭЭРХ ЭМҮҮДИЙГ ЭМНЭЛГЭЭС ГАРСАН ӨДРӨӨС УУЖ ЭХЭЛНЭ
+                              ҮҮ!
+                            </div>
+                            <div>
+                              Цус шингэлэх эмүүдийг зогсоовол стент бөглөрч
+                              Зүрхний шигдээсээр хүндэрдэг тул эмчийн
+                              зааваргүйгээр эм зогсоохгүйг анхаарна уу.
+                            </div>
+                          </>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-                {PatientData.LinkedUser && (
-                  <div
-                    style={{
-                      marginBottom: "10px",
-                      border: "1px solid #ccc",
-                      padding: "8px",
-                    }}
-                  >
-                    <div style={{ fontWeight: "bold", marginBottom: "4px" }}>
-                      Өвчтөний портал хэрэглэгчийн мэдээлэл (mn-cardio.mn)
-                    </div>
+                  {this.renderLoginSlip()}
+                  <div style={{ textAlign: "right" }}>
                     <div>
-                      Нэвтрэх нэр:{" "}
-                      <strong>{PatientData.LinkedUser.UserName}</strong>
+                      Эмчийн нэр:{" "}
+                      {
+                        "......................................................."
+                      }{" "}
+                      {this.LogedUser.Doctor.FullName}
                     </div>
+                  </div>
+                  <div style={{ marginTop: "10px", textAlign: "right" }}>
                     <div>
-                      Нууц үг:{" "}
-                      <strong>{PatientData.LinkedUser.Password}</strong>
+                      Мэдээллийг бүрэн уншиж танилцсан, зөвшөөрсөн иргэн:
+                      {
+                        " ......................................................."
+                      }
                     </div>
                   </div>
-                )}
-                <div style={{ textAlign: "right" }}>
-                  <div>
-                    Эмчийн нэр:{" "}
-                    {"......................................................."}{" "}
-                    {this.LogedUser.Doctor.FullName}
-                  </div>
-                </div>
-                <div style={{ marginTop: "10px", textAlign: "right" }}>
-                  <div>
-                    Мэдээллийг бүрэн уншиж танилцсан, зөвшөөрсөн иргэн:
-                    {" ......................................................."}
-                  </div>
-                </div>
-              </Box>
-            </div>
+                </Box>
+              </div>
+            </>
           )}
         </div>
       </div>

@@ -12,6 +12,7 @@ const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const PrintHelper = require('../../helper/PrintHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const PatientCredential = require('../../helper/PatientCredential');
 
 const Visit = require('../../reports/Visit');
 const Ambulatori = require('../../reports/Ambulatori');
@@ -44,6 +45,7 @@ async function GetReportData(Id, LogedUser) {
   });
 
   const Visits = ModHelper.GetNewObject(Data);
+  let Credential = null;
   for (var i = 0; i < Visits.length; i++) {
     var visit = Visits[i];
     await ModHelper.GetInfoData(visit, VisitConfigData);
@@ -52,53 +54,17 @@ async function GetReportData(Id, LogedUser) {
       Data: visit,
     });
     const PatientId = visit.PatientId;
-    const VisitDate = new Date(visit.visit_date);
-    //   Patient User Check and Create
-    const PatientData = await Models.Patient.findByPk(PatientId, {
-      attributes: ['id_data', 'p_registration', 'p_firstname', 'p_lastname', 'user_id'],
+    // Patients come rarely, so every visit's sheet carries a fresh password:
+    // the first print of this visit issues it, reprints of the same visit do
+    // not (so the sheet already handed over keeps working). Creates the portal
+    // account if the patient has none. See helper/PatientCredential.js.
+    Credential = await PatientCredential.IssueOnce({
+      PatientId,
+      LogedUser,
+      LinkObjectName: 'Visit',
+      LinkObjectId: visit.id_data,
+      ExpireFrom: visit.visit_date,
     });
-    // Printing used to issue a NEW portal password every single time, for
-    // patients who already had an account. Three things were wrong with that:
-    // reprinting a visit silently invalidated the credentials on the sheet the
-    // patient was already carrying; a read-shaped action ("get report data")
-    // mutated an account; and patient passwords are being retired altogether in
-    // favour of ДАН.
-    //
-    // Now a password is generated ONLY when the patient has no portal account
-    // yet, which is the case the discharge workflow actually needs. For an
-    // existing account the sheet prints the login name and no password, and
-    // `RandomPassword` stays null so reports/Visit.js omits the block.
-    var RandomPassword = null;
-
-    if (PatientData) {
-      var PatientUserId = PatientData.user_id;
-
-      if (PatientUserId) {
-        // existing account: print the login, issue nothing
-      } else {
-        RandomPassword = Math.random().toString(36).substr(2, 8);
-        const CreateResult = await BaseControllerHelper.BaseCreate({
-          ObjectName: 'PatientUsers',
-          Data: {
-            UserName: PatientData.p_registration,
-            LastName: PatientData.p_lastname,
-            FirstName: PatientData.p_firstname,
-            Password: RandomPassword,
-            PassExpireDate: ObjectHelper.getDateYMD({
-              Date: new Date(VisitDate.setMonth(VisitDate.getMonth() + 6)),
-            }),
-            Email: null,
-            UserTypeId: 3,
-            IsActive: '1',
-            RoleId: '4',
-            Language: 'en',
-          },
-          LogedUser,
-          SaveLog: true,
-        });
-        await Models.Patient.update({ user_id: CreateResult }, { where: { id_data: PatientId } });
-      }
-    }
 
     const Journals = await Models.Journal.GetJournalData(
       PatientId,
@@ -108,7 +74,7 @@ async function GetReportData(Id, LogedUser) {
     visit['Journals'] = ModHelper.GetNewObject(Journals);
   }
   Data = Visits;
-  return { Data: Data[0], Password: RandomPassword };
+  return { Data: Data[0], Credential };
 }
 
 /**
@@ -286,13 +252,15 @@ async function PrintReport(req, res) {
         // },
       };
 
-      const { Data, Password } = await GetReportData(Id, LogedUser);
+      const { Data, Credential } = await GetReportData(Id, LogedUser);
 
-      // The generated password used to be console.logged in cleartext on every
-      // print. Whether one was issued at all is the only part worth logging.
-      console.log('[Visit/PrintReport] portal account issued:', Password ? 'yes' : 'no');
+      // Never log the password itself - only whether this print issued one.
+      console.log(
+        '[Visit/PrintReport] portal password issued:',
+        Credential && Credential.Password ? 'yes' : 'no'
+      );
 
-      const html = Visit(Data, Language, Password);
+      const html = Visit(Data, Language, Credential);
 
       // One file per request: the name was a fixed constant, so two doctors
       // printing at once overwrote each other's PDF between page.pdf() and
