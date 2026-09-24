@@ -548,8 +548,17 @@ class _MovementView extends StatelessWidget {
                 color: AppColors.surface.withValues(alpha: 0.92),
                 borderRadius: BorderRadius.circular(999),
               ),
-              child: Text(
-                m.name,
+              child: Text.rich(
+                TextSpan(
+                  text: m.name,
+                  children: <InlineSpan>[
+                    if (c.step.setCount > 1)
+                      TextSpan(
+                        text: '  ·  Сет ${c.step.setNo}/${c.step.setCount}',
+                        style: const TextStyle(color: AppColors.cyanInk),
+                      ),
+                  ],
+                ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -557,6 +566,22 @@ class _MovementView extends StatelessWidget {
                 ),
               ),
             ),
+          ),
+        ),
+        // Эмчийн бичсэн явцын мессеж (API.md §2.7c) — хүрвэл хаагдана.
+        Positioned(
+          left: 16,
+          right: 16,
+          top: 64,
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 250),
+            child: c.activeCue == null
+                ? const SizedBox.shrink()
+                : _CueBanner(
+                    key: ValueKey<String>(c.activeCue!),
+                    text: c.activeCue!,
+                    onTap: c.dismissCue,
+                  ),
           ),
         ),
         Positioned(
@@ -607,6 +632,89 @@ class _MovementView extends StatelessWidget {
   }
 }
 
+/// Бичлэг дээрх мессежийн зурвас.
+class _CueBanner extends StatelessWidget {
+  const _CueBanner({super.key, required this.text, required this.onTap});
+
+  final String text;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      liveRegion: true,
+      child: Material(
+        color: AppColors.ink.withValues(alpha: 0.88),
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.cyan, width: 1.5),
+            ),
+            child: Row(
+              children: <Widget>[
+                const Icon(Icons.chat_bubble_outline_rounded,
+                    color: AppColors.cyan, size: 24),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    text,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Улаан анхааруулгын хайрцаг — бэлтгэлийн дэлгэц дээр.
+class _WarningCard extends StatelessWidget {
+  const _WarningCard({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: AppColors.dangerLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.danger),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.warning_amber_rounded,
+              color: AppColors.danger, size: 22),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// "Дараагийн дасгал" — юу ирэхийг харуулж, бэлтгэх хугацаа тоолно.
 class _PreviewView extends StatelessWidget {
   const _PreviewView({required this.controller});
@@ -620,11 +728,18 @@ class _PreviewView extends StatelessWidget {
     final theme = Theme.of(context);
     final m = step.movement;
     final steps = m?.steps ?? step.block.guideLines;
+    final dose = m == null
+        ? null
+        : (m.isCounted ? '${m.reps} удаа' : '${m.workSec ?? 30} секунд');
     final what = m != null
-        ? (m.isCounted ? '${m.reps} удаа' : '${m.workSec ?? 30} секунд')
+        ? (m.sets > 1 ? '${m.sets} сет × $dose' : dose)
         : step.block.durationSec != null
             ? '${(step.block.durationSec! / 60).round()} минут'
             : null;
+    final warnings = <String>[
+      if (step.exerciseWarning != null) step.exerciseWarning!,
+      if (m?.warning != null) m!.warning!,
+    ];
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -674,11 +789,19 @@ class _PreviewView extends StatelessWidget {
               style: theme.textTheme.titleMedium
                   ?.copyWith(color: AppColors.inkMuted),
             ),
-          if (steps.isNotEmpty) ...<Widget>[
+          if (steps.isNotEmpty || warnings.isNotEmpty) ...<Widget>[
             const SizedBox(height: 8),
             Flexible(
               flex: 3,
-              child: SingleChildScrollView(child: _StepList(steps: steps)),
+              child: SingleChildScrollView(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    for (final w in warnings) _WarningCard(text: w),
+                    if (steps.isNotEmpty) _StepList(steps: steps),
+                  ],
+                ),
+              ),
             ),
           ],
           const SizedBox(height: 12),
@@ -779,7 +902,9 @@ class _RestView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
                         Text(
-                          'ДАРААГИЙНХ',
+                          c.step.isSetRest
+                              ? 'ДАРААГИЙН СЕТ · ${c.step.setNo}/${c.step.setCount}'
+                              : 'ДАРААГИЙНХ',
                           style: theme.textTheme.labelSmall
                               ?.copyWith(color: AppColors.inkMuted),
                         ),

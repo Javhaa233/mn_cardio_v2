@@ -29,6 +29,37 @@ class RehabMedia {
   }
 }
 
+/// Хөдөлгөөний явцад гарах мессеж (API.md §2.7c "Cues").
+///
+///   atSec 0      — хөдөлгөөний ажил эхлэхэд, зөвхөн 1-р сетэд
+///   atSec N > 0  — ажлын N дахь секундэд, сет бүрт (цагаар хийх үед)
+///   atSet N      — N-р сетийн ажил эхлэхэд
+///
+/// Сервер шалгаад эрэмбэлсэн ирнэ; апп [cueVisibleSec] секунд харуулна.
+class RehabCue {
+  const RehabCue({required this.text, this.atSec, this.atSet});
+
+  final String text;
+  final int? atSec;
+  final int? atSet;
+
+  bool get isSet => atSet != null;
+  bool get isStart => atSet == null && (atSec ?? 0) == 0;
+
+  static RehabCue? fromJson(Map<String, dynamic> json) {
+    final text = J.str(json, <String>['Text']);
+    if (text == null || text.trim().isEmpty) return null;
+    return RehabCue(
+      text: text.trim(),
+      atSec: J.intOf(json, <String>['AtSec']),
+      atSet: J.intOf(json, <String>['AtSet']),
+    );
+  }
+}
+
+/// Мессеж дэлгэц дээр хэдэн секунд харагдах (вэбийн урьдчилан харалттай ижил).
+const int cueVisibleSec = 4;
+
 /// Нэг давтагдах бичлэг — дасгалын жагсаалтын нэг хөдөлгөөн.
 class RehabMovement {
   const RehabMovement({
@@ -44,6 +75,10 @@ class RehabMovement {
     this.restSec,
     this.loopStartMs,
     this.loopEndMs,
+    this.sets = 1,
+    this.setRestSec,
+    this.warning,
+    this.cues = const <RehabCue>[],
   });
 
   final int id;
@@ -58,6 +93,14 @@ class RehabMovement {
   /// "Дараагийн дасгал" урьдчилан харах хугацаа, хамгийн багадаа 10.
   final int prepSec;
   final int? restSec;
+
+  /// Сетийн тоо (≥ 1) ба сет хоорондын амралт. Хуучин сервер илгээхгүй бол 1.
+  final int sets;
+  final int? setRestSec;
+
+  /// Бэлтгэлийн дэлгэц дээрх улаан анхааруулга.
+  final String? warning;
+  final List<RehabCue> cues;
 
   /// Бүтэн бичлэгийн хэсгийг давтах үед (жишээ бичлэг).
   final int? loopStartMs;
@@ -81,6 +124,14 @@ class RehabMovement {
       reps: J.intOf(json, <String>['Reps']),
       prepSec: (J.intOf(json, <String>['PrepSec']) ?? 10).clamp(10, 600),
       restSec: J.intOf(json, <String>['RestSec']),
+      sets: (J.intOf(json, <String>['Sets']) ?? 1).clamp(1, 20),
+      setRestSec: J.intOf(json, <String>['SetRestSec']),
+      warning: _nonEmpty(J.str(json, <String>['Warning'])),
+      cues: J
+          .list(json, <String>['Cues'])
+          .map(RehabCue.fromJson)
+          .whereType<RehabCue>()
+          .toList(growable: false),
       loopStartMs: loop == null ? null : J.intOf(loop, <String>['startMs']),
       loopEndMs: loop == null ? null : J.intOf(loop, <String>['endMs']),
       media: RehabMedia.fromJson(J.obj(json, <String>['media'])),
@@ -105,6 +156,7 @@ class RehabBlock {
     this.guideText,
     this.exerciseId,
     this.exerciseName,
+    this.exerciseWarning,
   });
 
   final int id;
@@ -120,6 +172,9 @@ class RehabBlock {
   final String? guideText;
   final int? exerciseId;
   final String? exerciseName;
+
+  /// Дасгалын анхааруулга — эхний хөдөлгөөний өмнө нэг удаа.
+  final String? exerciseWarning;
   final RehabMedia thumb;
   final List<RehabMovement> movements;
 
@@ -148,6 +203,8 @@ class RehabBlock {
       guideText: J.str(json, <String>['GuideText']),
       exerciseId: ex == null ? null : J.intOf(ex, <String>['Id']),
       exerciseName: ex == null ? null : J.str(ex, <String>['Name']),
+      exerciseWarning:
+          ex == null ? null : _nonEmpty(J.str(ex, <String>['Warning'])),
       thumb: RehabMedia.fromJson(J.obj(json, <String>['thumb'])),
       movements: J
           .list(json, <String>['Movements'])
@@ -496,3 +553,6 @@ const List<String> cr10Labels = <String>[
   'Маш хүнд',
   'Хамгийн хүнд',
 ];
+
+String? _nonEmpty(String? v) =>
+    v == null || v.trim().isEmpty ? null : v.trim();

@@ -39,12 +39,25 @@ class RehabStep {
     this.durationSec,
     this.nextKind,
     this.lastOfBlock = false,
+    this.setNo = 1,
+    this.setCount = 1,
+    this.exerciseWarning,
   });
 
   final RehabStepKind kind;
   final RehabBlock block;
   final int blockIndex;
   final RehabMovement? movement;
+
+  /// Хэд дэх сет (1-ээс). Сет хоорондын амралт дээр — ДАРААГИЙН сет.
+  final int setNo;
+  final int setCount;
+
+  /// Дасгалын анхааруулга — зөвхөн эхний хөдөлгөөний бэлтгэл дээр.
+  final String? exerciseWarning;
+
+  /// Нэг хөдөлгөөний сет хоорондын амралт (дараа нь мөн л энэ хөдөлгөөн).
+  bool get isSetRest => kind == RehabStepKind.rest && setNo > 1;
 
   /// null — хэрэглэгч "Дууссан" дарж шилжинэ (тоогоор хийх, заавар).
   final int? durationSec;
@@ -125,17 +138,73 @@ class RehabPlayerController extends ChangeNotifier {
   }
 
   /// Хөдөлгөөний дугаар ба нийт тоо ("3/14") — дээд мөрөнд.
-  int get movementTotal =>
-      steps.where((RehabStep s) => s.kind == RehabStepKind.movement).length;
+  /// Сетүүдийг нэг хөдөлгөөн гэж тоолно (1-р сетийн алхмаар).
+  static bool _isFirstSet(RehabStep s) =>
+      s.kind == RehabStepKind.movement && s.setNo == 1;
+
+  int get movementTotal => steps.where(_isFirstSet).length;
 
   int get movementOrdinal {
     var n = 0;
     for (var i = 0; i <= _index && i < steps.length; i++) {
-      if (steps[i].kind == RehabStepKind.movement) n++;
+      if (_isFirstSet(steps[i])) n++;
     }
-    // Бэлтгэл/амралт дээр байхад дараагийнхыг нь заана.
-    if (step.kind != RehabStepKind.movement && n < movementTotal) n += 1;
+    // Бэлтгэл/амралт дээр байхад дараагийнхыг нь заана — сет хоорондын
+    // амралтаас бусад үед (тэнд дараагийнх нь мөн л энэ хөдөлгөөн).
+    final between = step.kind == RehabStepKind.movement || step.isSetRest;
+    if (!between && n < movementTotal) n += 1;
     return n == 0 ? 1 : n;
+  }
+
+  // ------------------------------------------------------------ мессеж
+  String? _cueText;
+  int _cueLeft = 0;
+
+  /// Бичлэг дээр одоо харагдах мессеж (API.md §2.7c "Cues"), эсвэл null.
+  String? get activeCue => _cueText;
+
+  void _showCue(RehabCue? cue) {
+    if (cue == null) return;
+    _cueText = cue.text;
+    _cueLeft = cueVisibleSec;
+    HapticFeedback.selectionClick();
+  }
+
+  /// Мессежийг хүрч хаах.
+  void dismissCue() {
+    _cueText = null;
+    _cueLeft = 0;
+    notifyListeners();
+  }
+
+  /// Сет эхлэхэд: тухайн сетийн мессеж, эсвэл 1-р сетэд эхлэлийн мессеж.
+  void _cueOnEnter(RehabStep s) {
+    final m = s.movement;
+    if (s.kind != RehabStepKind.movement || m == null) return;
+    RehabCue? hit;
+    for (final c in m.cues) {
+      if (c.isSet && c.atSet == s.setNo) hit = c;
+    }
+    if (hit == null && s.setNo == 1) {
+      for (final c in m.cues) {
+        if (c.isStart) {
+          hit = c;
+          break;
+        }
+      }
+    }
+    _showCue(hit);
+  }
+
+  /// Ажлын N дахь секундийн мессеж — сет бүрт, цагаар хийх үед.
+  void _cueOnSecond(RehabStep s) {
+    final m = s.movement;
+    if (s.kind != RehabStepKind.movement || m == null || m.isCounted) return;
+    for (final c in m.cues) {
+      if (!c.isSet && (c.atSec ?? 0) > 0 && c.atSec == _elapsedInStep) {
+        _showCue(c);
+      }
+    }
   }
 
   /// Одоогийн алхмын явц 0..1 (цагтай алхамд).
@@ -155,6 +224,7 @@ class RehabPlayerController extends ChangeNotifier {
       if (block.isVideo && block.movements.isNotEmpty) {
         for (var i = 0; i < block.movements.length; i++) {
           final m = block.movements[i];
+          final last = i == block.movements.length - 1;
           out.add(RehabStep(
             kind: RehabStepKind.preview,
             block: block,
@@ -162,15 +232,33 @@ class RehabPlayerController extends ChangeNotifier {
             movement: m,
             durationSec: m.prepSec,
             nextKind: RehabStepKind.movement,
+            setCount: m.sets,
+            exerciseWarning: i == 0 ? block.exerciseWarning : null,
           ));
-          out.add(RehabStep(
-            kind: RehabStepKind.movement,
-            block: block,
-            blockIndex: bi,
-            movement: m,
-            durationSec: m.isCounted ? null : (m.workSec ?? 30),
-            lastOfBlock: i == block.movements.length - 1,
-          ));
+          // Сет бүр тусдаа алхам; хооронд нь SetRestSec амралт (API.md §2.7c).
+          for (var s = 1; s <= m.sets; s++) {
+            out.add(RehabStep(
+              kind: RehabStepKind.movement,
+              block: block,
+              blockIndex: bi,
+              movement: m,
+              durationSec: m.isCounted ? null : (m.workSec ?? 30),
+              lastOfBlock: last && s == m.sets,
+              setNo: s,
+              setCount: m.sets,
+            ));
+            if (s < m.sets && (m.setRestSec ?? 0) > 0) {
+              out.add(RehabStep(
+                kind: RehabStepKind.rest,
+                block: block,
+                blockIndex: bi,
+                movement: m,
+                durationSec: m.setRestSec,
+                setNo: s + 1,
+                setCount: m.sets,
+              ));
+            }
+          }
           // Амралт зөвхөн заасан үед, бөгөөд хэсгийн сүүлчийн хөдөлгөөний
           // дараа биш — тэнд дараагийн хэсгийн бэлтгэл өөрөө завсарлага болно.
           if ((m.restSec ?? 0) > 0 && i != block.movements.length - 1) {
@@ -259,12 +347,21 @@ class RehabPlayerController extends ChangeNotifier {
     _elapsedInStep = 0;
     _remaining = steps[i].durationSec;
     _checkinDue = false;
+    _cueText = null;
+    _cueLeft = 0;
+    _cueOnEnter(steps[i]);
   }
 
   void _tickSecond() {
     if (_paused || _finished || _checkinDue) return;
     _sessionSec++;
     _elapsedInStep++;
+
+    if (_cueLeft > 0) {
+      _cueLeft--;
+      if (_cueLeft == 0) _cueText = null;
+    }
+    _cueOnSecond(step);
 
     final s = step;
     if (s.kind == RehabStepKind.timed) {
