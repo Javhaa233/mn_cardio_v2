@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../core/auth/auth_controller.dart';
 import '../../core/util/async_state.dart';
 import '../../core/util/mn_format.dart';
+import '../../shared/theme/app_colors.dart';
+import '../../shared/theme/app_theme.dart';
 import '../../shared/widgets/section_card.dart';
 import '../advice/advice.dart';
 import '../advice/advice_controller.dart';
@@ -22,11 +24,12 @@ import '../notifications/notification_bell.dart';
 import '../reminders/reminders_screen.dart';
 import '../risk/risk_screen.dart';
 
-/// Нүүр хуудас — вебийн `view/Patient/PatientHome.jsx`-ийн мобайл хувилбар.
+/// Нүүр хуудас — HeartFit маягийн самбар (2026-09-22).
 ///
-/// Бүтэц, шошго нь вебийнхтэй ижил: мэндчилгээ, дөрвөн үзүүлэлт, хоёр
-/// жагсаалт, дараа нь модулийн хавтангууд. Өвчтөн хоёр гадаргууг ээлжлэн
-/// хэрэглэдэг тул нэг газар харсан зүйл нөгөөд нь өөр байрлалд байх ёсгүй.
+/// Шошго, тоо нь вебийн `view/Patient/PatientHome.jsx`-тэй ижил хэвээр
+/// (дөрвөн үзүүлэлт, хоёр жагсаалт, модулийн хавтангууд) — зөвхөн
+/// байршил, хэв маяг нь өөр: градиент "Сүүлийн хэмжилт" карт, өнгөт
+/// дүрстэй модулийн тор, дараа нь жагсаалтууд.
 ///
 /// Вебээс илүү хоёр зүйл: сануулгын хонх (Техникийн шаардлага §37), ба
 /// "Сэргээн засах" хавтан — вебэд энэ нь хажуугийн цэсэнд байдаг, гар утсанд
@@ -103,135 +106,124 @@ class _HomeScreenState extends State<HomeScreen> {
       _ActionTile(
         title: 'Тэмдэглэл',
         description: 'Даралт, жин, эм бүртгэх',
-        icon: Icons.description,
+        icon: Icons.description_rounded,
+        color: AppColors.tileRose,
         onTap: widget.onOpenJournal,
       ),
       _ActionTile(
         title: 'Асуулт',
         description: 'Эмчээс асуух',
-        icon: Icons.chat_bubble,
+        icon: Icons.chat_bubble_rounded,
+        color: AppColors.tileBlue,
         onTap: () => _open(const QuestionsScreen()),
       ),
       _ActionTile(
         title: 'Цахим үзлэг',
         description: 'Хүсэлт илгээх',
-        icon: Icons.videocam,
+        icon: Icons.videocam_rounded,
+        color: AppColors.tileViolet,
         onTap: () => _open(const EvisitsScreen()),
       ),
       _ActionTile(
         title: 'Шинжилгээ',
         description: 'Лаборатори, эхо, ЗЦБ',
-        icon: Icons.science,
+        icon: Icons.science_rounded,
+        color: AppColors.tileTeal,
         onTap: () => _open(const DiagnosticsScreen()),
       ),
       _ActionTile(
         title: 'Эмчийн зөвлөгөө',
         description: 'Эмчээс ирсэн зөвлөгөө',
-        icon: Icons.record_voice_over,
+        icon: Icons.record_voice_over_rounded,
+        color: AppColors.tileAmber,
         onTap: () => _open(const AdviceScreen()),
       ),
       _ActionTile(
         title: 'ЗСӨ',
         description: 'Эрсдэлээ үнэлэх',
-        icon: Icons.favorite,
+        icon: Icons.favorite_rounded,
+        color: AppColors.tileCoral,
         onTap: () => _open(const RiskScreen()),
       ),
       _ActionTile(
         title: 'Миний бүртгэл',
         description: 'Хувийн мэдээлэл',
-        icon: Icons.account_box,
+        icon: Icons.account_box_rounded,
+        color: AppColors.tileIndigo,
         onTap: () => _open(const ProfileScreen()),
       ),
       _ActionTile(
         title: 'Сэргээн засах',
         description: 'Дасгал хөдөлгөөн',
-        icon: Icons.self_improvement,
+        icon: Icons.self_improvement_rounded,
+        color: AppColors.tileGreen,
         onTap: () => _open(const RehabScreen()),
       ),
     ];
 
     return Scaffold(
-      body: SafeArea(
-        bottom: false,
-        child: RefreshIndicator(
-          onRefresh: _refresh,
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-            children: <Widget>[
-              const _Greeting(),
-              const SizedBox(height: 14),
-              _Pair(
-                left: _StatTile(
-                  title: 'Сүүлийн даралт',
-                  value: hasPressure ? latest.bloodPressureLabel : null,
-                  unit: 'мм.муб',
-                  hint: latestDate,
+      body: DecoratedBox(
+        // HeartFit-ийн дэвсгэр: дээрээ зөөлөн ягаан туяа, доошоо цайвар.
+        decoration: const BoxDecoration(gradient: AppColors.canvasGradient),
+        child: SafeArea(
+          bottom: false,
+          child: RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+              children: <Widget>[
+                const _Greeting(),
+                const SizedBox(height: 16),
+                _LastMeasurementCard(
+                  entry: latest,
+                  hasPressure: hasPressure,
+                  date: latestDate,
                   loading: journalLoading,
                   error: journalError,
                   onTap: widget.onOpenJournal,
                 ),
-                right: _StatTile(
-                  title: 'Судасны цохилт',
-                  value: latest?.pulse == null
-                      ? null
-                      : MnFormat.number(latest!.pulse, decimals: 0),
-                  hint: latestDate,
-                  loading: journalLoading,
-                  error: journalError,
-                  onTap: widget.onOpenJournal,
-                ),
-              ),
-              const SizedBox(height: 10),
-              _Pair(
-                left: _StatTile(
-                  title: 'Жин',
-                  value: latest?.weight == null
-                      ? null
-                      : MnFormat.number(latest!.weight),
-                  unit: 'кг',
-                  hint: latestDate,
-                  loading: journalLoading,
-                  error: journalError,
-                  onTap: widget.onOpenJournal,
-                ),
-                right: _StatTile(
-                  title: 'Эмчийн хариу',
-                  value: '$replies',
+                const SizedBox(height: 12),
+                _RepliesCard(
+                  replies: replies,
                   loading: _isLoading(questions.state),
                   error: _isError(questions.state),
                   onTap: () => _open(const QuestionsScreen()),
                 ),
-              ),
-              const SizedBox(height: 10),
-              _ListCard<JournalEntry>(
-                title: 'Сүүлийн тэмдэглэл',
-                loading: journalLoading,
-                error: journalError,
-                items: journal.items.take(5).toList(growable: false),
-                emptyText: 'Тэмдэглэл алга байна',
-                onTap: widget.onOpenJournal,
-                itemBuilder: _journalRow,
-              ),
-              const SizedBox(height: 10),
-              _ListCard<Advice>(
-                title: 'Эмчийн зөвлөгөө',
-                loading: _isLoading(advice.state),
-                error: _isError(advice.state),
-                items: advice.items.take(5).toList(growable: false),
-                emptyText: 'Зөвлөгөө алга байна',
-                onTap: () => _open(const AdviceScreen()),
-                itemBuilder: _adviceRow,
-              ),
-              const SizedBox(height: 10),
-              for (var i = 0; i < actions.length; i += 2) ...<Widget>[
-                _Pair(
-                  left: actions[i],
-                  right: i + 1 < actions.length ? actions[i + 1] : null,
-                ),
+                const SizedBox(height: 22),
+                const _SectionTitle('Үйлчилгээ'),
                 const SizedBox(height: 10),
+                for (var i = 0; i < actions.length; i += 2) ...<Widget>[
+                  _Pair(
+                    left: actions[i],
+                    right: i + 1 < actions.length ? actions[i + 1] : null,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 10),
+                _ListCard<JournalEntry>(
+                  title: 'Сүүлийн тэмдэглэл',
+                  icon: Icons.event_note_rounded,
+                  loading: journalLoading,
+                  error: journalError,
+                  items: journal.items.take(5).toList(growable: false),
+                  emptyText: 'Тэмдэглэл алга байна',
+                  onTap: widget.onOpenJournal,
+                  itemBuilder: _journalRow,
+                ),
+                const SizedBox(height: 12),
+                _ListCard<Advice>(
+                  title: 'Эмчийн зөвлөгөө',
+                  icon: Icons.record_voice_over_rounded,
+                  loading: _isLoading(advice.state),
+                  error: _isError(advice.state),
+                  items: advice.items.take(5).toList(growable: false),
+                  emptyText: 'Зөвлөгөө алга байна',
+                  onTap: () => _open(const AdviceScreen()),
+                  itemBuilder: _adviceRow,
+                ),
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -244,8 +236,8 @@ bool _isLoading(AsyncState<Object?> state) =>
 
 bool _isError(AsyncState<Object?> state) => state.hasError && !state.hasData;
 
-/// Вебийн `UniCard`: гарчиг 10px 12px, бие 10px.
-const EdgeInsets _tilePadding = EdgeInsets.fromLTRB(12, 10, 12, 10);
+/// Жагсаалтын картны доторх зай.
+const EdgeInsets _tilePadding = EdgeInsets.fromLTRB(16, 14, 16, 12);
 
 /// Вебийн жагсаалтын мөр: огноо зүүн талд, утгууд баруун талд бүдэг.
 Widget _journalRow(BuildContext context, JournalEntry e) {
@@ -333,24 +325,412 @@ class _Greeting extends StatelessWidget {
     return Row(
       children: <Widget>[
         Expanded(
-          child: Text(
-            name.isEmpty ? 'Сайн байна уу' : 'Сайн байна уу, $name',
-            // Вебийн мэндчилгээ — 19/500.
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontSize: 19,
-              fontWeight: FontWeight.w500,
-            ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Text(
+                'МнКардио',
+                style: theme.textTheme.headlineSmall?.copyWith(fontSize: 26),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                name.isEmpty ? 'Сайн байна уу' : 'Сайн байна уу, $name',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.textTheme.bodySmall?.color,
+                ),
+              ),
+            ],
           ),
         ),
-        IconButton(
+        _RoundIcon(
           tooltip: 'Сануулга',
+          icon: Icons.alarm_rounded,
           onPressed: () => Navigator.of(context).push(
             MaterialPageRoute<void>(builder: (_) => const RemindersScreen()),
           ),
-          icon: const Icon(Icons.alarm_outlined),
         ),
-        const NotificationBell(),
+        const SizedBox(width: 8),
+        const _RoundBell(),
       ],
+    );
+  }
+}
+
+/// Цагаан дугуй дүрс товч — HeartFit-ийн толгойн тохиргооны товч.
+class _RoundIcon extends StatelessWidget {
+  const _RoundIcon({
+    required this.tooltip,
+    required this.icon,
+    required this.onPressed,
+  });
+
+  final String tooltip;
+  final IconData icon;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      shape: const CircleBorder(),
+      elevation: theme.brightness == Brightness.dark ? 0 : 2,
+      shadowColor: AppTheme.shadowInk,
+      child: IconButton(
+        tooltip: tooltip,
+        onPressed: onPressed,
+        icon: Icon(icon, color: theme.textTheme.bodyLarge?.color),
+      ),
+    );
+  }
+}
+
+class _RoundBell extends StatelessWidget {
+  const _RoundBell();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      shape: const CircleBorder(),
+      elevation: theme.brightness == Brightness.dark ? 0 : 2,
+      shadowColor: AppTheme.shadowInk,
+      child: const NotificationBell(),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(text, style: Theme.of(context).textTheme.titleLarge),
+    );
+  }
+}
+
+/// HeartFit-ийн "Last Measurement" карт — градиент дэвсгэр дээр сүүлийн
+/// даралт том тоогоор, доор нь судасны цохилт, жин.
+///
+/// Эмнэлзүйн ангилал (хэвийн / өндөр) **зориуд харуулаагүй**: даралтын
+/// ангиллын босгыг ЗСҮТ батлаагүй байна (CLAUDE.md §9 "Ask, don't invent").
+class _LastMeasurementCard extends StatelessWidget {
+  const _LastMeasurementCard({
+    required this.entry,
+    required this.hasPressure,
+    required this.date,
+    required this.loading,
+    required this.error,
+    required this.onTap,
+  });
+
+  final JournalEntry? entry;
+  final bool hasPressure;
+  final String? date;
+  final bool loading;
+  final bool error;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    const white = Colors.white;
+    final dim = Colors.white.withValues(alpha: 0.86);
+    final e = entry;
+
+    Widget content;
+    if (loading) {
+      content = const SizedBox(
+        height: 96,
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.4, color: white),
+          ),
+        ),
+      );
+    } else if (error) {
+      content = SizedBox(
+        height: 96,
+        child: Center(
+          child: Text(
+            'Мэдээлэл ачаалахад алдаа гарлаа',
+            style: theme.textTheme.bodyMedium?.copyWith(color: white),
+          ),
+        ),
+      );
+    } else if (e == null) {
+      content = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Text(
+          'Хэмжилт алга байна. Доорх зүрхэн товчоор даралтаа бүртгээрэй.',
+          style: theme.textTheme.bodyLarge?.copyWith(
+            color: white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      );
+    } else {
+      content = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: <Widget>[
+                Text(
+                  hasPressure ? e.bloodPressureLabel : '—',
+                  style: const TextStyle(
+                    color: white,
+                    fontSize: 46,
+                    fontWeight: FontWeight.w800,
+                    height: 1.05,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'мм.муб',
+                  style: TextStyle(
+                    color: dim,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.16),
+              borderRadius: BorderRadius.circular(AppTheme.controlRadius),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _HeroStat(
+                    label: 'Судасны цохилт',
+                    value: e.pulse == null
+                        ? '—'
+                        : MnFormat.number(e.pulse, decimals: 0),
+                    unit: 'цох/мин',
+                  ),
+                ),
+                Container(
+                  width: 1,
+                  height: 34,
+                  color: Colors.white.withValues(alpha: 0.3),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: _HeroStat(
+                    label: 'Жин',
+                    value: e.weight == null ? '—' : MnFormat.number(e.weight),
+                    unit: 'кг',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return GradientHeroCard(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              const Icon(Icons.favorite_rounded, color: white, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Сүүлийн хэмжилт',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: white,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (date != null)
+                Text(
+                  date!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: dim,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          content,
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: <Widget>[
+              Text(
+                'Бүгдийг харах',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  color: white,
+                  decoration: TextDecoration.underline,
+                  decorationColor: white,
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(Icons.arrow_forward_rounded, color: white, size: 18),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({
+    required this.label,
+    required this.value,
+    required this.unit,
+  });
+
+  final String label;
+  final String value;
+  final String unit;
+
+  @override
+  Widget build(BuildContext context) {
+    final dim = Colors.white.withValues(alpha: 0.86);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: dim, fontSize: 12.5, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              Text(
+                value,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  height: 1.15,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(unit, style: TextStyle(color: dim, fontSize: 12.5)),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// "Эмчийн хариу" — сүүлийн таван асуултын хэд нь эмчийн хариу вэ.
+class _RepliesCard extends StatelessWidget {
+  const _RepliesCard({
+    required this.replies,
+    required this.loading,
+    required this.error,
+    required this.onTap,
+  });
+
+  final int replies;
+  final bool loading;
+  final bool error;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    final Widget trailing;
+    if (loading) {
+      trailing = const SizedBox(
+        width: 18,
+        height: 18,
+        child: CircularProgressIndicator(strokeWidth: 2.2),
+      );
+    } else if (error) {
+      trailing = Icon(Icons.error_outline_rounded, color: theme.colorScheme.error);
+    } else {
+      trailing = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.primaryContainer,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          '$replies',
+          style: theme.textTheme.titleMedium?.copyWith(
+            color: theme.colorScheme.onPrimaryContainer,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      );
+    }
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+          child: Row(
+            children: <Widget>[
+              const IconBubble(
+                icon: Icons.mark_chat_read_rounded,
+                color: AppColors.tileBlue,
+                size: 42,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: <Widget>[
+                    Text('Эмчийн хариу', style: theme.textTheme.titleMedium),
+                    Text(
+                      'Сүүлийн 5 асуултаас',
+                      style: theme.textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+              trailing,
+              const SizedBox(width: 4),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: theme.textTheme.bodySmall?.color,
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -378,92 +758,11 @@ class _Pair extends StatelessWidget {
   }
 }
 
-/// Вебийн `StatTile`: гарчигтай карт, том тоо, нэгж, доор нь огноо.
-class _StatTile extends StatelessWidget {
-  const _StatTile({
-    required this.title,
-    required this.value,
-    this.unit,
-    this.hint,
-    required this.loading,
-    required this.error,
-    required this.onTap,
-  });
-
-  final String title;
-  final String? value;
-  final String? unit;
-  final String? hint;
-  final bool loading;
-  final bool error;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    final Widget body;
-    if (loading) {
-      body = const _TileLoading();
-    } else if (error) {
-      body = const _TileError();
-    } else {
-      body = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          // "118/90 мм.муб" хагас өргөнд багтахгүй бол жижгэрнэ, мөр
-          // шилжихгүй.
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.baseline,
-              textBaseline: TextBaseline.alphabetic,
-              children: <Widget>[
-                Text(
-                  value ?? '—',
-                  // Вебийн утга — 30/500.
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontSize: 30,
-                    fontWeight: FontWeight.w500,
-                    height: 1.1,
-                  ),
-                ),
-                if (unit != null) ...<Widget>[
-                  const SizedBox(width: 6),
-                  Text(
-                    unit!,
-                    style: theme.textTheme.bodySmall?.copyWith(fontSize: 13),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (hint != null) ...<Widget>[
-            const SizedBox(height: 4),
-            Text(
-              hint!,
-              style: theme.textTheme.bodySmall?.copyWith(fontSize: 12),
-            ),
-          ],
-        ],
-      );
-    }
-
-    return SectionCard(
-      title: title,
-      onTap: onTap,
-      padding: _tilePadding,
-      child: body,
-    );
-  }
-}
-
 /// Вебийн `ListTile`: гарчигтай карт, мөр бүрийн хооронд зураас.
 class _ListCard<T> extends StatelessWidget {
   const _ListCard({
     required this.title,
+    this.icon,
     required this.loading,
     required this.error,
     required this.items,
@@ -473,6 +772,7 @@ class _ListCard<T> extends StatelessWidget {
   });
 
   final String title;
+  final IconData? icon;
   final bool loading;
   final bool error;
   final List<T> items;
@@ -507,49 +807,68 @@ class _ListCard<T> extends StatelessWidget {
 
     return SectionCard(
       title: title,
+      icon: icon,
       onTap: onTap,
       padding: _tilePadding,
+      trailing: onTap == null
+          ? null
+          : Icon(
+              Icons.chevron_right_rounded,
+              color: theme.textTheme.bodySmall?.color,
+            ),
       child: body,
     );
   }
 }
 
-/// Вебийн `ActionTile`: гарчигтай карт, доор нь бүдэг дүрс ба тайлбар.
+/// HeartFit-ийн "Export Data" торны хавтан: өнгөт дүрсний бөмбөлөг, тод
+/// гарчиг, бүдэг тайлбар.
 class _ActionTile extends StatelessWidget {
   const _ActionTile({
     required this.title,
     required this.description,
     required this.icon,
+    required this.color,
     required this.onTap,
   });
 
   final String title;
   final String description;
   final IconData icon;
+  final Color color;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final muted = theme.textTheme.bodySmall?.color;
 
-    return SectionCard(
-      title: title,
-      onTap: onTap,
-      padding: _tilePadding,
-      child: Row(
-        children: <Widget>[
-          Icon(icon, size: 22, color: muted),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall,
-            ),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 16, 14, 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              IconBubble(icon: icon, color: color, size: 46),
+              const SizedBox(height: 12),
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleMedium,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

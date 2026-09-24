@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../theme/app_colors.dart';
 import '../theme/app_theme.dart';
 
 /// Гарчигтай хэсгийг ялгах карт.
@@ -28,10 +29,9 @@ class SectionCard extends StatelessWidget {
     final theme = Theme.of(context);
     final header = title;
 
-    // Вебийн карт: гарчиг, түүний доор картын бүтэн өргөнөөр татсан зураас,
-    // дараа нь агуулга. Зураас нь картын хажуугийн зайг огтолж гарах ёстой тул
-    // гарчиг ба агуулга тус тусдаа Padding-тэй — нэг Padding дотор байвал
-    // зураас богиносч, өөр карт мэт харагдана.
+    // HeartFit карт: тод гарчиг, доор нь шууд агуулга — зураасгүй. Гарчиг
+    // ба агуулгыг тусад нь Padding-лэсэн нь гарчгийн мөрөнд trailing товч
+    // багтаах зайг хадгалахад.
     final content = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
@@ -42,14 +42,14 @@ class SectionCard extends StatelessWidget {
               padding.left,
               padding.top,
               padding.right,
-              padding.top,
+              10,
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: <Widget>[
                 if (icon != null) ...<Widget>[
-                  Icon(icon, size: 20, color: theme.colorScheme.primary),
-                  const SizedBox(width: 10),
+                  IconBubble(icon: icon!, color: theme.colorScheme.primary),
+                  const SizedBox(width: 12),
                 ],
                 Expanded(
                   child: Column(
@@ -68,8 +68,6 @@ class SectionCard extends StatelessWidget {
               ],
             ),
           ),
-          const Divider(height: 1),
-          SizedBox(height: padding.top),
         ],
         Padding(
           padding: EdgeInsets.fromLTRB(
@@ -154,25 +152,20 @@ class StatTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final accent = color ?? theme.colorScheme.primary;
-    // Вебийн нүүрийн үзүүлэлтүүд нь өнгөт биш, ЦАГААН карт: шошго дээрээ,
-    // доор нь том тоо бэхний өнгөөр. Өнгийг зөвхөн дүрсэнд үлдээв — тоог
-    // өнгөөр будвал зэрэгцээ таван хайрцаг тус бүр өөр өнгөтэй болж,
-    // аль нь эмнэлзүйн хувьд чухал болох нь алдагдана.
+    // HeartFit-ийн үзүүлэлтийн хавтан: цагаан, хүрээгүй, зөөлөн сүүдэр;
+    // шошго дээрээ, доор нь том тод тоо бэхний өнгөөр. Өнгийг зөвхөн
+    // дүрсэнд үлдээв — тоог өнгөөр будвал зэрэгцээ хавтан бүр өөр өнгөтэй
+    // болж, аль нь эмнэлзүйн хувьд чухал болох нь алдагдана.
+    final isDark = theme.brightness == Brightness.dark;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       decoration: BoxDecoration(
         color: theme.cardTheme.color ?? theme.colorScheme.surface,
         borderRadius: BorderRadius.circular(AppTheme.cardRadius),
-        border: Border.all(
-          color: theme.dividerTheme.color ?? theme.dividerColor,
-        ),
-        boxShadow: const <BoxShadow>[
-          BoxShadow(
-            color: AppTheme.shadowInk,
-            blurRadius: 2,
-            offset: Offset(0, 1),
-          ),
-        ],
+        border: isDark
+            ? Border.all(color: theme.dividerTheme.color ?? theme.dividerColor)
+            : null,
+        boxShadow: isDark ? null : AppTheme.softShadow,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -205,7 +198,7 @@ class StatTile extends StatelessWidget {
                   // Вебийн `display` — 34/700. Гар утсан дээр 30.
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontSize: 30,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: FontWeight.w800,
                     height: 1.15,
                   ),
                   maxLines: 1,
@@ -225,4 +218,116 @@ class StatTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Дүрсний бөмбөлөг — HeartFit-ийн хавтан, жагсаалтын дүрс: өнгөний 12%
+/// дэвсгэртэй дугуй дотор бүтэн өнгөтэй дүрс.
+class IconBubble extends StatelessWidget {
+  const IconBubble({
+    super.key,
+    required this.icon,
+    required this.color,
+    this.size = 36,
+  });
+
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: size * 0.54, color: color),
+    );
+  }
+}
+
+/// Градиент том карт — HeartFit нүүрний "Last Measurement" хавтан.
+///
+/// Дээрх бичвэр нь цагаан; градиент нь [AppColors.brandGradient] тул том
+/// (18px+) эсвэл тод бичвэрт 3:1-ээс дээш контрасттай.
+class GradientHeroCard extends StatelessWidget {
+  const GradientHeroCard({
+    super.key,
+    required this.child,
+    this.gradient,
+    this.padding = const EdgeInsets.all(18),
+    this.onTap,
+  });
+
+  final Widget child;
+  final Gradient? gradient;
+  final EdgeInsets padding;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final radius = BorderRadius.circular(AppTheme.heroRadius);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: gradient ?? AppColors.brandGradient,
+        borderRadius: radius,
+        boxShadow: const <BoxShadow>[
+          BoxShadow(
+            color: Color(0x40C8126A),
+            blurRadius: 22,
+            offset: Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: radius,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Stack(
+            children: <Widget>[
+              // Зүрхний цохилтын бүдэг шугам — HeartFit-ийн хавтангийн ард
+              // харагддаг ЭКГ долгион. Зөвхөн чимэглэл.
+              const Positioned.fill(
+                child: IgnorePointer(child: CustomPaint(painter: _PulseLinePainter())),
+              ),
+              Padding(padding: padding, child: child),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PulseLinePainter extends CustomPainter {
+  const _PulseLinePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.13)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2
+      ..strokeJoin = StrokeJoin.round;
+    final y = size.height * 0.58;
+    final w = size.width;
+    final path = Path()
+      ..moveTo(0, y)
+      ..lineTo(w * 0.42, y)
+      ..lineTo(w * 0.47, y - 22)
+      ..lineTo(w * 0.52, y + 26)
+      ..lineTo(w * 0.57, y - 44)
+      ..lineTo(w * 0.62, y + 12)
+      ..lineTo(w * 0.66, y)
+      ..lineTo(w, y);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _PulseLinePainter oldDelegate) => false;
 }

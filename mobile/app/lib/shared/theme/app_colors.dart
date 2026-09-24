@@ -1,142 +1,157 @@
 import 'package:flutter/material.dart';
 
-/// Өнгөний тогтолцоо.
+/// Өнгөний тогтолцоо — HeartFit маягийн ягаан-шүрэн хэв маяг (2026-09-22).
 ///
-/// Утгууд нь вебийн брэнд токенуудаас шууд авсан —
-/// `frontend/src/theme/colors.js` § `brand`. Хоёр гадаргуу нэг бүтээгдэхүүн
-/// мэт харагдах ёстой тул энд шинэ өнгө зохиогоогүй: вебэд аль хэдийн
-/// шийдэгдсэн өнгийг давхардуулан бичсэн. Веб дээрх утга өөрчлөгдвөл энд ч
-/// хамт өөрчилнө.
+/// Үндсэн өнгө нь **логоны ягаан тал** (`assets/logo.png`, #EE147D) —
+/// App Store дээрх HeartFit-ийн дулаан улаан хэв маягийг брэндээсээ
+/// гаргалгүйгээр авахын тулд. Вебийн цэнхэр брэнд (`frontend/src/theme/
+/// colors.js`) өөрчлөгдөөгүй; мобайл одоо түүнээс ялгаатай харагдана.
 ///
-/// **КОНТРАСТЫН ДҮРЭМ — вебээс хамт ирсэн, сонголт биш.**
-/// [cyan] (#18a8e8) цагаан дээр ~2.5:1, [cyanDeep] (#0096c9) ~3.0:1. Хоёулаа
-/// текстэд WCAG AA-г унана. Тиймээс:
-///   * [cyan] / [cyanDeep] — **зөвхөн текст бус**: заагч зурвас, хүрээ,
-///     графикийн шугам, 24px-ээс том дүрс.
-///   * [cyanInk] (#0a6c96) — **үг болох бүх зүйл**. Цагаан дээр 5.84:1.
-///     Контраст тэгш хэмтэй тул дүүргэсэн товчин дээрх цагаан текст ч тэнцэнэ.
-/// Эмч бүтэн ээлж эдгээр дэлгэцийг уншина — тэр төсвийг үрэхгүй.
+/// Хуучин нэрс (`cyan`, `cyanInk`, `brandGradient` …) 150 гаруй газар
+/// хэрэглэгддэг тул нэрийг нь хэвээр үлдээж, утгыг нь ягаан гэр бүл рүү
+/// шилжүүлэв. Нэр нь одоо өнгөө биш **үүргээ** илэрхийлнэ.
 ///
-/// Улаан өнгө нь **зөвхөн эмнэлзүйн анхааруулгад** үлдсэн: бүх товч улаан
-/// байвал жинхэнэ анхааруулга нүдэнд торохоо больдог.
+/// **КОНТРАСТЫН ДҮРЭМ — хэвээр.**
+///   * [cyan] / [cyanDeep] — **зөвхөн текст бус**: заагч, хүрээ, график,
+///     24px-ээс том дүрс.
+///   * [cyanInk] (#C2185B) — **үг болох бүх зүйл**. Цагаан дээр 5.9:1, дээр
+///     нь цагаан текст мөн 5.9:1.
+///
+/// Эмнэлзүйн анхааруулга ([danger]) нь улбар шар руу хазайсан улаан — ягаан
+/// үндсэн өнгөнөөс нүдэнд ялгарахаар сонгосон. Хоёрыг ойртуулж болохгүй:
+/// бүх товч "аюул" мэт харагдвал жинхэнэ анхааруулга торохоо больдог.
 class AppColors {
   AppColors._();
 
   // ---------------------------------------------------------------- брэнд
-  // Бэх — LoginScene --ink / --ink-dim
-  static const Color ink = Color(0xFF0C2233);
-  static const Color inkDim = Color(0xFF5E7688);
+  /// Үндсэн бичвэр — дулаан бараан, цэвэр хар биш.
+  static const Color ink = Color(0xFF1E1A1F);
 
-  /// Өнгөт (цагаан бус) гадаргуу дээрх хоёрдогч текст. [inkDim] нь цагаан
-  /// дээр 4.75:1 боловч [canvas] дээр 3.86:1 болж унадаг; энэ нь 5.97:1.
-  static const Color inkMuted = Color(0xFF3F5A6B);
+  /// Хоёрдогч бичвэр. Цагаан дээр 5.9:1.
+  static const Color inkDim = Color(0xFF6B6168);
 
-  /// ЗӨВХӨН ТЕКСТ БУС. Дээрх контрастын дүрмийг үзнэ үү.
-  static const Color cyan = Color(0xFF18A8E8);
+  /// Өнгөт (цагаан бус) гадаргуу дээрх хоёрдогч текст.
+  static const Color inkMuted = Color(0xFF54474F);
 
-  /// ЗӨВХӨН ТЕКСТ БУС.
-  static const Color cyanDeep = Color(0xFF0096C9);
+  /// Ягаан — ЗӨВХӨН ТЕКСТ БУС.
+  static const Color cyan = Color(0xFFF2547D);
+
+  /// Гүн ягаан — ЗӨВХӨН ТЕКСТ БУС.
+  static const Color cyanDeep = Color(0xFFE0306A);
 
   /// Текст ба дүүргэсэн товчны AA-тэнцэх шат.
-  static const Color cyanInk = Color(0xFF0A6C96);
-  static const Color cyanInkHover = Color(0xFF085678);
+  static const Color cyanInk = Color(0xFFC2185B);
+  static const Color cyanInkHover = Color(0xFFAD1457);
 
-  /// Хажуугийн цэсийн градиентын эхлэл. Зөвхөн градиент дотор.
-  static const Color indigo = Color(0xFF4034D6);
+  /// Градиентын эхлэл.
+  static const Color indigo = Color(0xFFFF6B8B);
 
-  /// Брэндийн градиент: `135deg, #4034D6 → #0096C9`.
+  /// Хавтан, товчны градиент — HeartFit-ийн "View Details" товч, нүүрний
+  /// том карт.
   static const LinearGradient brandGradient = LinearGradient(
     begin: Alignment.topLeft,
     end: Alignment.bottomRight,
-    colors: <Color>[indigo, cyanDeep],
+    colors: <Color>[Color(0xFFEC3F6B), Color(0xFFC8126A)],
   );
 
-  /// Цэсний градиент — вебийн `sidebarStyle.blueBackground`, өөрөөр хэлбэл
-  /// [brandGradient]-ийг `180deg` болгосон нь. Вебэд цэс нь босоо баганад
-  /// сууж, дээрээ индиго, доошоо цэнхэр болдог. Гар утсанд цэс доор хэвтээ
-  /// байрлах тул чиглэлийг нь хэвээр — дээрээс доош — үлдээв: хэрэглэгч ижил
-  /// өнгөний шилжилтийг хардаг.
+  /// Товгор төв товч, жижиг градиент гадаргуу.
   static const LinearGradient navGradient = LinearGradient(
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
-    colors: <Color>[indigo, cyanDeep],
+    colors: <Color>[Color(0xFFFF5E83), Color(0xFFE0306A)],
   );
 
-  /// Сонгогдсон цэсний товгор — вебийн цагаан 16%.
-  static const Color navSelected = Color(0x29FFFFFF);
+  /// Хуудасны дээд хэсгийн зөөлөн ягаан туяа — HeartFit-ийн дэвсгэр.
+  static const LinearGradient canvasGradient = LinearGradient(
+    begin: Alignment.topCenter,
+    end: Alignment.bottomCenter,
+    colors: <Color>[Color(0xFFFFE4EA), Color(0x00FFF6F8)],
+  );
 
-  /// Чат, аватар, илгээх товчны цэнхэр аялгуу — вебийн `status.accent`.
-  ///
-  /// ЗӨВХӨН ТЕКСТ БУС: цагаан дээр 2.7:1. Веб үүнийг чатын "Эмч" шошгонд
-  /// текстээр хэрэглэдэг нь хүртээмжийн алдаа — түүнийг хуулаагүй.
-  static const Color accent = Color(0xFF00ACC1);
+  /// Сонгогдсон цэсний товгор.
+  static const Color navSelected = Color(0xFFFDE7EF);
+
+  /// Чат, аватарын аялгуу. ЗӨВХӨН ТЕКСТ БУС.
+  static const Color accent = Color(0xFFF2547D);
 
   // ------------------------------------------------------------ гадаргуу
-  /// Хуудасны дэвсгэр — LoginScene --bg-1.
-  static const Color canvas = Color(0xFFEAF2F8);
+  /// Хуудасны дэвсгэр — маш цайвар ягаан.
+  static const Color canvas = Color(0xFFFFF6F8);
 
-  /// Hover угаалга, чип — LoginScene --ring, rgba(24,140,200,0.075).
-  static const Color tint = Color(0x1318A8E8);
+  /// Hover угаалга, чип.
+  static const Color tint = Color(0x14EE147D);
 
-  /// Үсэн хүрээ — LoginScene --panel-line, rgba(13,58,92,0.13).
-  static const Color hairline = Color(0x210D3A5C);
-  static const Color hairlineStrong = Color(0x380D3A5C);
+  /// Үсэн хүрээ.
+  static const Color hairline = Color(0x1A5C1030);
+  static const Color hairlineStrong = Color(0x335C1030);
 
-  static const Color focus = Color(0x8C18A8E8);
+  static const Color focus = Color(0x8CF2547D);
 
-  /// Дэлгэц бүрт нэг л удаа, хамгийн яаралтай зүйлд.
-  static const Color urgent = Color(0xFFEE147D);
+  /// Дэлгэц бүрт нэг л удаа, хамгийн яаралтай зүйлд. Ягаан үндсэн өнгөнөөс
+  /// ялгарахаар улбар шар-улаан.
+  static const Color urgent = Color(0xFFE4572E);
 
   // ------------------------------------------- нэрийн тохирол (хуучин API)
-  /// Үндсэн үйлдлийн өнгө — вебийн `button.primary`. Дэлгэцийн зураг дээрх
-  /// "Шүүлтүүр" товч, чатын хөвөгч товч бүгд энэ.
-  ///
-  /// Цагаан дээр 4.63:1, цагаан текст үүн дээр мөн 4.63:1 — хоёр талдаа AA.
-  static const Color primary = Color(0xFF1976D2);
-  static const Color primaryDark = Color(0xFF1565C0);
-  static const Color primaryLight = Color(0xFFE3F0FC);
+  /// Үндсэн үйлдлийн өнгө. Цагаан дээр 5.9:1, цагаан текст үүн дээр 5.9:1.
+  static const Color primary = cyanInk;
+  static const Color primaryDark = cyanInkHover;
+  static const Color primaryLight = Color(0xFFFDE7EF);
 
   // Эмнэлзүйн төлөв — семантик нь хэвээр, контраст шалгасан.
-  static const Color danger = Color(0xFFD64550);
-  static const Color dangerLight = Color(0xFFFDECEE);
+  static const Color danger = Color(0xFFB3261E);
+  static const Color dangerLight = Color(0xFFFCE8E6);
   static const Color warning = Color(0xFFB8860B);
   static const Color warningLight = Color(0xFFFDF6E3);
   static const Color success = Color(0xFF2E7D5B);
   static const Color successLight = Color(0xFFE6F4EE);
-  static const Color info = cyanInk;
+
+  /// Мэдээллийн өнгө — логоны цэнхэр тал. Ягаанаас ялгаатай байх ёстой:
+  /// "мэдээлэл" нь "үйлдэл" мэт харагдах ёсгүй.
+  static const Color info = Color(0xFF0A6C96);
   static const Color infoLight = Color(0xFFE7F2F8);
 
   // Гадаргуу — гэрэл
   static const Color background = canvas;
   static const Color surface = Color(0xFFFFFFFF);
-  static const Color surfaceAlt = Color(0xFFF1F6FA);
+  static const Color surfaceAlt = Color(0xFFFFF0F4);
   static const Color border = hairline;
 
-  // Гадаргуу — харанхуй. Вебэд харанхуй горим байхгүй тул эдгээрийг [ink]-ээс
-  // гаргаж авав: ижил өнгөт гэр бүл, зүгээр л эсрэг туйл дээр.
-  static const Color backgroundDark = Color(0xFF0B1620);
-  static const Color surfaceDark = Color(0xFF12212D);
-  static const Color surfaceAltDark = Color(0xFF1B2C3A);
-  static const Color borderDark = Color(0xFF2A3F4F);
+  // Гадаргуу — харанхуй. Ягаан гэр бүлийн дулаан бараан туйл.
+  static const Color backgroundDark = Color(0xFF151014);
+  static const Color surfaceDark = Color(0xFF1F181D);
+  static const Color surfaceAltDark = Color(0xFF2A2127);
+  static const Color borderDark = Color(0xFF3A2D35);
 
   // Текст — гэрэл
   static const Color textPrimary = ink;
   static const Color textSecondary = inkDim;
-  static const Color textMuted = Color(0xFF8496A4);
+  static const Color textMuted = Color(0xFF9A8D95);
 
   // Текст — харанхуй
-  static const Color textPrimaryDark = Color(0xFFE6EEF5);
-  static const Color textSecondaryDark = Color(0xFFA3B5C3);
-  static const Color textMutedDark = Color(0xFF7C8E9C);
+  static const Color textPrimaryDark = Color(0xFFF3ECEF);
+  static const Color textSecondaryDark = Color(0xFFBFB0B8);
+  static const Color textMutedDark = Color(0xFF8E7F87);
 
   /// Хэмжилтийн график дээрх шугамууд.
   ///
-  /// Вебийн "Даралт хяналт" графиктай ижил: систол хөх, судасны цохилт улбар
-  /// шар, жин ногоон. Өвчтөн хоёр гадаргуу дээр нэг л график хардаг тул өнгө
-  /// нь салах ёсгүй.
+  /// Вебийн "Даралт хяналт" графиктай ижил — өвчтөн хоёр гадаргуу дээр нэг
+  /// л график хардаг тул өнгө нь салах ёсгүй. Дизайны шинэчлэлд хамаарахгүй.
   static const Color chartSystolic = Color(0xFF1976D2);
-  static const Color chartDiastolic = cyanInk;
+  static const Color chartDiastolic = Color(0xFF0A6C96);
   static const Color chartPulse = Color(0xFFFF9800);
   static const Color chartWeight = Color(0xFF4CAF50);
   static const Color chartSpo2 = Color(0xFF9C27B0);
+
+  // ------------------------------------------------ модулийн дүрсний өнгө
+  /// Нүүрний хавтангийн дүрсний бөмбөлөг — HeartFit-ийн "Export Data" тор.
+  /// Өнгө бүр модулийг ялгана, эмнэлзүйн утгагүй. Бөмбөлгийн дэвсгэр нь
+  /// өнгөний 12%, дүрс өөрөө бүтэн өнгөөр.
+  static const Color tileRose = Color(0xFFE0306A);
+  static const Color tileBlue = Color(0xFF2F7FD8);
+  static const Color tileViolet = Color(0xFF7B5CE0);
+  static const Color tileTeal = Color(0xFF14A38B);
+  static const Color tileAmber = Color(0xFFE8912D);
+  static const Color tileCoral = Color(0xFFF0564A);
+  static const Color tileIndigo = Color(0xFF4F5BD5);
+  static const Color tileGreen = Color(0xFF3FA34D);
 }

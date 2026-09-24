@@ -456,8 +456,10 @@ class _ControlBar extends StatelessWidget {
         color: AppColors.surface.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(22),
         boxShadow: const <BoxShadow>[
+          // Сүүдэр нь саарал биш, брэндийн ягаан руу хазайсан — SectionCard-тай
+          // ижил гэр бүл (shared/widgets/section_card.dart).
           BoxShadow(
-              color: Color(0x2E0C2233), blurRadius: 18, offset: Offset(0, 6)),
+              color: Color(0x2EC8126A), blurRadius: 18, offset: Offset(0, 6)),
         ],
       ),
       child: row,
@@ -497,7 +499,7 @@ class _Video extends StatelessWidget {
           ),
           if (c.paused && tapToPause)
             ColoredBox(
-              color: const Color(0x66EAF2F8),
+              color: AppColors.canvas.withValues(alpha: 0.4),
               child: Center(
                 child: _RoundButton(
                   icon: Icons.play_arrow_rounded,

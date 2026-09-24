@@ -298,7 +298,7 @@ class _ReadOnlyNotice extends StatelessWidget {
               'апп дээрээс засах боломжгүй. Мэдээлэл буруу бол эмнэлгийн '
               'бүртгэлийн хэсэгт хандана уу.',
               style: theme.textTheme.bodySmall?.copyWith(
-                color: const Color(0xFF1D3F66),
+                color: AppColors.info,
                 height: 1.45,
               ),
             ),

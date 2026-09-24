@@ -5,11 +5,13 @@ import '../../core/auth/auth_controller.dart';
 import '../../core/notifications/local_notifications.dart';
 import '../chat/chat_controller.dart';
 import '../chat/chat_rooms_screen.dart';
+import '../journal/journal_controller.dart';
+import '../journal/journal_form_screen.dart';
 import '../journal/journal_screen.dart';
 import '../notifications/notification_router.dart';
 import '../settings/settings_screen.dart';
 import 'home_screen.dart';
-import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/heart_nav_bar.dart';
 
 /// Нэвтэрсэн үеийн үндсэн бүтэц — доод цэс.
 class MainShell extends StatefulWidget {
@@ -51,6 +53,17 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
 
   void _openJournal() => setState(() => _index = 1);
 
+  /// Төв зүрхэн товч — даралт, судасны цохилт, жин нэмэх. HeartFit-ийн
+  /// "Measure" товчны дүйцэл: өвчтөний хамгийн олон давтагддаг үйлдэл.
+  Future<void> _openMeasure() async {
+    final saved = await Navigator.of(context).push<bool>(
+      MaterialPageRoute<bool>(builder: (_) => const JournalFormScreen()),
+    );
+    if (saved == true && mounted) {
+      context.read<JournalSummaryController>().load(refresh: true);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final unread = context.watch<ChatRoomsController>().totalUnread;
@@ -65,44 +78,35 @@ class _MainShellState extends State<MainShell> with WidgetsBindingObserver {
           const SettingsScreen(),
         ],
       ),
-      // Вебийн хажуугийн цэсний градиент. NavigationBar өөрөө градиент
-      // авдаггүй тул дэвсгэрийг энд зурж, самбарыг тунгалаг үлдээв.
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppColors.navGradient),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: (int value) => setState(() => _index = value),
-          destinations: <Widget>[
-            const NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Нүүр',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.event_note_outlined),
-              selectedIcon: Icon(Icons.event_note_rounded),
-              label: 'Тэмдэглэл',
-            ),
-            NavigationDestination(
-              icon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread'),
-                child: const Icon(Icons.chat_bubble_outline_rounded),
-              ),
-              selectedIcon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread'),
-                child: const Icon(Icons.chat_bubble_rounded),
-              ),
-              label: 'Чат',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Цэс',
-            ),
-          ],
-        ),
+      bottomNavigationBar: HeartNavBar(
+        selectedIndex: _index,
+        onSelected: (int value) => setState(() => _index = value),
+        centerIcon: Icons.monitor_heart_rounded,
+        centerLabel: 'Хэмжих',
+        onCenterTap: _openMeasure,
+        items: <HeartNavItem>[
+          const HeartNavItem(
+            icon: Icons.home_outlined,
+            selectedIcon: Icons.home_rounded,
+            label: 'Нүүр',
+          ),
+          const HeartNavItem(
+            icon: Icons.event_note_outlined,
+            selectedIcon: Icons.event_note_rounded,
+            label: 'Тэмдэглэл',
+          ),
+          HeartNavItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            selectedIcon: Icons.chat_bubble_rounded,
+            label: 'Чат',
+            badge: unread,
+          ),
+          const HeartNavItem(
+            icon: Icons.person_outline_rounded,
+            selectedIcon: Icons.person_rounded,
+            label: 'Цэс',
+          ),
+        ],
       ),
     );
   }

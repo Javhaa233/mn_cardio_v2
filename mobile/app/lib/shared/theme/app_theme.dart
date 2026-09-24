@@ -11,26 +11,27 @@ import 'app_colors.dart';
 class AppTheme {
   AppTheme._();
 
-  /// Булангийн радиус — зөвхөн мобайл.
+  /// Булангийн радиус — HeartFit маягийн зөөлөн, том бөөрөнхий.
   ///
-  /// Вебийн `tokens.js` (карт 6px, контрол 3px) гар утсан дээр хурц өнцөгтэй
-  /// харагдаж байсан тул мобайл дээр бөөрөнхий булантай болгов. Вебийг
-  /// өөрчлөөгүй. Шатлал нь хэвээр: контрол картаасаа бага радиустай тул
-  /// картын дотор сууж буй контрол хоёр дахь карт мэт биш, контрол мэт
-  /// харагдана.
-  static const double cardRadius = 16;
-  static const double controlRadius = 12;
+  /// Шатлал нь хэвээр: контрол картаасаа бага радиустай тул картын дотор
+  /// сууж буй контрол хоёр дахь карт мэт биш, контрол мэт харагдана.
+  static const double cardRadius = 20;
+  static const double controlRadius = 14;
   /// Нүүрний градиент хавтан зэрэг том гадаргуу.
-  static const double heroRadius = 20;
+  static const double heroRadius = 24;
   /// Харилцах цонх, доороос гарах хуудас.
-  static const double sheetRadius = 24;
+  static const double sheetRadius = 28;
   static const double gap = 16; // space.4
 
-  /// Сүүдэр нь **бэхний navy өнгөөр** будагдана, хэзээ ч саарал хар биш
-  /// (`tokens.js` § `elevation`). Хуудасны өнгөний температуртай нийцсэн
-  /// сүүдэр гүн мэт харагддаг; хүйтэн дэвсгэр дээрх саарал-хар сүүдэр
-  /// бохир мэт харагддаг.
-  static const Color shadowInk = Color(0x1A0D3A5C);
+  /// Сүүдэр нь **ягаан өнгөөр** будагдана, хэзээ ч саарал хар биш.
+  /// Хуудасны өнгөний температуртай нийцсэн сүүдэр гүн мэт харагддаг;
+  /// дулаан дэвсгэр дээрх саарал-хар сүүдэр бохир мэт харагддаг.
+  static const Color shadowInk = Color(0x1FB0164F);
+
+  /// Карт, хавтангийн зөөлөн сүүдэр — HeartFit-ийн "хөвж буй" карт.
+  static const List<BoxShadow> softShadow = <BoxShadow>[
+    BoxShadow(color: Color(0x14B0164F), blurRadius: 18, offset: Offset(0, 6)),
+  ];
 
   static ThemeData light() => _build(Brightness.light);
 
@@ -43,7 +44,10 @@ class AppTheme {
       seedColor: AppColors.primary,
       brightness: brightness,
     ).copyWith(
-      primary: isDark ? const Color(0xFF4FC3F0) : AppColors.primary,
+      primary: isDark ? const Color(0xFFFF7AA2) : AppColors.primary,
+      onPrimary: isDark ? const Color(0xFF3A0A1E) : Colors.white,
+      primaryContainer: isDark ? const Color(0xFF5A1733) : AppColors.primaryLight,
+      onPrimaryContainer: isDark ? const Color(0xFFFFD9E4) : AppColors.cyanInkHover,
       // ЗӨВХӨН ТЕКСТ БУС — заагч, хүрээ, том дүрсэд.
       secondary: AppColors.cyan,
       surface: isDark ? AppColors.surfaceDark : AppColors.surface,
@@ -68,16 +72,20 @@ class AppTheme {
     return base.copyWith(
       textTheme: _textTheme(base.textTheme, textColor, mutedColor),
 
+      // HeartFit: гарчиг голлосон, самбар нь хуудастайгаа нэг өнгөтэй тул
+      // дэлгэц нэг ширхэг гадаргуу мэт харагдана.
       appBarTheme: AppBarTheme(
-        backgroundColor: surfaceColor,
+        backgroundColor:
+            isDark ? AppColors.backgroundDark : AppColors.background,
         foregroundColor: textColor,
         elevation: 0,
-        scrolledUnderElevation: 1,
-        centerTitle: false,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: true,
         titleTextStyle: TextStyle(
           color: textColor,
           fontSize: 18,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
           height: 1.3,
         ),
         systemOverlayStyle:
@@ -86,14 +94,15 @@ class AppTheme {
 
       cardTheme: CardThemeData(
         color: surfaceColor,
-        // elevation.1 — `0 1px 2px rgba(13,58,92,0.06)`.
-        elevation: isDark ? 0 : 1,
-        shadowColor: shadowInk,
+        // Хүрээгүй цагаан карт, зөөлөн ягаан сүүдэр. Харанхуй горимд сүүдэр
+        // харагдахгүй тул оронд нь үсэн хүрээ.
+        elevation: isDark ? 0 : 3,
+        shadowColor: const Color(0x33B0164F),
         surfaceTintColor: Colors.transparent,
         margin: EdgeInsets.zero,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(cardRadius),
-          side: BorderSide(color: borderColor),
+          side: isDark ? BorderSide(color: borderColor) : BorderSide.none,
         ),
       ),
 
@@ -105,7 +114,7 @@ class AppTheme {
 
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: isDark ? AppColors.surfaceAltDark : AppColors.surfaceAlt,
+        fillColor: isDark ? AppColors.surfaceAltDark : Colors.white,
         // Монгол шошго урт тул доторх зайг өгөөмөр авав.
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
@@ -139,11 +148,9 @@ class AppTheme {
 
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(controlRadius),
-          ),
+          minimumSize: const Size.fromHeight(54),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          shape: const StadiumBorder(),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -154,12 +161,11 @@ class AppTheme {
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(52),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          side: BorderSide(color: borderColor),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(controlRadius),
-          ),
+          minimumSize: const Size.fromHeight(54),
+          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+          foregroundColor: scheme.primary,
+          side: BorderSide(color: scheme.primary.withValues(alpha: 0.45)),
+          shape: const StadiumBorder(),
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
@@ -225,15 +231,10 @@ class AppTheme {
         unselectedLabelStyle: const TextStyle(fontSize: 11.5),
       ),
 
-      // Гар утсан дээр вебийн хажуугийн цэс байхгүй тул брэндийн градиент
-      // хаана ч гарахгүй байв — тийм ч учраас апп зурган дээрхтэй адилгүй
-      // санагдаж байсан. Доод цэс бол мобайл дээрх түүний дүйцэл: ижил
-      // градиент, цагаан бичиг, сонгогдсон мөр нь цагаан тунгалаг товгор.
-      //
-      // Дэвсгэрийг бүрхүүл өөрөө зурна (`main_shell` / `doctor_shell`), тул
-      // энд тунгалаг.
+      // Доод цэсийг бүрхүүл өөрөө зурна (`shared/widgets/heart_nav_bar.dart`).
+      // Энэ сэдэв нь NavigationBar-ыг шууд хэрэглэсэн үлдсэн газруудад.
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.transparent,
+        backgroundColor: surfaceColor,
         surfaceTintColor: Colors.transparent,
         shadowColor: Colors.transparent,
         indicatorColor: AppColors.navSelected,
@@ -245,7 +246,7 @@ class AppTheme {
           final selected = states.contains(WidgetState.selected);
           return IconThemeData(
             size: 24,
-            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.82),
+            color: selected ? scheme.primary : mutedColor,
           );
         }),
         labelTextStyle: WidgetStateProperty.resolveWith((Set<WidgetState> states) {
@@ -254,14 +255,14 @@ class AppTheme {
             fontSize: 11.5,
             height: 1.2,
             fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
-            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.82),
+            color: selected ? scheme.primary : mutedColor,
           );
         }),
       ),
 
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
-        backgroundColor: isDark ? AppColors.surfaceAltDark : const Color(0xFF25313D),
+        backgroundColor: isDark ? AppColors.surfaceAltDark : const Color(0xFF2B2228),
         contentTextStyle: const TextStyle(
           color: Colors.white,
           fontSize: 14.5,
@@ -305,6 +306,39 @@ class AppTheme {
         color: scheme.primary,
         linearMinHeight: 3,
       ),
+
+      floatingActionButtonTheme: FloatingActionButtonThemeData(
+        backgroundColor: scheme.primary,
+        foregroundColor: Colors.white,
+        elevation: 4,
+        shape: const StadiumBorder(),
+      ),
+
+      tabBarTheme: TabBarThemeData(
+        labelColor: scheme.primary,
+        unselectedLabelColor: mutedColor,
+        indicatorColor: scheme.primary,
+        indicatorSize: TabBarIndicatorSize.label,
+        dividerColor: Colors.transparent,
+        labelStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        unselectedLabelStyle:
+            const TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+      ),
+
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: SegmentedButton.styleFrom(
+          selectedBackgroundColor: AppColors.primaryLight,
+          selectedForegroundColor: AppColors.cyanInkHover,
+          shape: const StadiumBorder(),
+        ),
+      ),
+
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith((Set<WidgetState> s) =>
+            s.contains(WidgetState.selected) ? Colors.white : null),
+        trackColor: WidgetStateProperty.resolveWith((Set<WidgetState> s) =>
+            s.contains(WidgetState.selected) ? scheme.primary : null),
+      ),
     );
   }
 
@@ -319,13 +353,13 @@ class AppTheme {
           // h2
           headlineSmall: base.headlineSmall?.copyWith(
             fontSize: 22,
-            fontWeight: FontWeight.w700,
+            fontWeight: FontWeight.w800,
             height: 1.25,
           ),
           // h3 — картны гарчиг
           titleLarge: base.titleLarge?.copyWith(
             fontSize: 18,
-            fontWeight: FontWeight.w600,
+            fontWeight: FontWeight.w700,
             height: 1.3,
           ),
           // h4

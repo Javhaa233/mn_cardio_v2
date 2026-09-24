@@ -10,7 +10,7 @@ import 'doctor_home_screen.dart';
 import 'doctor_monitoring_screen.dart';
 import 'doctor_settings_screen.dart';
 import 'doctor_visits_screen.dart';
-import '../../shared/theme/app_colors.dart';
+import '../../shared/widgets/heart_nav_bar.dart';
 
 /// Эмч нэвтэрсэн үеийн үндсэн бүтэц.
 class DoctorShell extends StatefulWidget {
@@ -65,49 +65,38 @@ class _DoctorShellState extends State<DoctorShell> with WidgetsBindingObserver {
           const DoctorSettingsScreen(),
         ],
       ),
-      // Вебийн хажуугийн цэсний градиент. NavigationBar өөрөө градиент
-      // авдаггүй тул дэвсгэрийг энд зурж, самбарыг тунгалаг үлдээв.
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(gradient: AppColors.navGradient),
-        child: NavigationBar(
-          selectedIndex: _index,
-          onDestinationSelected: _openTab,
-          destinations: <Widget>[
-            const NavigationDestination(
-              icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home_rounded),
-              label: 'Нүүр',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.assignment_outlined),
-              selectedIcon: Icon(Icons.assignment_rounded),
-              label: 'Үзлэг',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.monitor_heart_outlined),
-              selectedIcon: Icon(Icons.monitor_heart_rounded),
-              label: 'Хяналт',
-            ),
-            NavigationDestination(
-              icon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread'),
-                child: const Icon(Icons.chat_bubble_outline_rounded),
-              ),
-              selectedIcon: Badge(
-                isLabelVisible: unread > 0,
-                label: Text(unread > 99 ? '99+' : '$unread'),
-                child: const Icon(Icons.chat_bubble_rounded),
-              ),
-              label: 'Чат',
-            ),
-            const NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Цэс',
-            ),
-          ],
-        ),
+      // "Хяналт" (индекс 2) нь голын товгор зүрхэн товч; үлдсэн дөрөв нь
+      // хоёр талд. Цэсний индексийг стекийн индекс рүү хөрвүүлнэ.
+      bottomNavigationBar: HeartNavBar(
+        selectedIndex: _index == 2 ? -1 : (_index < 2 ? _index : _index - 1),
+        onSelected: (int i) => _openTab(i < 2 ? i : i + 1),
+        centerIcon: Icons.monitor_heart_rounded,
+        centerLabel: 'Хяналт',
+        centerSelected: _index == 2,
+        onCenterTap: () => _openTab(2),
+        items: <HeartNavItem>[
+          const HeartNavItem(
+            icon: Icons.home_outlined,
+            selectedIcon: Icons.home_rounded,
+            label: 'Нүүр',
+          ),
+          const HeartNavItem(
+            icon: Icons.assignment_outlined,
+            selectedIcon: Icons.assignment_rounded,
+            label: 'Үзлэг',
+          ),
+          HeartNavItem(
+            icon: Icons.chat_bubble_outline_rounded,
+            selectedIcon: Icons.chat_bubble_rounded,
+            label: 'Чат',
+            badge: unread,
+          ),
+          const HeartNavItem(
+            icon: Icons.person_outline_rounded,
+            selectedIcon: Icons.person_rounded,
+            label: 'Цэс',
+          ),
+        ],
       ),
     );
   }
