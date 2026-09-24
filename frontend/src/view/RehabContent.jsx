@@ -2,22 +2,20 @@ import React from "react";
 import PageContainer from "customComponents/PageContainer";
 import BaseCrudManager from "baseComponents/BaseCrudManager";
 import BaseTab from "baseComponents/BaseTab";
-import ExerciseGallery from "customComponents/RehabContent/ExerciseGallery";
+import ExerciseLibrary from "customComponents/RehabContent/ExerciseLibrary";
+import ProgramBuilder from "customComponents/RehabContent/ProgramBuilder";
 
 /**
- * Сэргээн засах дасгалын контент (гар утасны тендер 2.7).
+ * Сэргээн засах дасгалын контент (гар утасны тендер 2.7), 2026-09-24-нд
+ * гурван хэсэг болгон шинэчилсэн:
  *
- * The tender requires the rehabilitation content to be editable from a web
- * admin without a developer. Every tab is the generic BaseObject CRUD over a
- * backend ModelConfig (RehabProgram, RehabProgramBlock, RehabExercise,
- * RehabMovement, RehabPlan, RehabSession) - no bespoke form code.
+ *   Дасгалын сан   дасгал → хөдөлгөөн нэг нэгээр → тун, сет, анхааруулга,
+ *                  явцын мессеж, бичлэг (customComponents/RehabContent/)
+ *   Хөтөлбөр       өвчний бүлэг бүрийн өдрийн блокууд, сангаас дасгал сонгоно
+ *   Өвчтөн         аппаас бичигдсэн төлөвлөгөө, дасгалын явц — харах, экспорт
  *
- * The exercises tab is the gallery (photos, drag to arrange, create with
- * movements and clips - customComponents/RehabContent/). The rest stay on the
- * generic CRUD: programmes and blocks are clinical content (the rows on
- * MnCardio_test are DRAFT, transcribed from the rehab team's xlsx), and plans and
- * sessions are patient data written by the apps, listed here for review and
- * export only.
+ * Хөтөлбөр ба блокийн мөрүүд MnCardio_test дээр НООРОГ (сэргээн засах багийн
+ * xlsx-ээс). Төлөвлөгөө, явц нь өвчтөний өгөгдөл тул энд шинээр үүсгэхгүй.
  */
 export default function RehabContent() {
   const crud = (ObjectName, extra = {}) => (
@@ -26,6 +24,7 @@ export default function RehabContent() {
       isDialog={false}
       formSize={{ height: "560px", width: "820px" }}
       CreateDate="CreateDate"
+      HideNew
       {...extra}
     />
   );
@@ -34,20 +33,21 @@ export default function RehabContent() {
     <PageContainer>
       <BaseTab
         Tabss={[
-          { Label: "Rehabilitation programmes", TabBody: crud("RehabProgram") },
-          { Label: "Programme blocks", TabBody: crud("RehabProgramBlock") },
-          { Label: "Rehabilitation exercises", TabBody: <ExerciseGallery /> },
-          { Label: "Exercise movements", TabBody: crud("RehabMovement") },
+          { Label: "Дасгалын сан", TabBody: <ExerciseLibrary /> },
+          { Label: "Хөтөлбөр", TabBody: <ProgramBuilder /> },
           {
-            Label: "Rehabilitation plans",
-            TabBody: crud("RehabPlan", { HideNew: true }),
-          },
-          {
-            Label: "Rehabilitation sessions",
-            TabBody: crud("RehabSession", {
-              HideNew: true,
-              CreateDate: "StartedAt",
-            }),
+            Label: "Өвчтөн",
+            TabBody: (
+              <BaseTab
+                Tabss={[
+                  { Label: "Төлөвлөгөө", TabBody: crud("RehabPlan") },
+                  {
+                    Label: "Дасгалын явц",
+                    TabBody: crud("RehabSession", { CreateDate: "StartedAt" }),
+                  },
+                ]}
+              />
+            ),
           },
         ]}
       />

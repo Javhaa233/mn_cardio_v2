@@ -20,6 +20,33 @@ function RehabMovementConfig() {
       { Name: 'Reps', Label: 'Repetitions', Type: 'Number', md: 4, Position: 3 },
       { Name: 'PrepSec', Label: 'Preview (sec)', Type: 'Number', md: 4, Position: 3 },
       { Name: 'RestSec', Label: 'Rest (sec)', Type: 'Number', md: 4, Position: 3 },
+      { Name: 'Sets', Label: 'Sets', Type: 'Number', md: 4, Position: 3 },
+      {
+        Name: 'SetRestSec',
+        Label: 'Rest between sets (sec)',
+        Type: 'Number',
+        md: 4,
+        Position: 3,
+        GridField: false,
+      },
+      {
+        Name: 'WarningText',
+        Label: 'Warning',
+        Type: 'TextArea',
+        md: 12,
+        Position: 4,
+        GridField: false,
+      },
+      // JSON, written by /RehabContent/SaveMovement, which validates it.
+      {
+        Name: 'Cues',
+        Label: 'Messages (JSON)',
+        Type: 'TextArea',
+        md: 12,
+        Position: 4,
+        GridField: false,
+        EditField: false,
+      },
       {
         Name: 'GuideText',
         Label: 'Steps (one per line)',

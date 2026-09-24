@@ -124,12 +124,18 @@ function IsUnlocked(block, dayNo) {
   return !(from > 0) || (dayNo > 0 && dayNo >= from);
 }
 
-/** Seconds a playlist of movements takes, preview included; reps count as unknown. */
+/**
+ * Seconds a playlist of movements takes, preview included; reps count as unknown.
+ * Sets repeat the work with SetRestSec between them (never after the last set -
+ * RestSec covers that).
+ */
 function MovementsSec(movements) {
   let total = 0;
   for (const m of movements) {
+    const sets = Math.max(1, parseInt(m.Sets, 10) || 1);
     total += Math.max(MIN_PREP_SEC, parseInt(m.PrepSec, 10) || 0);
-    total += parseInt(m.WorkSec, 10) || 0;
+    total += sets * (parseInt(m.WorkSec, 10) || 0);
+    total += (sets - 1) * (parseInt(m.SetRestSec, 10) || 0);
     total += parseInt(m.RestSec, 10) || 0;
   }
   return total;

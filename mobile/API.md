@@ -505,9 +505,14 @@ GET   /api/Media/block/:id/thumb       a block's still
     "Id": 1, "OrderNo": 1, "Title": "Бие халаалтын дасгал", "Kind": "video",
     "DurationSec": 600, "Locked": false, "UnlocksOnDay": null, "CheckInEverySec": null,
     "GuideText": "…", "thumb": { "kind": null, "url": null },
-    "Exercise": { "Id": 1, "Code": "EX-01", "Name": "…" },
+    "Exercise": { "Id": 1, "Code": "EX-01", "Name": "…", "Description": "…", "Warning": null },
     "Movements": [{ "Id": 1, "Name": "…", "Steps": ["…", "…"], "WorkSec": 30, "Reps": null,
-                    "PrepSec": 10, "RestSec": null, "loop": { "startMs": 0, "endMs": 5500 },
+                    "PrepSec": 10, "RestSec": null,
+                    "Sets": 3, "SetRestSec": 30, "Warning": "Цээжээр өвдвөл даруй зогсооно уу.",
+                    "Cues": [{ "AtSec": 0, "AtSet": null, "Text": "…" },
+                             { "AtSec": 15, "AtSet": null, "Text": "…" },
+                             { "AtSec": null, "AtSet": 3, "Text": "…" }],
+                    "loop": { "startMs": 0, "endMs": 5500 },
                     "media": { "kind": "file", "url": "/api/Media/movement/1" }, "thumb": {…} }]
   }],
   "streak": 5, "doneToday": false, "notStarted": false,
@@ -522,6 +527,17 @@ GET   /api/Media/block/:id/thumb       a block's still
 - `Locked` blocks carry no movements — show them greyed with "`UnlocksOnDay`-оос".
 - **Timed or counted per movement:** exactly one of `WorkSec` / `Reps` is normally set.
 - `PrepSec` is the "Дараагийн дасгал" preview, **never below 10**. "+10 сек" is client-side.
+- **Sets** (added 2026-09-24, always ≥ 1): play the work `Sets` times with `SetRestSec` between
+  sets (not after the last one), then `RestSec`. Show "Сет 2/3". `Sets` 1 is the old behaviour.
+- **`Warning`** on a movement: show it on the "Дараагийн дасгал" preview as a red card.
+  `Exercise.Warning`: show once before the exercise's **first** movement. Both may be `null`.
+- **`Cues`** — messages written by the rehab doctors on the web, sorted, already validated
+  (bad entries are dropped server-side, never sent). Show each as a banner over the video for
+  **4 s** with a soft haptic:
+  - `AtSec: 0` — once, when the movement's work starts (set 1 only);
+  - `AtSec: N > 0` — N seconds into the work phase, **in every set** (timed movements only);
+  - `AtSet: N` — when set N's work starts. Reps movements only ever carry `AtSec 0` or `AtSet`.
+  An empty array means no messages. Older apps ignore all three fields and still work.
 - `loop` non-null means loop that **segment** of the file (a demo over an uncut recording);
   `null` means loop the whole clip.
 - Download every `media.url` of unlocked blocks **before** starting (pre-download decision);

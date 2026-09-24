@@ -18,8 +18,9 @@ import Helper from "helper";
  * everything here ends in a callback - the same shape `AdviceFeed/useFeed.js`
  * uses.
  */
-export function useRehabContent() {
+export function useRehabContent(includeInactive = false) {
   const [items, setItems] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const alive = useRef(true);
@@ -37,6 +38,7 @@ export function useRehabContent() {
     setLoading(false);
     if (res && res.Success) {
       setItems(res.Data || []);
+      setCategories((res.Option && res.Option.Categories) || []);
       setError(null);
     } else {
       setError((res && res.Message) || "Уншиж чадсангүй");
@@ -48,11 +50,11 @@ export function useRehabContent() {
       if (!quiet) setLoading(true);
       Helper.BaseCrudHelper.CallService(
         "/RehabContent/GetList",
-        { IncludeInactive: false },
+        { IncludeInactive: includeInactive },
         apply,
       );
     },
-    [apply],
+    [apply, includeInactive],
   );
 
   // Анхны уншилт. Төлөв нь зөвхөн `apply`-д, өөрөөр хэлбэл хариу ирэхэд
@@ -60,10 +62,10 @@ export function useRehabContent() {
   useEffect(() => {
     Helper.BaseCrudHelper.CallService(
       "/RehabContent/GetList",
-      { IncludeInactive: false },
+      { IncludeInactive: includeInactive },
       apply,
     );
-  }, [apply]);
+  }, [apply, includeInactive]);
 
   /**
    * Write a new order. The list is moved locally first so the card does not
@@ -87,7 +89,33 @@ export function useRehabContent() {
     [load],
   );
 
-  return { items, loading, error, reload: load, reorder, setItems };
+  return {
+    items,
+    categories,
+    loading,
+    error,
+    setError,
+    reload: load,
+    reorder,
+    setItems,
+  };
+}
+
+/**
+ * One `/RehabContent/*` call as a promise that always resolves with the
+ * envelope (never rejects), so a handler can `await` it and read `.Success`.
+ */
+export function rehabCall(route, body) {
+  return new Promise((resolve) => {
+    Helper.BaseCrudHelper.CallService(
+      `/RehabContent/${route}`,
+      body || {},
+      (res) =>
+        resolve(
+          res || { Success: false, Message: "Сервертэй холбогдож чадсангүй" },
+        ),
+    );
+  });
 }
 
 /**

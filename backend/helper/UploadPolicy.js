@@ -41,8 +41,13 @@ const MAX_UPLOAD_CEILING = MAX_UPLOAD_BYTES_CHAT;
 /** At most this many files on one question. Tender §2.3 asks for five. */
 const MAX_FILES_PER_POST = 5;
 
+// Rehab exercise videos: attached only by RoleId 1/6 (FileAccessHelper), and a
+// full-length instruction clip at 720x1280 is routinely past 10 MB.
+const REHAB_CONTENT = ['RehabMovement', 'RehabExercise'];
+
 const UploadCapFor = (LinkedObjectName) => {
   if (LinkedObjectName === 'ChatMessages') return MAX_UPLOAD_BYTES_CHAT;
+  if (REHAB_CONTENT.includes(LinkedObjectName)) return MAX_UPLOAD_BYTES_CHAT;
   if (LinkedObjectName === 'VisitComments') return MAX_UPLOAD_BYTES_QUESTION;
   return MAX_UPLOAD_BYTES;
 };
