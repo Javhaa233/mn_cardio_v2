@@ -9,6 +9,7 @@
 const { Models, Op } = require('../config/DB');
 const MediaRef = require('./MediaRef');
 const Dose = require('./RehabDose');
+const Cues = require('./RehabCues');
 
 /** Symptom codes the stop checklist may send. Labels live in the app. */
 const STOP_SYMPTOMS = ['chest_pain', 'dizzy', 'breathless', 'palpitations', 'nausea', 'other'];
@@ -31,12 +32,29 @@ function ShapeMovement(m) {
     Reps: m.Reps || null,
     PrepSec: Math.max(Dose.MIN_PREP_SEC, parseInt(m.PrepSec, 10) || 0),
     RestSec: m.RestSec || null,
+    // add_rehab_movement_cues.sql. Additive: a player that ignores them still
+    // plays one set with no messages, exactly as before.
+    Sets: Math.max(1, parseInt(m.Sets, 10) || 1),
+    SetRestSec: m.SetRestSec || null,
+    Warning: m.WarningText || null,
+    Cues: Cues.Validate(m.Cues, m).Cues,
     loop:
       m.LoopStartMs !== null && m.LoopStartMs !== undefined && m.LoopEndMs > m.LoopStartMs
         ? { startMs: m.LoopStartMs, endMs: m.LoopEndMs }
         : null,
     media: MediaRef.Describe(m.MediaRef, '/api/Media/movement/' + m.Id),
     thumb: MediaRef.Describe(m.ThumbRef, '/api/Media/movement/' + m.Id + '/thumb'),
+  };
+}
+
+/** An exercise header as the player consumes it; WarningText goes out as Warning. */
+function ShapeExercise(e) {
+  return {
+    Id: e.Id,
+    Code: e.Code,
+    Name: e.Name,
+    Description: e.Description,
+    Warning: e.WarningText || null,
   };
 }
 
@@ -98,12 +116,12 @@ async function BuildDay(program, dayNo) {
     exerciseIds.filter(Boolean).length
       ? Models.RehabExercise.findAll({
           where: { Id: { [Op.in]: exerciseIds.filter(Boolean) } },
-          attributes: ['Id', 'Code', 'Name', 'Description'],
+          attributes: ['Id', 'Code', 'Name', 'Description', 'WarningText'],
           raw: true,
         })
       : [],
   ]);
-  const exerciseById = new Map(exercises.map((e) => [e.Id, e]));
+  const exerciseById = new Map(exercises.map((e) => [e.Id, ShapeExercise(e)]));
 
   return blocks.map((b) => {
     const unlocked = Dose.IsUnlocked(b, dayNo);
@@ -246,6 +264,7 @@ module.exports = {
   FINISH_STATUSES,
   ShapeMovement,
   MovementsByExercise,
+  ShapeExercise,
   ActivePlan,
   BuildDay,
   PatientAge,

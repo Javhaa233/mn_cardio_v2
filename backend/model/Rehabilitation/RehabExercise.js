@@ -16,6 +16,8 @@ RehabExercise.init(
     DurationSec: { type: Sequelize.INTEGER },
     OrderNo: { type: Sequelize.INTEGER },
     MediaRef: { type: Sequelize.STRING },
+    // Shown once before the exercise's first movement (add_rehab_movement_cues.sql).
+    WarningText: { type: Sequelize.STRING },
     IsActive: { type: Sequelize.BOOLEAN },
     CreateDate: { type: Sequelize.DATE },
     CreateUserId: { type: Sequelize.INTEGER },

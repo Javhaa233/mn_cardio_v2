@@ -16,6 +16,11 @@ RehabMovement.init(
     Reps: { type: Sequelize.INTEGER },
     PrepSec: { type: Sequelize.INTEGER },
     RestSec: { type: Sequelize.INTEGER },
+    // scripts/add_rehab_movement_cues.sql. Cues is a JSON array; helper/RehabCues.js.
+    Sets: { type: Sequelize.INTEGER },
+    SetRestSec: { type: Sequelize.INTEGER },
+    WarningText: { type: Sequelize.STRING },
+    Cues: { type: Sequelize.STRING },
     LoopStartMs: { type: Sequelize.INTEGER },
     LoopEndMs: { type: Sequelize.INTEGER },
     IsActive: { type: Sequelize.BOOLEAN },

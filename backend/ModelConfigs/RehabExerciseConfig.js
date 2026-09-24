@@ -76,6 +76,14 @@ function RehabExerciseConfig() {
       },
       { Name: 'IsActive', Label: 'Active', Type: 'CheckBox', md: 4, Position: 5 },
       {
+        Name: 'WarningText',
+        Label: 'Warning',
+        Type: 'TextArea',
+        md: 12,
+        Position: 5,
+        GridField: false,
+      },
+      {
         Name: 'CreateDate',
         Label: 'Created',
         Type: 'Date',

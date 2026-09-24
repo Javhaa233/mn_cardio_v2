@@ -1284,12 +1284,12 @@ exports.listExerciseMovements = async (req, res) => {
     if (!Id) return fail(res, 'INVALID_ID', 'Буруу дугаар');
     const Ex = await Models.RehabExercise.findOne({
       where: { Id, IsActive: true },
-      attributes: ['Id', 'Code', 'Name', 'Description'],
+      attributes: ['Id', 'Code', 'Name', 'Description', 'WarningText'],
       raw: true,
     });
     if (!Ex) return fail(res, 'NOT_FOUND', 'Дасгал олдсонгүй', 404);
     const map = await RehabPlayer.MovementsByExercise([Id]);
-    return ok(res, Object.assign({}, Ex, { Movements: map.get(Id) || [] }));
+    return ok(res, Object.assign(RehabPlayer.ShapeExercise(Ex), { Movements: map.get(Id) || [] }));
   } catch (ex) {
     return serverError(res, ex, 'listExerciseMovements');
   }

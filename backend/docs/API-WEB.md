@@ -35,11 +35,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 4 | 30 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 265 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 273 |
 | — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 125 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **422** |
+| **Нийт** |  |  | **430** |
 
 api-layer задаргаа: `/api/Media` 12 · `/api/admin` 1 · `/api/auth` 5 · `/api/base` 6 · `/api/doctor` 46 · `/api/fhir` 5 · `/api/mobile` 2 · `/api/patient` 46 · `/api/report` 1 · `/api/time` 1.
 
@@ -170,7 +170,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.4. Өвчтөний тусламж үйлчилгээ — `controllers/patient-care/`
 
-Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 48 endpoint.
+Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 56 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -207,11 +207,19 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/TenderForm/Delete` | token | `TenderFormController.js:28` | Soft delete: rec_status = 2, the house convention. |
 | `POST` | `/api/TenderForm/PrintHtml` | token | `TenderFormController.js:29` | The sheet as HTML, for the on-screen preview. |
 | `POST` | `/api/TenderForm/PrintReport` | token | `TenderFormController.js:30` | The same sheet as an A4 PDF. |
-| `POST` | `/api/RehabContent/GetList` | token | `RehabContentController.js:67` | The whole gallery in one read: exercises, their movements, and whether a photo/clip is attached. |
-| `POST` | `/api/RehabContent/Reorder` | token | `RehabContentController.js:141` | Renumber after a drag (or an up/down tap): OrderNo = position in `Ids`. |
-| `POST` | `/api/RehabContent/GetMediaLink` | token | `RehabContentController.js:186` | A short-lived URL a browser can put straight into <img> or <video>. |
-| `POST` | `/api/RehabContent/SetMedia` | token | `RehabContentController.js:230` | Point a movement at a file that has just been uploaded through /BaseObject/uploadFile. |
-| `POST` | `/api/RehabContent/RemoveMovement` | token | `RehabContentController.js:290` | Delete a movement, and the exercise's own row count with it. |
+| `POST` | `/api/RehabContent/GetList` | token | `RehabContentController.js:69` | The whole gallery in one read: exercises, their movements, and whether a photo/clip is attached. |
+| `POST` | `/api/RehabContent/Reorder` | token | `RehabContentController.js:171` | Renumber after a drag (or an up/down tap): OrderNo = position in `Ids`. |
+| `POST` | `/api/RehabContent/GetMediaLink` | token | `RehabContentController.js:216` | A short-lived URL a browser can put straight into <img> or <video>. |
+| `POST` | `/api/RehabContent/SetMedia` | token | `RehabContentController.js:260` | Point a movement at a file that has just been uploaded through /BaseObject/uploadFile. |
+| `POST` | `/api/RehabContent/RemoveMovement` | token | `RehabContentController.js:320` | Delete a movement, and the exercise's own row count with it. |
+| `POST` | `/api/RehabContent/SaveExercise` | token | `RehabContentController.js:365` | Create or update an exercise header. |
+| `POST` | `/api/RehabContent/SaveMovement` | token | `RehabContentController.js:427` | Create or update one movement: dose, steps, warning and messages in one validated write. |
+| `POST` | `/api/RehabContent/DuplicateMovement` | token | `RehabContentController.js:507` | Copy one movement to the end of the same exercise, named "... |
+| `POST` | `/api/RehabContent/DuplicateExercise` | token | `RehabContentController.js:534` | Copy an exercise with all its active movements, as a new inactive draft. |
+| `POST` | `/api/RehabContent/GetPrograms` | token | `RehabContentController.js:627` | Every programme with its blocks, and the exercise each video block plays. |
+| `POST` | `/api/RehabContent/SaveProgram` | token | `RehabContentController.js:673` | Update a programme header (programmes themselves are created by script). |
+| `POST` | `/api/RehabContent/SaveBlock` | token | `RehabContentController.js:709` | Create or update one block. |
+| `POST` | `/api/RehabContent/RemoveBlock` | token | `RehabContentController.js:764` | Take a block out of its programme (IsActive = 0, like RemoveMovement). |
 | `POST` | `/api/PatientTransfer/GetCustomFormData` | token | `PatientTransferController.js:10` |  |
 | `POST` | `/api/PatientTransfer/CustomSave` | token | `PatientTransferController.js:11` |  |
 | `POST` | `/api/PatientSendPage/GetCustomFormData` | token | `PatientSendPageController.js:10` |  |
@@ -686,4 +694,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-22. Нийт endpoint: 422._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-24. Нийт endpoint: 430._
