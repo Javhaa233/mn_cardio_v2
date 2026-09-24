@@ -66,6 +66,30 @@ const Flags = {
    */
   AllowInsecureDevAuth: Bool('ALLOW_INSECURE_DEV_AUTH', false),
 
+  /**
+   * Whether THIS process owns the scheduled jobs.
+   *
+   * server.js calls AppController.runService() on boot, which registers the
+   * nightly backup (23:00, EXEC spFullBackup), two 02:00 procedures, and
+   * ReminderDispatcher on every minute. All four assume exactly ONE backend
+   * process - ReminderDispatcher says so in its own header, and leans on
+   * ecosystem.config.js pinning instances to 1.
+   *
+   * A second backend on the same box breaks that assumption without raising
+   * `instances`. During the v1/v2 parallel run (TEST_TO_PROD_RUNBOOK.md Phase A)
+   * two backends share one database, and a second scheduler would write a
+   * SECOND 2.48 GB backup every night onto a volume that is already 89% full,
+   * and send patients DUPLICATE medication and exercise reminders.
+   *
+   * Defaults TRUE, so a single-server deployment - which is every deployment
+   * today - is unchanged. The v2 process sets it false for the whole of Phase A
+   * and it is flipped to true at promotion, in the same window that v1 stops.
+   *
+   * Exactly one process must have this true. Nothing enforces that; it is a
+   * deployment invariant, which is why server.js warns loudly when it is off.
+   */
+  SchedulerEnabled: Bool('SCHEDULER_ENABLED', true),
+
   /** Count-only until someone turns it on. See helper/RateLimit.js. */
   RateLimitEnabled: Bool('RATE_LIMIT_ENABLED', false),
   RateLimitGlobalMax: Int('RATE_LIMIT_GLOBAL_MAX', 600),

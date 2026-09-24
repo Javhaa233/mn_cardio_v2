@@ -575,8 +575,23 @@ async function startServer() {
       .ResumePending()
       .catch((ex) => console.error('[MediaTranscode] resume failed: ' + ex.message));
 
-    // Start services
-    AppController.runService();
+    // Start services.
+    //
+    // Guarded because these are singleton jobs - the nightly backup, two 02:00
+    // procedures, and the every-minute reminder dispatcher - and a second
+    // backend process against the same database would run a second copy of each.
+    // See helper/FeatureFlags.js SchedulerEnabled.
+    if (Flags.SchedulerEnabled) {
+      AppController.runService();
+    } else {
+      // warn, not info: a backend with no scheduler looks perfectly healthy
+      // while backups silently stop happening. That has to be visible in the
+      // boot log of whichever process is wrong about it.
+      Logger.warn(
+        '[Scheduler] DISABLED by SCHEDULER_ENABLED=false - this process runs no nightly backup, ' +
+          'no 02:00 procedures and no patient reminders. Another backend must own them.'
+      );
+    }
 
     // Create Server
     const PORT = process.env.PORT || 5001;

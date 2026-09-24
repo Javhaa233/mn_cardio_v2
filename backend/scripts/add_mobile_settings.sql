@@ -28,9 +28,9 @@
 -- Safe to re-run.
 
 DECLARE @db sysname = DB_NAME();
-IF @db <> 'MnCardio_test'
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
 BEGIN
-    RAISERROR('Refusing to run: expected MnCardio_test, connected to %s', 16, 1, @db);
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
     SET NOEXEC ON;
 END
 GO

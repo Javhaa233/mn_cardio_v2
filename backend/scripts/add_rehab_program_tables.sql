@@ -24,6 +24,15 @@
 --
 -- Safe to re-run. Run with: node scripts/run_sql.js --db <database> <this file>
 
+-- Refuse any database other than the three this project uses (runbook Stage 2.2).
+DECLARE @db sysname = DB_NAME();
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
+BEGIN
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
+    SET NOEXEC ON;
+END
+GO
+
 -- ---------------------------------------------------------------------------
 -- RehabProgram
 -- ---------------------------------------------------------------------------
