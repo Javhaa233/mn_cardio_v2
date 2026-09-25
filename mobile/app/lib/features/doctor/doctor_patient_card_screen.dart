@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/util/mn_format.dart';
+import '../../shared/theme/app_colors.dart';
 import '../../shared/widgets/app_snack.dart';
 import '../../shared/widgets/measurement_chart.dart';
 import '../../shared/widgets/section_card.dart';
@@ -185,6 +186,10 @@ class _SummaryTab extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        if (card.monitoredBy != null) ...<Widget>[
+          _MonitorsBanner(card: card),
+          const SizedBox(height: 10),
+        ],
         FilledButton.icon(
           onPressed: busy ? null : onToggle,
           style: card.isMonitoredByMe
@@ -514,6 +519,85 @@ class _EvisitsTab extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+/// Хэн хяналтдаа авсныг картын дээд хэсэгт хэлнэ (захиалагчийн шийдвэр,
+/// 2026-09-25). Доорх "Хувийн хяналтад авах" товч нь авах үйлдэл өөрөө.
+/// Олон эмч нэг үйлчлүүлэгчийг хяналтдаа авч болно; авсан нь хэнийг ч хасахгүй.
+class _MonitorsBanner extends StatelessWidget {
+  const _MonitorsBanner({required this.card});
+
+  final PatientCard card;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    // Нэг үйлчлүүлэгч арван эмчийн хяналтад байх нь бий — гурвыг нэрлээд
+    // үлдсэнийг тоогоор.
+    final otherList = (card.monitoredBy ?? const <MonitorBrief>[])
+        .where((MonitorBrief m) => !m.isMe)
+        .map((MonitorBrief m) => m.label)
+        .toList(growable: false);
+    final others = otherList.take(3).join(', ') +
+        (otherList.length > 3 ? ' +${otherList.length - 3}' : '');
+
+    final String main;
+    String? sub;
+    if (card.isMonitoredByMe) {
+      main = 'Таны хяналтад байна';
+      if (others.isNotEmpty) sub = 'Мөн хяналт тавьж буй эмч: $others';
+    } else if (others.isNotEmpty) {
+      main = 'Хяналт тавьж буй эмч: $others';
+      sub = 'Та мөн хяналтандаа авах уу?';
+    } else {
+      main = 'Энэ өвчтөн хэний ч хяналтад байхгүй байна';
+      sub = 'Хяналтандаа авах уу?';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+      decoration: BoxDecoration(
+        color: card.isMonitoredByMe ? AppColors.surface : AppColors.infoLight,
+        borderRadius: BorderRadius.circular(10),
+        border: const Border(
+          left: BorderSide(color: AppColors.cyan, width: 3),
+          top: BorderSide(color: AppColors.hairline),
+          right: BorderSide(color: AppColors.hairline),
+          bottom: BorderSide(color: AppColors.hairline),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Icon(Icons.visibility_outlined, color: AppColors.cyanInk),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Text(
+                  main,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: AppColors.ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (sub != null) ...<Widget>[
+                  const SizedBox(height: 2),
+                  Text(
+                    sub,
+                    style: theme.textTheme.bodySmall
+                        ?.copyWith(color: AppColors.inkMuted),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

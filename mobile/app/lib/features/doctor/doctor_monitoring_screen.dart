@@ -10,6 +10,7 @@ import '../../shared/widgets/state_views.dart';
 import 'doctor_controllers.dart';
 import 'doctor_models.dart';
 import 'doctor_monitoring_journal_screen.dart';
+import 'doctor_patient_extras.dart';
 import 'doctor_patients_screen.dart';
 
 /// 1.2 Миний хяналт.
@@ -188,6 +189,20 @@ class _MonitoringTile extends StatelessWidget {
               ),
             ],
           ),
+          if (row.rehab != null && row.patientId != null) ...<Widget>[
+            const SizedBox(height: 8),
+            _RehabChip(
+              rehab: row.rehab!,
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DoctorPatientRehabScreen(
+                    patientId: row.patientId!,
+                    patientName: patient?.fullName,
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 10),
           if (reading == null)
             Container(
@@ -279,6 +294,71 @@ class _Reading extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Сэргээн засах товч: хөтөлбөр ба өдөр, эсвэл шинж тэмдгээр зогсоосон.
+/// Зогсоолт л улаан — үйлчлүүлэгч push биш чатыг сонгосон тул эмч үүнийг
+/// энэ жагсаалтаас харна. Дарахад сэргээн засах дэлгэц нээгдэнэ.
+class _RehabChip extends StatelessWidget {
+  const _RehabChip({required this.rehab, required this.onTap});
+
+  final RehabGlance rehab;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    Color ink = AppColors.cyanInk;
+    Color bg = AppColors.infoLight;
+    String text = rehab.programName ?? rehab.programCode ?? 'Хөтөлбөргүй';
+    if (rehab.stoppedWithSymptoms) {
+      ink = AppColors.danger;
+      bg = AppColors.dangerLight;
+      text = 'Сүүлийн дасгалаа биеийн байдлаас зогсоосон';
+    } else {
+      if (rehab.planStatus == 'paused') {
+        ink = AppColors.warning;
+        bg = AppColors.warningLight;
+        text = '$text · Түр зогссон';
+      } else if (rehab.planId == null) {
+        ink = AppColors.inkMuted;
+        bg = AppColors.surfaceAlt;
+      }
+      if (rehab.planId != null && rehab.dayNo != null) {
+        text = '$text · ${rehab.dayNo}-р өдөр';
+      }
+    }
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              Icon(Icons.self_improvement_outlined, size: 16, color: ink),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: ink,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
