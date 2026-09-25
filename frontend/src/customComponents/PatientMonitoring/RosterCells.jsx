@@ -6,6 +6,8 @@ import Typography from "@mui/material/Typography";
 import Helper from "helper";
 import { colors } from "@/theme/colors";
 import { radius } from "@/theme/tokens";
+import StatusChip from "customComponents/StatusChip";
+import { SESSION_STATUS } from "./rehabLabels";
 
 /**
  * The three cells that turn the monitoring list from "who is on my list" into
@@ -165,6 +167,63 @@ export function LastReadingCell({ rowdata = null }) {
           </Box>
         ) : null}
       </Typography>
+    </Tooltip>
+  );
+}
+
+/**
+ * Rehab at a glance: the programme and day, or how the last session ended.
+ *
+ * A stop from the symptom sheet is the one state that is red - the patient
+ * chose chat over a push for stops, so this list is where the doctor meets it.
+ * Nothing (a dash) for a patient with no plan and no sessions.
+ */
+export function RehabCell({ rowdata = null }) {
+  const R = rowdata && rowdata.Rehab;
+  if (!R) {
+    return (
+      <Typography
+        variant="caption"
+        component="span"
+        sx={{ color: colors.brand.inkDim }}
+      >
+        —
+      </Typography>
+    );
+  }
+
+  const Last = R.lastSessionAt
+    ? Helper.ObjectHelper.getDateYMD({ DateStr: R.lastSessionAt })
+    : "";
+  const Title =
+    (R.programName ? R.programName : "Хөтөлбөргүй") +
+    (R.dayNo ? " · " + R.dayNo + "-р өдөр" : "") +
+    (R.planStatus === "paused" ? " · Түр зогссон" : "") +
+    (Last
+      ? " · Сүүлийн дасгал " +
+        Last +
+        " (" +
+        (SESSION_STATUS[R.lastStatus] || "") +
+        ")"
+      : "");
+
+  let Tone = "info";
+  let Label = R.programCode || R.programName || "Хөтөлбөргүй";
+  if (R.stoppedWithSymptoms) {
+    Tone = "danger";
+    Label = "Зогсоосон";
+  } else if (R.planStatus === "paused") {
+    Tone = "warning";
+  } else if (!R.planId) {
+    Tone = "neutral";
+  }
+  if (!R.stoppedWithSymptoms && R.dayNo && R.planId) Label += " · " + R.dayNo;
+
+  return (
+    <Tooltip title={Title} placement="top-start">
+      <span>
+        <StatusChip Tone={Tone} Label={Label} />
+      </span>
     </Tooltip>
   );
 }

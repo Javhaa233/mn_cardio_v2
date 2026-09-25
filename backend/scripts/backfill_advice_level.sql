@@ -37,6 +37,15 @@
 --   5. STEP 4 is the rollback, and only works in the same session because it
 --      relies on the backup table created in STEP 2.
 
+-- Refuse any database other than the three this project uses (runbook Stage 2.2).
+DECLARE @db sysname = DB_NAME();
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
+BEGIN
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
+    SET NOEXEC ON;
+END
+GO
+
 SET NOCOUNT ON;
 GO
 

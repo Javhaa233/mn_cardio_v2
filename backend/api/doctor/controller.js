@@ -521,12 +521,20 @@ exports.listMonitoring = async (req, res) => {
       if (!latestByPatient.has(r.patient_id)) latestByPatient.set(r.patient_id, r);
     }
 
-    const data = rows.map((r) => ({
-      id_data: r.id_data,
-      since: r.date_creation,
-      patient: patientById.get(r.patient_id) || null,
-      latestReading: latestByPatient.get(r.patient_id) || null,
-    }));
+    const rehabByRegNo = await RehabPlayer.MonitoringSummary(
+      patients.map((p) => p.p_registration).filter(Boolean)
+    );
+
+    const data = rows.map((r) => {
+      const patient = patientById.get(r.patient_id) || null;
+      return {
+        id_data: r.id_data,
+        since: r.date_creation,
+        patient,
+        latestReading: latestByPatient.get(r.patient_id) || null,
+        rehab: (patient && rehabByRegNo.get(patient.p_registration)) || null,
+      };
+    });
 
     return ok(res, data, { total: count, limit, offset });
   } catch (ex) {
@@ -563,7 +571,12 @@ exports.addMonitoring = async (req, res) => {
     let Id;
     if (existing) {
       Id = existing.id_data;
-      await Models.PatientMonitoringDoctor.update({ is_active: '1' }, { where: { id_data: Id } });
+      // date_modif is the banner's "since" (CareTeam.GetMonitors), so a
+      // re-take restamps it rather than reporting when the row was first made.
+      await Models.PatientMonitoringDoctor.update(
+        { is_active: '1', date_modif: ObjectHelper.getDateYMDHMS() },
+        { where: { id_data: Id } }
+      );
     } else {
       Id = await BaseControllerHelper.BaseCreate({
         ObjectName: 'PatientMonitoringDoctor',
@@ -1737,7 +1750,7 @@ exports.getPatient = async (req, res) => {
       Action: 'ViewPatient',
     });
 
-    const [visits, journal, monitored] = await Promise.all([
+    const [visits, journal, monitors] = await Promise.all([
       Models.Visit.findAll({
         where: { PatientId: id },
         attributes: [
@@ -1762,12 +1775,17 @@ exports.getPatient = async (req, res) => {
         limit: 180,
         raw: true,
       }),
-      Models.PatientMonitoringDoctor.findOne({
-        where: { patient_id: id, user_id: D.UserId, is_active: '1' },
-        attributes: ['id_data'],
-        raw: true,
-      }),
+      // Everyone monitoring this patient, for the card's banner. Name and
+      // organisation only - see CareTeam.GetMonitors.
+      CareTeam.GetMonitors(id, D.UserId),
     ]);
+    const monitoredBy = monitors.map((m) => ({
+      userId: m.UserId,
+      name: m.Name,
+      organizationName: m.OrganizationName,
+      since: m.Since,
+      isMe: m.IsMe,
+    }));
 
     return ok(res, {
       patient,
@@ -1781,7 +1799,8 @@ exports.getPatient = async (req, res) => {
           weight: journal.map((r) => r.weight),
         },
       },
-      isMonitoredByMe: !!monitored,
+      isMonitoredByMe: monitoredBy.some((m) => m.isMe),
+      monitoredBy,
     });
   } catch (ex) {
     return serverError(res, ex, 'getPatient');

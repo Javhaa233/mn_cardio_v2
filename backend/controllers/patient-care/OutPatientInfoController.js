@@ -112,13 +112,10 @@ async function GetReportData(Id, LogedUser) {
     }
 
     // Every print used to mint a new password, so each reprint broke the sheet
-    // the patient was already carrying. Now the first print of this discharge
-    // issues one and reprints show the login name only; a doctor reissues on
-    // request (GetPatientPlainPassword). See helper/PatientCredential.js.
-    //
-    // Keyed on the Stay when there is one - the same key PrintByStayId uses -
-    // so printing before and after saving the discharge form is still ONE
-    // password per hospital stay.
+    // the patient was already carrying. Now a patient is issued ONE password,
+    // on the first sheet ever printed for them; every later sheet shows the
+    // login name only, and a doctor reissues on request
+    // (GetPatientPlainPassword). See helper/PatientCredential.js.
     if (PatientData) {
       Credential = await PatientCredential.IssueOnce({
         PatientId,
@@ -599,8 +596,8 @@ async function GetPatientPlainPassword(req, res) {
 
 // The client-rendered discharge report (OutPatientInfoReport.jsx, html2canvas)
 // calls this at the moment it prints, so it follows the same rule as the
-// server PDF: the first print of a stay issues a password, reprints return
-// AlreadyIssued with the login name only. Opening the report issues nothing.
+// server PDF: the first sheet printed for a patient issues a password, every
+// later one returns AlreadyIssued with the login name only. Opening the report issues nothing.
 async function IssueLoginForPrint(req, res) {
   try {
     const { Id } = req.body;

@@ -6,7 +6,9 @@
  * file only reads rows and shapes them. Tables: scripts/add_rehab_program_tables.sql.
  */
 
-const { Models, Op } = require('../config/DB');
+const { Models, Op, sequelize, Sequelize } = require('../config/DB');
+
+const { QueryTypes } = Sequelize;
 const MediaRef = require('./MediaRef');
 const Dose = require('./RehabDose');
 const Cues = require('./RehabCues');
@@ -258,7 +260,75 @@ async function SessionDetail(Id) {
   });
 }
 
+
+/**
+ * Rehab at a glance for each monitored patient: the plan they are on and how
+ * their last session ended. Two queries for the whole page, keyed on the
+ * register number because every rehab table is (see model/Rehabilitation).
+ *
+ * `stoppedWithSymptoms` is the one a doctor must not miss - the patient ended
+ * the session from the red symptom sheet - so the list can flag the row.
+ * Null for a patient with no plan and no sessions: "no rehab" is not news.
+ *
+ * Shared by the doctor app's GET /api/doctor/monitoring and the web roster
+ * (PatientMonitoringController.GetList), so both lists flag the same rows.
+ */
+async function MonitoringSummary(RegNos) {
+  const out = new Map();
+  if (!RegNos.length) return out;
+
+  const [plans, sessions] = await Promise.all([
+    sequelize.query(
+      `SELECT p.PatRegNo, p.Id, p.StartDate, p.Status, g.Code AS ProgramCode, g.Name AS ProgramName
+         FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY PatRegNo
+                                            ORDER BY StartDate DESC, Id DESC) AS rn
+                 FROM [RehabPlan]
+                WHERE PatRegNo IN (:RegNos) AND Status IN ('active', 'paused')) p
+         LEFT JOIN [RehabProgram] g ON g.Id = p.ProgramId
+        WHERE p.rn = 1`,
+      { type: QueryTypes.SELECT, replacements: { RegNos } }
+    ),
+    sequelize.query(
+      `SELECT PatRegNo, Id, StartedAt, Status, StopReason
+         FROM (SELECT PatRegNo, Id, StartedAt, Status, StopReason,
+                      ROW_NUMBER() OVER (PARTITION BY PatRegNo
+                                         ORDER BY StartedAt DESC, Id DESC) AS rn
+                 FROM [RehabSession]
+                WHERE PatRegNo IN (:RegNos)) s
+        WHERE s.rn = 1`,
+      { type: QueryTypes.SELECT, replacements: { RegNos } }
+    ),
+  ]);
+
+  const planBy = new Map(plans.map((p) => [p.PatRegNo, p]));
+  const sessionBy = new Map(sessions.map((s) => [s.PatRegNo, s]));
+  for (const RegNo of RegNos) {
+    const p = planBy.get(RegNo);
+    const s = sessionBy.get(RegNo);
+    if (!p && !s) continue;
+    const reason = s ? ParseStopReason(s.StopReason) : null;
+    out.set(RegNo, {
+      planId: p ? p.Id : null,
+      planStatus: p ? p.Status : null,
+      programCode: p ? p.ProgramCode : null,
+      programName: p ? p.ProgramName : null,
+      dayNo: p ? Dose.DayNo(p.StartDate) : null,
+      lastSessionAt: s ? s.StartedAt : null,
+      lastStatus: s ? s.Status : null,
+      stoppedWithSymptoms: !!(
+        s &&
+        s.Status === 'stopped' &&
+        reason &&
+        Array.isArray(reason.symptoms) &&
+        reason.symptoms.length
+      ),
+    });
+  }
+  return out;
+}
+
 module.exports = {
+  MonitoringSummary,
   SessionDetail,
   STOP_SYMPTOMS,
   FINISH_STATUSES,

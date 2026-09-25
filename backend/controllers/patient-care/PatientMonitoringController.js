@@ -6,11 +6,14 @@ const { Models, sequelize } = require('../../config/DB');
 const BaseControllerHelper = require('../../helper/BaseControllerHelper');
 const ModelHelper = require('../../helper/ModelHelper');
 const ObjectHelper = require('../../helper/ObjectHelper');
+const CareTeam = require('../../helper/CareTeam');
+const RehabPlayer = require('../../helper/RehabPlayer');
 
 // routes
 router.post('/SavePatient', SavePatient);
 router.post('/RemovePatient', RemovePatient);
 router.post('/CheckPatientMonitoring', CheckPatientMonitoring);
+router.post('/GetPatientMonitors', GetPatientMonitors);
 router.post('/GetList', GetList);
 router.post('/getPressureChartData', getPressureChartData);
 
@@ -224,6 +227,29 @@ async function AttachRosterColumns(Rows, PatientIds) {
         }
       : null;
   });
+
+  /*
+   * Rehab: the plan the patient is on and how the last session ended, so a
+   * patient who stopped from the symptom sheet stands out on this list (the
+   * patient chose chat over a push for stops, so the list is where it shows).
+   * Keyed on the register number like every rehab table; two queries for the
+   * page, shared with the doctor app's list.
+   */
+  const RegNoOf = (Row) =>
+    (Row.Patient && Row.Patient.p_registration) || Row['Patient.p_registration'] || null;
+  try {
+    const RegNos = [...new Set(Rows.map(RegNoOf).filter(Boolean))];
+    const RehabBy = await RehabPlayer.MonitoringSummary(RegNos);
+    Rows.forEach((Row) => {
+      Row.Rehab = RehabBy.get(RegNoOf(Row)) || null;
+    });
+  } catch (ex) {
+    // A database without the rehab tables must not break the roster.
+    console.log('[PatientMonitoring/GetList] rehab column failed:', ex.message);
+    Rows.forEach((Row) => {
+      Row.Rehab = null;
+    });
+  }
 }
 
 /**
@@ -262,6 +288,31 @@ async function CheckPatientMonitoring(req, res) {
 
     result.Data = { Check: CheckData };
     return res.send(JSON.stringify(result));
+  } catch (ex) {
+    console.log(ex);
+    return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
+  }
+}
+
+/**
+ * Every doctor currently monitoring a patient, for the patient-card banner.
+ * Name + organisation only - see CareTeam.GetMonitors for why this is not
+ * gated on care-team membership. Patients are refused like the writes are.
+ */
+async function GetPatientMonitors(req, res) {
+  try {
+    const Owner = ResolveMonitoringOwner(req.LogedUser);
+    if (!Owner.Ok) {
+      return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult(Owner.Reason)));
+    }
+    const PatientId = parseInt(req.body.PatientId, 10);
+    if (!PatientId) {
+      return res.send(
+        JSON.stringify(BaseControllerHelper.GetDefaultErrorResult('Information is missing'))
+      );
+    }
+    const Data = await CareTeam.GetMonitors(PatientId, Owner.UserId);
+    return res.send(JSON.stringify({ Success: true, Message: '', Data }));
   } catch (ex) {
     console.log(ex);
     return res.send(JSON.stringify(BaseControllerHelper.GetDefaultErrorResult()));
@@ -333,7 +384,7 @@ async function SavePatient(req, res) {
         var Monitoring = OldMonitoring[0];
         Id = Monitoring.id_data;
         await Models.PatientMonitoringDoctor.update(
-          { is_active: '1' },
+          { is_active: '1', date_modif: ObjectHelper.getDateYMDHMS() },
           { where: { id_data: Monitoring.id_data } }
         );
       } else {

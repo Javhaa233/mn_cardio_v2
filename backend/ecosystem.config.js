@@ -26,20 +26,27 @@ module.exports = {
   apps: [
     {
       /*
-       * PRODUCTION ALREADY RUNS A PM2 APP UNDER A DIFFERENT NAME.
+       * THREE NAMES ARE IN PLAY. PM2 keys apps by name, so getting this wrong
+       * starts a SECOND process that fights the first over its port.
        *
-       * smr.telemedicine.mn was started by hand, before this file existed, as
-       * `mn-cardio-backend` (PRODUCTION-CHECKLIST.md). PM2 keys apps by name, so
-       * `pm2 start ecosystem.config.js` there does NOT adopt that process - it
-       * starts a SECOND one, and the two fight over port 5001.
+       *   mn-cardio-backend      the live v1 API on production, port 5001.
+       *                          Started by hand before this file existed.
+       *   mn-cardio-backend-v2   the v2 API during the parallel run, port 5002.
+       *                          See TEST_TO_PROD_RUNBOOK.md Phase A.
+       *   mncardio-api           the generic name used throughout the customer's
+       *                          handover document (docs/handover/admin-guide.md,
+       *                          11 places), and the default here.
        *
-       * The name is left as `mncardio-api` because that is what the customer's
-       * own handover document uses throughout (docs/handover/admin-guide.md, 11
-       * places). Reconciling them is a deployment decision, not a code change:
-       * either `pm2 delete mn-cardio-backend` before the first start from this
-       * file, or rename here and in the admin guide together.
+       * The default stays `mncardio-api` so the admin guide remains correct for
+       * a fresh single-server install. Production overrides it, which is why the
+       * name is read from the environment rather than reconciled by editing:
+       *
+       *   PM2_APP_NAME=mn-cardio-backend     pm2 restart ecosystem.config.js --update-env
+       *   PM2_APP_NAME=mn-cardio-backend-v2  pm2 start   ecosystem.config.js --update-env
+       *
+       * Restart from the FILE, not the name, or the env override is not applied.
        */
-      name: 'mncardio-api',
+      name: process.env.PM2_APP_NAME || 'mncardio-api',
       script: 'server.js',
       cwd: __dirname,
       node_args: '--max-http-header-size=524288',
@@ -62,7 +69,17 @@ module.exports = {
 
       autorestart: true,
       watch: false,
-      max_memory_restart: '1G',
+      /*
+       * PM2 kills and restarts the process above this, WITHOUT logging an error.
+       * 1G is too low for the CVD report exports (CVDReportController
+       * *ExportExcel set limit=1000000 and build the whole workbook in memory):
+       * on 2026-09-24 an admin's country-wide export restarted v2 on production
+       * mid-request, dropping every user's requests and sockets. v1 never hit
+       * it only because it was started by hand with no limit at all.
+       * The box has 124 GB; production sets PM2_MAX_MEMORY=4G. The real fix is
+       * streaming those exports (ExcelJS WorkbookWriter).
+       */
+      max_memory_restart: process.env.PM2_MAX_MEMORY || '1G',
       // Puppeteer's Chrome and the report generators are slow to start under
       // load; give the process room before PM2 decides a restart loop is stuck.
       min_uptime: '20s',

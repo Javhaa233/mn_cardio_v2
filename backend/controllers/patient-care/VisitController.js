@@ -54,10 +54,10 @@ async function GetReportData(Id, LogedUser) {
       Data: visit,
     });
     const PatientId = visit.PatientId;
-    // Patients come rarely, so every visit's sheet carries a fresh password:
-    // the first print of this visit issues it, reprints of the same visit do
-    // not (so the sheet already handed over keeps working). Creates the portal
-    // account if the patient has none. See helper/PatientCredential.js.
+    // One password per patient until ДАН: the first sheet ever printed for
+    // this patient issues it, later visits print the login name only (so the
+    // sheet already handed over keeps working). Creates the portal account if
+    // the patient has none. See helper/PatientCredential.js.
     Credential = await PatientCredential.IssueOnce({
       PatientId,
       LogedUser,

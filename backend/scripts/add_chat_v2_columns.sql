@@ -45,6 +45,15 @@
 -- =============================================================================
 
 
+-- Refuse any database other than the three this project uses (runbook Stage 2.2).
+DECLARE @db sysname = DB_NAME();
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
+BEGIN
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
+    SET NOEXEC ON;
+END
+GO
+
 -- =============================================================================
 -- STEP 0 - INSPECT. Run this alone, first, and read it. Nothing here writes.
 -- =============================================================================

@@ -35,6 +35,7 @@ import {
   SurgeryPlansTable,
 } from "@features/patient/components/PatientShow";
 import { PatientActions } from "@features/patient";
+import MonitoringBanner from "customComponents/PatientActions/MonitoringBanner";
 import CVDMonitoringTable from "customComponents/CardiovascularDisease/Tables/CVDMonitoringTable";
 
 // 2023-11-29
@@ -903,6 +904,8 @@ class PatientShow extends Component {
       return (
         <div style={{ width: "100%" }}>
           <div style={containerStyle}>
+            {/* ContactPatientId, not PatientId: see the state comment above. */}
+            <MonitoringBanner PatientId={ContactPatientId} />
             <GridContainer style={{ marginBottom: "10px" }}>
               <GridItem xs={12} sm={12} md={12}>
                 <PatientActions

@@ -21,6 +21,15 @@
 
   This file is ASCII on purpose, so sqlcmd -i needs no BOM.
 */
+-- Refuse any database other than the three this project uses (runbook Stage 2.2).
+DECLARE @db sysname = DB_NAME();
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
+BEGIN
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
+    SET NOEXEC ON;
+END
+GO
+
 SET NOCOUNT ON;
 SET XACT_ABORT ON;
 BEGIN TRANSACTION;

@@ -12,6 +12,15 @@
 --     node scripts/generate_form_views.js
 --     touch server.js          # nodemon does not watch model/ or ModelConfigs/
 --
+-- Refuse any database other than the three this project uses (runbook Stage 2.2).
+DECLARE @db sysname = DB_NAME();
+IF @db NOT IN ('MnCardio_restored', 'MnCardioNew', 'MnCardio_test')
+BEGIN
+    RAISERROR('Refusing to run: unexpected database "%s".', 16, 1, @db);
+    SET NOEXEC ON;
+END
+GO
+
 -- ===========================================================================
 -- PART 1 - control types the seed generator inferred wrongly
 -- ===========================================================================

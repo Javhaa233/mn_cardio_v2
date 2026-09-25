@@ -11,12 +11,13 @@
  * The rule now:
  *   - the password is 6 digits, because patients type it on a phone one
  *     character at a time;
- *   - it is issued ONCE per record (a discharge, a stay, a visit). The first
- *     print of that record issues it; reprints of the same record print the
- *     login name only. Whether a record already issued one is read from the
- *     UserActionHistory trail this helper writes, so no schema change;
- *   - only a RECENT record (last 30 days) issues automatically, so reprinting
- *     an archived discharge does not replace the password in use today;
+ *   - it is issued ONCE per PATIENT, not per record. The first sheet printed
+ *     for a patient issues it; every later sheet - a new visit, a new stay, a
+ *     reprint - prints the login name only, so the password the patient
+ *     already has keeps working until ДАН. Whether a patient was already
+ *     issued one is read from the UserActionHistory trail this helper writes,
+ *     so no schema change. (Until 2026-09-25 it was once per record, and each
+ *     new visit replaced the password on the patient's older sheet.);
  *   - a doctor can reissue explicitly (the patient lost the sheet). Issuing
  *     replaces the previous password - only the newest sheet works.
  *
@@ -61,17 +62,6 @@ function ExpireDate(From) {
   return ObjectHelper.getDateYMD({ Date: Start });
 }
 
-// A record whose date (discharge, visit) is more than this far back is an
-// archive reprint, not the patient leaving today.
-const AUTO_ISSUE_DAYS = 30;
-
-function IsOld(RecordDate) {
-  if (!RecordDate) return false;
-  const When = new Date(RecordDate);
-  if (isNaN(When.getTime())) return false;
-  return Date.now() - When.getTime() > AUTO_ISSUE_DAYS * 24 * 60 * 60 * 1000;
-}
-
 async function HasAccount(PatientId) {
   const Patient = await Models.Patient.findByPk(PatientId, {
     attributes: ['user_id'],
@@ -85,10 +75,12 @@ async function HasAccount(PatientId) {
   return !!User;
 }
 
-async function IssuedFor(LinkObjectName, LinkObjectId) {
-  if (!LinkObjectName || !LinkObjectId) return false;
+// Any issue to this patient - a first print or a doctor's reissue, on any
+// record - counts.
+async function IssuedToPatient(PatientId) {
+  if (!PatientId) return false;
   const Row = await Models.UserActionHistory.findOne({
-    where: { LinkObjectName, LinkObjectId, Action: ISSUE_ACTION },
+    where: { PatientId, Action: ISSUE_ACTION },
     attributes: ['Id'],
     raw: true,
   });
@@ -120,7 +112,7 @@ async function LoginName(PatientId) {
  * patient does not exist or has no register number to log in with.
  *
  * LinkObjectName/LinkObjectId name the record the sheet belongs to, which is
- * what IssuedFor later checks. Reason 'Reissue' marks a doctor's explicit
+ * written to the audit trail. Reason 'Reissue' marks a doctor's explicit
  * request rather than a first print.
  */
 async function Issue({ PatientId, LogedUser, LinkObjectName, LinkObjectId, ExpireFrom, Reason }) {
@@ -193,23 +185,22 @@ async function Issue({ PatientId, LogedUser, LinkObjectName, LinkObjectId, Expir
 }
 
 /**
- * The print paths' rule: issue on the first print of a record, print the
- * login name only on every reprint. Returns the same shape as Issue, with
- * Password null when the record already issued one.
+ * The print paths' rule: issue on the first sheet printed for a patient,
+ * print the login name only on every sheet after that. Returns the same shape
+ * as Issue, with Password null when the patient already has one.
+ *
+ * A patient with no account always gets one. A patient whose account predates
+ * this helper (no issue in the trail) gets one more password, once.
  */
 async function IssueOnce(Args) {
-  const Earlier = {
-    UserName: await LoginName(Args.PatientId),
-    Password: null,
-    ExpireDate: null,
-    AlreadyIssued: true,
-  };
-  if (await IssuedFor(Args.LinkObjectName, Args.LinkObjectId)) return Earlier;
-
-  // Reprinting an old record from the archive (a discharge from last year)
-  // must not replace the password the patient is using today. Only a recent
-  // record issues automatically - unless the patient has no account at all.
-  if (IsOld(Args.ExpireFrom) && (await HasAccount(Args.PatientId))) return Earlier;
+  if ((await HasAccount(Args.PatientId)) && (await IssuedToPatient(Args.PatientId))) {
+    return {
+      UserName: await LoginName(Args.PatientId),
+      Password: null,
+      ExpireDate: null,
+      AlreadyIssued: true,
+    };
+  }
 
   const Result = await Issue(Args);
   return Result ? { ...Result, AlreadyIssued: false } : null;
@@ -220,7 +211,7 @@ module.exports = {
   NormalizeUserName,
   NormalizePassword,
   LoginName,
-  IssuedFor,
+  IssuedToPatient,
   Issue,
   IssueOnce,
 };

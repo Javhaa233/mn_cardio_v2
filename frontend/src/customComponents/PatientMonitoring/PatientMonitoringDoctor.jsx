@@ -22,6 +22,8 @@ import MonitorQuestion from "customComponents/PatientMonitoring/MonitorQuestion"
 import PatientMonitoring from "customComponents/PatientMonitoring/PatientMonitoring";
 import ShowPatient from "customComponents/FieldActions/ShowPatient";
 import BtnPatientMonitor from "customComponents/PatientMonitoring/Actions/BtnPatientMonitor";
+import BtnRehab from "./Actions/BtnRehab";
+import RehabPlanPanel from "./RehabPlanPanel";
 import BtnRemovePatient from "customComponents/PatientMonitoring/Actions/BtnRemovePatient";
 import BtnRemoteVisit from "customComponents/PatientMonitoring/Actions/BtnRemoteVisit";
 import BtnChat from "customComponents/PatientMonitoring/Actions/BtnChat";
@@ -31,6 +33,7 @@ import {
   AwaitingReplyCell,
   LastContactCell,
   LastReadingCell,
+  RehabCell,
 } from "customComponents/PatientMonitoring/RosterCells";
 import RemoteVisitList from "customComponents/PatientPlatform/RemoteVisitList";
 
@@ -365,6 +368,25 @@ class PatientMonitoringDoctor extends React.Component {
     this.setState({ CommentDialog: DialogData });
   };
 
+  ShowRehab = (RowData) => {
+    const { t } = this.props;
+    const DialogData = (
+      <BaseDialog
+        Close={() => {
+          this.setState({ CommentDialog: null });
+          // The roster's rehab column reflects whatever was changed here.
+          this.GetData && this.GetData();
+        }}
+        Width="820px"
+        Title={t("Сэргээн засах")}
+        HeaderContent={this.DialogHeader(RowData.Patient)}
+      >
+        <RehabPlanPanel PatientId={RowData.patient_id} />
+      </BaseDialog>
+    );
+    this.setState({ CommentDialog: DialogData });
+  };
+
   ShowRemoteVisit = (RowData) => {
     const DialogData = (
       <BaseDialog
@@ -501,6 +523,12 @@ class PatientMonitoringDoctor extends React.Component {
     FieldLists.push({
       Name: "LastReading",
       Label: t("Даралт · судас"),
+      NoFilter: true,
+      NoSorting: true,
+    });
+    FieldLists.push({
+      Name: "Rehab",
+      Label: t("Сэргээн засах"),
       NoFilter: true,
       NoSorting: true,
     });
@@ -658,10 +686,11 @@ class PatientMonitoringDoctor extends React.Component {
               { Field: "Journals", Component: <ShowJournals /> },
               { Field: "LastContact", Component: <LastContactCell /> },
               { Field: "LastReading", Component: <LastReadingCell /> },
+              { Field: "Rehab", Component: <RehabCell /> },
             ]}
             // number, surname, forename, awaiting, register, start, ICD10,
-            // last contact, reading, actions
-            widthPattern="40c, 130l, 130l, 90c, 120l, 110c, 220l, 120c, 110c, 130r"
+            // last contact, reading, rehab, actions
+            widthPattern="40c, 130l, 130l, 90c, 120l, 110c, 220l, 120c, 110c, 120l, 160r"
             RowActions={[
               {
                 // One conversation. The question thread is still the record and
@@ -679,6 +708,10 @@ class PatientMonitoringDoctor extends React.Component {
               {
                 Component: <BtnPatientMonitor />,
                 onClick: (Data) => this.ShowPatientMonitoring(Data),
+              },
+              {
+                Component: <BtnRehab />,
+                onClick: (Data) => this.ShowRehab(Data),
               },
               {
                 Component: <BtnRemoteVisit />,
