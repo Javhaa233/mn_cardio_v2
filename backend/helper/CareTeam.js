@@ -146,9 +146,67 @@ async function IsTreating({ UserId, PatientId }) {
   return Value;
 }
 
+/**
+ * Who is monitoring this patient right now - for the "Энэ өвчтөн ...-ын хяналтад
+ * байна" banner on the patient card (web and doctor app).
+ *
+ * Deliberately NOT behind CanAccessPatient: the banner is how a doctor who is
+ * not yet on the team finds out and takes the patient, so asking for access
+ * first would make the banner useless to exactly the person it is for. What it
+ * returns is therefore limited to name, organisation and since-when - the same
+ * a colleague would learn by asking at the nurses' station - never anything
+ * clinical.
+ *
+ * Since uses date_modif, not date_creation: the legacy date_creation is a SQL
+ * `date` and drops the time, and SavePatient re-activates an old row by
+ * flipping is_active, so date_creation would report the FIRST time, not this one.
+ */
+async function GetMonitors(PatientId, ViewerUserId) {
+  if (!PatientId) return [];
+
+  const Rows = await sequelize.query(
+    `SELECT pmd.user_id AS UserId,
+            dp.lastname AS LastName,
+            dp.firstname AS FirstName,
+            u.UserName AS UserName,
+            o.Name AS OrganizationName,
+            pmd.date_modif AS Since
+       FROM [PatientMonitoringDoctor] pmd
+       JOIN [Users] u ON u.Id = pmd.user_id AND u.RoleId <> 4
+       LEFT JOIN [DoctorsProfile] dp
+         ON dp.id = pmd.user_id AND ISNULL(dp.rec_status, 0) <> 2
+       LEFT JOIN [Organization] o ON o.Id = dp.OrganizationId
+      WHERE pmd.patient_id = :PatientId
+        AND pmd.is_active = '1'
+      ORDER BY pmd.date_modif`,
+    { type: Sequelize.QueryTypes.SELECT, replacements: { PatientId } }
+  );
+
+  // A doctor with two profile rows would otherwise be listed twice.
+  const Seen = new Set();
+  const Result = [];
+  for (const R of Rows) {
+    if (Seen.has(String(R.UserId))) continue;
+    Seen.add(String(R.UserId));
+    const Last = (R.LastName || '').trim();
+    const First = (R.FirstName || '').trim();
+    // "Д.Бат" - initial of the family name, then the given name, as on the slip.
+    const Name = First ? (Last ? Last.charAt(0) + '.' + First : First) : R.UserName || '';
+    Result.push({
+      UserId: R.UserId,
+      Name,
+      OrganizationName: R.OrganizationName || '',
+      Since: R.Since,
+      IsMe: ViewerUserId != null && String(R.UserId) === String(ViewerUserId),
+    });
+  }
+  return Result;
+}
+
 module.exports = {
   GetCareTeamUserIds,
   GetCareTeamPatientIds,
   CanAccessPatient,
   IsTreating,
+  GetMonitors,
 };

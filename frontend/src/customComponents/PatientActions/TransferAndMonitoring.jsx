@@ -71,6 +71,18 @@ export default function TransferAndMonitoring(props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [PatientId]);
 
+  // The patient-card banner can take the patient too; stay in step with it.
+  useEffect(() => {
+    const OnChanged = (e) => {
+      if (!e.detail || String(e.detail.PatientId) === String(PatientId))
+        CheckPatientMonitoring();
+    };
+    window.addEventListener("mncardio:monitoring-changed", OnChanged);
+    return () =>
+      window.removeEventListener("mncardio:monitoring-changed", OnChanged);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [PatientId]);
+
   // Team monitoring
   const GetDoctorsTeam = async () => {
     if (PatientId) {

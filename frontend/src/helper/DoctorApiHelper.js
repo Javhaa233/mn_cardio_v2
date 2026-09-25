@@ -164,6 +164,22 @@ DoctorApiHelper.prototype.GetDiagnostic = (Type, Id) =>
 DoctorApiHelper.prototype.GetPatientRehab = (PatientId) =>
   request("GET", "/patients/" + PatientId + "/rehab");
 
+// --- 2.7c Сэргээн засах хөтөлбөр ------------------------------------------
+
+DoctorApiHelper.prototype.GetRehabPrograms = () =>
+  request("GET", "/rehab/programs");
+
+/** { plan, blocks, age, maxHr, sessions } - plan is null when none is active. */
+DoctorApiHelper.prototype.GetPatientRehabPlan = (PatientId) =>
+  request("GET", "/patients/" + PatientId + "/rehab/plan");
+
+/**
+ * { ProgramId, StartDate?, IntensityPct?, MaxHrOverride?, Notes? } assigns a
+ * new plan (ending the current one); { Status } alone pauses, resumes or ends.
+ */
+DoctorApiHelper.prototype.SavePatientRehabPlan = (PatientId, data) =>
+  request("POST", "/patients/" + PatientId + "/rehab/plan", { data });
+
 DoctorApiHelper.prototype.GetPatientAssessments = (PatientId, params) =>
   request("GET", "/patients/" + PatientId + "/rehab/assessment", { params });
 

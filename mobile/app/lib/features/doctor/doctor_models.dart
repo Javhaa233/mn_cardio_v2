@@ -296,11 +296,16 @@ class MonitoringRow {
     this.since,
     this.patient,
     this.latestReading,
+    this.rehab,
   });
 
   final int idData;
   final DateTime? since;
   final PatientBrief? patient;
+
+  /// Сэргээн засах товч — хөтөлбөр, өдөр, сүүлийн дасгал. Хөтөлбөр ч, дасгал
+  /// ч байхгүй бол `null`.
+  final RehabGlance? rehab;
 
   /// Хамгийн сүүлийн хэмжилт — жагсаалттай хамт ирдэг тул мөр бүрд нэмэлт
   /// дуудлага хийхгүй.
@@ -311,14 +316,78 @@ class MonitoringRow {
   factory MonitoringRow.fromJson(Map<String, dynamic> json) {
     final patientJson = J.obj(json, <String>['patient']);
     final readingJson = J.obj(json, <String>['latestReading']);
+    final rehabJson = J.obj(json, <String>['rehab']);
     return MonitoringRow(
       idData: J.intOf(json, <String>['id_data']) ?? 0,
       since: J.date(json, <String>['since']),
       patient: patientJson == null ? null : PatientBrief.fromJson(patientJson),
       latestReading:
           readingJson == null ? null : JournalEntry.fromJson(readingJson),
+      rehab: rehabJson == null ? null : RehabGlance.fromJson(rehabJson),
     );
   }
+}
+
+/// Миний хяналтын мөрөн дээрх сэргээн засах товч (`rehab`,
+/// backend helper/RehabPlayer.js MonitoringSummary).
+class RehabGlance {
+  const RehabGlance({
+    this.planId,
+    this.planStatus,
+    this.programCode,
+    this.programName,
+    this.dayNo,
+    this.lastSessionAt,
+    this.lastStatus,
+    this.stoppedWithSymptoms = false,
+  });
+
+  final int? planId;
+  final String? planStatus;
+  final String? programCode;
+  final String? programName;
+  final int? dayNo;
+  final DateTime? lastSessionAt;
+  final String? lastStatus;
+
+  /// Үйлчлүүлэгч шинж тэмдгийн хуудаснаас дасгалаа зогсоосон — эмч заавал
+  /// харах ёстой төлөв.
+  final bool stoppedWithSymptoms;
+
+  factory RehabGlance.fromJson(Map<String, dynamic> json) => RehabGlance(
+        planId: J.intOf(json, <String>['planId']),
+        planStatus: J.str(json, <String>['planStatus']),
+        programCode: J.str(json, <String>['programCode']),
+        programName: J.str(json, <String>['programName']),
+        dayNo: J.intOf(json, <String>['dayNo']),
+        lastSessionAt: J.date(json, <String>['lastSessionAt']),
+        lastStatus: J.str(json, <String>['lastStatus']),
+        stoppedWithSymptoms: J.boolOf(json, <String>['stoppedWithSymptoms']),
+      );
+}
+
+/// Үйлчлүүлэгчийг хяналтдаа авсан эмч — картын дээрх мэдэгдэлд.
+/// Нэр, байгууллага л ирнэ; эмнэлзүйн мэдээлэл биш.
+class MonitorBrief {
+  const MonitorBrief({
+    required this.name,
+    this.organizationName,
+    this.isMe = false,
+  });
+
+  final String name;
+  final String? organizationName;
+  final bool isMe;
+
+  String get label => (organizationName == null || organizationName!.isEmpty)
+      ? name
+      : '$name ($organizationName)';
+
+  factory MonitorBrief.fromJson(Map<String, dynamic> json) => MonitorBrief(
+        name: J.str(json, <String>['name']) ?? '',
+        organizationName: J.str(json, <String>['organizationName']),
+        isMe: J.boolOf(json, <String>['isMe']),
+      );
 }
 
 /// Хяналтад буй үйлчлүүлэгчийн тэмдэглэл — мөрүүд ба графикийн цуваа хамт.
@@ -568,12 +637,18 @@ class PatientCard {
     required this.visits,
     required this.journal,
     required this.isMonitoredByMe,
+    this.monitoredBy,
   });
 
   final PatientBrief patient;
   final List<DoctorVisit> visits;
   final JournalSummary journal;
   final bool isMonitoredByMe;
+
+  /// Энэ үйлчлүүлэгчийг хяналтдаа авсан бүх эмч (намайг оруулаад).
+  /// `null` = сервер энэ талбарыг илгээгээгүй (хуучин хувилбар) — хоосон
+  /// жагсаалт биш, учир нь хоосон нь "хэний ч хяналтад байхгүй" гэсэн үг.
+  final List<MonitorBrief>? monitoredBy;
 
   factory PatientCard.fromJson(Map<String, dynamic> json) {
     final patientJson = J.obj(json, <String>['patient']) ?? <String, dynamic>{};
@@ -586,6 +661,12 @@ class PatientCard {
           .toList(growable: false),
       journal: JournalSummary.fromJson(journalJson),
       isMonitoredByMe: J.boolOf(json, <String>['isMonitoredByMe']),
+      monitoredBy: json['monitoredBy'] is List
+          ? J
+              .list(json, <String>['monitoredBy'])
+              .map(MonitorBrief.fromJson)
+              .toList(growable: false)
+          : null,
     );
   }
 }

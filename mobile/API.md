@@ -725,8 +725,16 @@ GET    /monitoring/:patientId/questions     ?limit &offset
 POST   /monitoring/:patientId/questions     { "comment": "..." }
 ```
 
-The list returns `{ id_data, since, patient, latestReading }` per row — the most recent
+The list returns `{ id_data, since, patient, latestReading, rehab }` per row — the most recent
 journal reading is included, so the screen needs no second call per patient.
+
+`rehab` (added 2026-09-25) is `null` for a patient with no plan and no sessions, otherwise
+`{ planId, planStatus, programCode, programName, dayNo, lastSessionAt, lastStatus,
+stoppedWithSymptoms }`. `planStatus` is `active` | `paused` (an ended plan reads as no plan);
+`lastStatus` is the latest session's status. `stoppedWithSymptoms` is true when that session
+ended `stopped` with at least one symptom code. Stops send no push (the patient chose chat), so
+this flag is where a doctor sees one. The web roster (`/PatientMonitoring/GetList`) carries the
+same object as `Rehab`, from the same helper (`helper/RehabPlayer.js` `MonitoringSummary`).
 
 `journal` returns `{ rows, labels, series{blood_pressure, blood_pressure2, pulse, weight} }`
 and refuses a patient you do not monitor with `403 NOT_MONITORED`.
@@ -782,7 +790,14 @@ GET /patients        ?search= &limit &offset      — min 3 characters, else 400
 GET /patients/:id
 ```
 
-`/patients/:id` → `{ patient, visits[20], journal{labels, series}, isMonitoredByMe }`.
+`/patients/:id` → `{ patient, visits[20], journal{labels, series}, isMonitoredByMe, monitoredBy }`.
+
+`monitoredBy` (added 2026-09-25) lists every doctor with the patient in their Миний хяналт:
+`[{ userId, name, organizationName, since, isMe }]`, where `name` is "Д.Бат". It carries names
+and organisations only, and it is not gated on care-team membership. It feeds the card banner
+("Хяналт тавьж буй эмч: … Та мөн хяналтандаа авах уу?"), which is how a doctor who is not yet on
+the team finds the patient and takes them. Several doctors may monitor one patient, and taking
+never removes anyone.
 
 ---
 

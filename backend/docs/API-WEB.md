@@ -35,11 +35,11 @@ endpoint-ийг жагсаана: зам, HTTP арга, хандах эрх, х
 |---|---|---|---|
 | public | Legacy нийтийн угтвар (`routeGroups.public`) — mount түвшинд токенгүй | 4 | 30 |
 | — үүнээс маршрут түвшинд токентой | `Auth.verifyToken`-г маршрут дээрээ шаарддаг |  | 18 |
-| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 273 |
-| — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 42 |
+| protected | Legacy хамгаалагдсан угтвар (`routeGroups.protected`) — `Auth.verifyToken` | 51 | 274 |
+| — үүнээс patient-allowed | Иргэний токенд мөн нээлттэй (`PATIENT_ALLOWED_PREFIXES`) | 7 | 43 |
 | api-layer | `/api/patient`, `/api/doctor`, `/api/auth`, `/api/base`, `/api/report` | 5 | 125 |
 | system | `GET /`, `GET /health` |  | 2 |
-| **Нийт** |  |  | **430** |
+| **Нийт** |  |  | **431** |
 
 api-layer задаргаа: `/api/Media` 12 · `/api/admin` 1 · `/api/auth` 5 · `/api/base` 6 · `/api/doctor` 46 · `/api/fhir` 5 · `/api/mobile` 2 · `/api/patient` 46 · `/api/report` 1 · `/api/time` 1.
 
@@ -170,7 +170,7 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ### 4.4. Өвчтөний тусламж үйлчилгээ — `controllers/patient-care/`
 
-Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 56 endpoint.
+Угтвар: `/api/Visit`, `/api/Stay`, `/api/FollowUp`, `/api/PatientMonitoring`, `/api/OrderHospitalization`, `/api/Patient`, `/api/RemoteVisit`, `/api/TenderForm`, `/api/RehabContent`, `/api/PatientTransfer`, `/api/PatientSendPage`, `/api/OutPatientInfo` · 57 endpoint.
 
 | Method | Path | Access | Controller файл | Зорилго (кодын тайлбараас) |
 |---|---|---|---|---|
@@ -185,11 +185,12 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 | `POST` | `/api/Stay/CustomSave` | token | `StayController.js:11` |  |
 | `POST` | `/api/Stay/LeavePatient` | token | `StayController.js:12` |  |
 | `POST` | `/api/FollowUp/CustomSave` | token | `FollowUpController.js:7` |  |
-| `POST` | `/api/PatientMonitoring/SavePatient` | token + patient allowed | `PatientMonitoringController.js:11` |  |
-| `POST` | `/api/PatientMonitoring/RemovePatient` | token + patient allowed | `PatientMonitoringController.js:12` |  |
-| `POST` | `/api/PatientMonitoring/CheckPatientMonitoring` | token + patient allowed | `PatientMonitoringController.js:13` | Is this patient NOT yet on the caller's list? |
-| `POST` | `/api/PatientMonitoring/GetList` | token + patient allowed | `PatientMonitoringController.js:14` |  |
-| `POST` | `/api/PatientMonitoring/getPressureChartData` | token + patient allowed | `PatientMonitoringController.js:15` |  |
+| `POST` | `/api/PatientMonitoring/SavePatient` | token + patient allowed | `PatientMonitoringController.js:13` |  |
+| `POST` | `/api/PatientMonitoring/RemovePatient` | token + patient allowed | `PatientMonitoringController.js:14` |  |
+| `POST` | `/api/PatientMonitoring/CheckPatientMonitoring` | token + patient allowed | `PatientMonitoringController.js:15` | Is this patient NOT yet on the caller's list? |
+| `POST` | `/api/PatientMonitoring/GetPatientMonitors` | token + patient allowed | `PatientMonitoringController.js:16` | Every doctor currently monitoring a patient, for the patient-card banner. |
+| `POST` | `/api/PatientMonitoring/GetList` | token + patient allowed | `PatientMonitoringController.js:17` |  |
+| `POST` | `/api/PatientMonitoring/getPressureChartData` | token + patient allowed | `PatientMonitoringController.js:18` |  |
 | `POST` | `/api/OrderHospitalization/GetCustomFormData` | token | `OrderHospitalizationController.js:10` |  |
 | `POST` | `/api/OrderHospitalization/CustomSave` | token | `OrderHospitalizationController.js:11` |  |
 | `POST` | `/api/OrderHospitalization/CheckPatient` | token | `OrderHospitalizationController.js:12` |  |
@@ -694,4 +695,4 @@ comment-ын эхний өгүүлбэр) авсан; тайлбаргүй ма�
 
 ---
 
-_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-24. Нийт endpoint: 430._
+_Энэ файлыг `scripts/generate_api_reference.js` автоматаар үүсгэв. Үүсгэсэн огноо: 2026-09-25. Нийт endpoint: 431._
